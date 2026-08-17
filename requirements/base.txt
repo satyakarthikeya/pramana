@@ -1,0 +1,18 @@
+# base.txt — shared by every module. Changing this affects all four members.
+# Rule (AGENTS.md §1.4): no silent dependency changes. Add the package AND say why.
+
+# Contracts / config
+pydantic>=2.7
+pydantic-settings>=2.3
+PyYAML>=6.0
+
+# Data (used by analysis, verification stats, and the sandbox whitelist alike)
+pandas>=2.2
+numpy>=1.26
+
+# Observability — all LLM calls must be traced (AGENTS.md §2)
+langfuse>=2.40
+structlog>=24.1
+
+# Env/secrets loaded from .env locally, secret manager in cloud
+python-dotenv>=1.0

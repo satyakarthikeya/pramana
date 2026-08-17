@@ -1,0 +1,10 @@
+# Full local development environment: pip install -r requirements.txt
+# Per-module dependency files live in requirements/ (see requirements/OWNERSHIP.md).
+# Docker images install only the subsets they need.
+
+-r requirements/base.txt
+-r requirements/analysis.txt
+-r requirements/verification.txt
+-r requirements/orchestration.txt
+-r requirements/memory.txt
+-r requirements/dev.txt

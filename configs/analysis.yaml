@@ -1,0 +1,29 @@
+# configs/analysis.yaml
+# Owner: P. Rohith — ingestion, cleaning, and hypothesis generation settings.
+
+ingestion:
+  max_rows: 200000
+  max_file_mb: 100
+  allowed_formats: [csv, xlsx]
+
+cleaning:
+  seed: 20260817             # cleaning must be reproducible
+  missing_strategy: flag     # flag | drop | impute — decide per column profile
+  outlier_method: iqr
+
+schema_inference:
+  use_llm_for_ambiguous_only: true   # heuristics first; Gemma only when unclear
+  model: gemma                        # local, cheap tasks only (AGENTS.md §2)
+
+hypotheses:
+  max_candidates_per_run: 50   # keeps BH-FDR sane; gateway shouldn't be flooded
+  strategies:
+    correlation: true
+    group_difference: true
+    trend: true
+  min_abs_correlation: 0.15    # exploratory pre-filter ONLY — never a verdict
+
+benchmark:
+  n_datasets: 40
+  excluded_famous: [iris, titanic, mtcars, boston, wine, diabetes]
+  forbidden_sources: [mimic-iv, physionet]   # license conflict (AGENTS.md §6)

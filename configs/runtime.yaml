@@ -1,0 +1,20 @@
+# configs/runtime.yaml
+# Owner: B. Karthikeya — graph, run lifecycle, and queue settings.
+
+run:
+  graph_timeout_seconds: 1800
+  max_node_retries: 2
+  on_exhausted_retries: degrade    # degraded run — never a silent PASS
+
+queue:
+  broker_url: redis://redis:6379/0
+  result_backend: redis://redis:6379/1
+  task_soft_time_limit: 90         # must exceed verification.executor.timeout_seconds
+
+langfuse:
+  enabled: true
+  # Host and keys come from env: LANGFUSE_HOST, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY
+
+logging:
+  level: INFO
+  format: json                     # structured logs (AGENTS.md §5)

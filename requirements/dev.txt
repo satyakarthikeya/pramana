@@ -1,0 +1,12 @@
+# dev.txt — tooling for everyone. Not installed in production images.
+
+-r base.txt
+
+pytest>=8.3
+pytest-cov>=5.0
+pytest-asyncio>=0.24
+hypothesis>=6.108        # property tests for the stats library
+
+ruff>=0.6                # lint + format
+mypy>=1.11               # type hints are mandatory on public functions (AGENTS.md §5)
+pre-commit>=3.8

@@ -1,0 +1,44 @@
+# Datasets never go in the repo (AGENTS.md §6)
+data/*
+!data/README.md
+!data/.gitkeep
+*.csv
+*.xlsx
+*.parquet
+
+# Secrets
+.env
+*.pem
+*.key
+
+# Local stores / artifacts
+chroma/
+.chroma/
+artifacts/
+*.db
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+
+# Tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

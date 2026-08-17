@@ -1,0 +1,13 @@
+# memory.txt — Verified memory, backend services, deployment
+# Owner: M. Karthik Reddy (CB.AI.U4AID23131) — scope/SCOPE_M_Karthik_Reddy.md
+
+-r base.txt
+
+# Vector store. NOTE: only src/pramana/memory/ may import this package —
+# there is a CI test that fails the build on stray chromadb imports.
+chromadb>=0.5
+
+# Backend
+fastapi>=0.112
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9  # dataset file upload

@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pramana"
+version = "0.1.0"
+description = "Self-evolving data analysis agent with execution-grounded verification"
+requires-python = ">=3.11"
+readme = "README.md"
+
+[project.urls]
+Documentation = "PROJECT.md"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# Dependencies are managed in requirements/ (one file per module).
+# See requirements/OWNERSHIP.md for why they are split that way.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q --strict-markers"
+markers = [
+    "slow: permutation/bootstrap heavy tests",
+    "llm: requires a live DeepSeek or Gemma call",
+    "integration: runs the full graph",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+packages = ["pramana"]
+mypy_path = "src"
+# Type hints are mandatory on public functions (AGENTS.md §5).
+disallow_untyped_defs = true
+warn_return_any = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Tighten as modules land; the gateway is held to the strictest bar from day one.
+module = "pramana.verification.*"
+strict = true

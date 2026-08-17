@@ -1,0 +1,19 @@
+# configs/memory.yaml
+# Owner: M. Karthik Reddy — ChromaDB, retrieval, and API settings.
+
+chroma:
+  host: chromadb
+  port: 8000
+  collection: verified_lessons
+  persist_path: /data/chroma        # persistent volume in deployment
+  embedding_model: all-MiniLM-L6-v2
+
+retrieval:
+  top_k: 5
+  min_similarity: 0.35
+  verified_only: true               # not a toggle — REJECTed content is never stored
+
+api:
+  host: 0.0.0.0
+  port: 8080
+  max_upload_mb: 100

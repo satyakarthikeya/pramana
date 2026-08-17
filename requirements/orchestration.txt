@@ -1,0 +1,12 @@
+# orchestration.txt — Architecture & workflow spine
+# Owner: B. Karthikeya (CB.AI.U4AID23109) — scope/SCOPE_B_Karthikeya.md
+
+-r base.txt
+
+# Agent graph
+langgraph>=0.2
+langchain-core>=0.3
+
+# Async execution of falsification code (queue plumbing here; task internals in verification)
+celery>=5.4
+redis>=5.0

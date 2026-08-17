@@ -1,0 +1,31 @@
+# configs/verification.yaml
+# Owner: P.P. Satya Karthikeya — the ONE place gateway thresholds live (AGENTS.md §3.3).
+# Nothing in src/pramana/verification/ may hardcode any of these values.
+
+statistics:
+  alpha: 0.05                # BH-FDR level, applied across the whole run
+  n_permutations: 10000
+  n_bootstrap: 5000
+  seed: 20260817             # configurable AND logged, for reproducibility (AGENTS.md §3.4)
+
+evidence:
+  # Deterministic score from q-value + effect size; verdict is PASS above the threshold.
+  threshold: 0.6
+  min_effect_size: 0.1       # tiny p + negligible effect is not a finding (AGENTS.md §3.5)
+
+executor:
+  timeout_seconds: 60
+  max_memory_mb: 1024
+  max_retries: 1             # after retries are exhausted: fail-closed, never PASS
+  allowed_imports:           # AGENTS.md §4 — untrusted LLM-generated code
+    - numpy
+    - pandas
+    - scipy
+    - sklearn
+    - pramana.verification.stats
+
+llm:
+  provider: deepseek         # DeepSeek V4 — verification only, never a local model
+  model: deepseek-v4
+  temperature: 0.0           # falsification code generation should be near-deterministic
+  # API key comes from the DEEPSEEK_API_KEY env var. Never put it in this file.

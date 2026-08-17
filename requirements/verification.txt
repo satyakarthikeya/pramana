@@ -1,0 +1,13 @@
+# verification.txt — Verification gateway
+# Owner: P.P. Satya Karthikeya (CB.AI.U4AID23128) — SCOPE.md
+
+-r base.txt
+
+# Statistics: permutation tests, bootstrap, effect sizes, BH-FDR reference checks
+scipy>=1.13
+statsmodels>=0.14        # BH-FDR cross-check in tests, not the production path
+scikit-learn>=1.5        # stats utilities available to sandboxed generated code
+
+# Verification LLM — DeepSeek V4, gateway ONLY (AGENTS.md §2).
+# OpenAI-compatible client pointed at the DeepSeek endpoint; key from env.
+openai>=1.40

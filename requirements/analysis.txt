@@ -1,0 +1,16 @@
+# analysis.txt — Data analysis module
+# Owner: P. Rohith (CB.AI.U4AID23123) — scope/SCOPE_P_Rohith.md
+
+-r base.txt
+
+# Ingestion
+openpyxl>=3.1            # XLSX upload support
+pyarrow>=16.0            # stable dtypes / parquet round-trips
+
+# Exploratory statistics for candidate generation (hints, never verdicts)
+scipy>=1.13
+
+# Local Gemma for schema inference / semantic classification (AGENTS.md §2).
+# Pick ONE runtime and delete the other once the team decides:
+ollama>=0.3
+# transformers>=4.44
