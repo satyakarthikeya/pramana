@@ -36,7 +36,7 @@ If a change would weaken this, stop and flag it instead of implementing it.
 
 Falsification code is LLM-generated and then executed — treat it as untrusted:
 - Execute in a **sandboxed/subprocess environment** with a timeout (via Celery worker).
-- Whitelist imports (numpy, pandas, scipy, sklearn stats only). No network, no file writes outside a temp dir.
+- Whitelist imports (numpy, pandas, and `pramana.verification.stats` only — the vetted library internally uses scipy, generated code may not import it directly). No network, no file writes outside a temp dir.
 - Cap memory/CPU per execution.
 - On timeout or crash: log to Langfuse, mark the test as failed, fail-closed.
 
