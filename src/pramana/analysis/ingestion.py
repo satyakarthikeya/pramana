@@ -8,7 +8,6 @@ from typing import Any
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field
 
-
 SUPPORTED_FORMATS = frozenset({".csv", ".xlsx"})
 DEFAULT_MISSING_MARKERS = ("?", "NA", "N/A", "NULL", "null", "")
 
