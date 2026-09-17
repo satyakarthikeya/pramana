@@ -1,0 +1,26 @@
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    TMPDIR=/tmp/pramana
+
+WORKDIR /app
+
+COPY requirements /app/requirements
+RUN pip install \
+    -r requirements/verification.txt \
+    -r requirements/orchestration.txt
+
+COPY pyproject.toml README.md /app/
+COPY src /app/src
+COPY configs /app/configs
+RUN pip install --no-deps -e . \
+    && addgroup --system pramana \
+    && adduser --system --ingroup pramana pramana \
+    && mkdir -p /tmp/pramana \
+    && chown pramana:pramana /tmp/pramana
+
+USER pramana
+
+CMD ["celery", "-A", "pramana.orchestration.tasks:celery_app", "worker", "--loglevel=INFO", "--concurrency=1"]
