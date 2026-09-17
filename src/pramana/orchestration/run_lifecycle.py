@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
-from typing import Any, cast
+from typing import Any
 from uuid import uuid4
 
 from pramana.common.config import RuntimeConfig, load_runtime_config
@@ -22,22 +22,22 @@ _TRANSITIONS: dict[RunStatus, set[RunStatus]] = {
 def new_run(
     dataset_ref: str | None = None,
     runtime: RuntimeConfig | None = None,
+    *,
+    user_query: str | None = None,
 ) -> PramanaState:
     """Create a pending run with a unique ID and validated runtime configuration."""
     return PramanaState(
         run_id=uuid4(),
         dataset_ref=dataset_ref,
+        user_query=user_query,
         runtime=runtime or load_runtime_config(),
     )
 
 
 def state_copy(state: PramanaState, update: Mapping[str, Any]) -> PramanaState:
-    """Return a validated copy on Pydantic 1 or 2."""
+    """Return a fully revalidated Pydantic v2 state copy."""
     values = {**state.__dict__, **dict(update)}
-    validator = getattr(PramanaState, "model_validate", None)
-    if validator is not None:
-        return cast(PramanaState, validator(values))
-    return PramanaState.parse_obj(values)
+    return PramanaState.model_validate(values)
 
 
 def transition(state: PramanaState, target: RunStatus) -> PramanaState:
@@ -80,7 +80,7 @@ def record_failure(
             attempt=attempt,
         ),
     ]
-    retries = {**state.retry_counts, node: attempt}
+    retries = {**state.retry_counts, node: attempt - 1}
     status = RunStatus.DEGRADED if exhausted else state.status
     return state_copy(state, {"errors": errors, "retry_counts": retries, "status": status})
 

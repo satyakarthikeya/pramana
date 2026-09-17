@@ -4,8 +4,7 @@ import pytest
 from celery.exceptions import TimeoutError as CeleryTimeoutError
 
 from pramana.orchestration.adapters import RetryableWorkflowError, celery_verification_adapter
-from pramana.orchestration.run_lifecycle import new_run
-from tests.unit.orchestration.helpers import candidate
+from tests.unit.orchestration.helpers import candidate, make_run
 
 
 class FakeAsyncResult:
@@ -26,7 +25,7 @@ class FakeAsyncResult:
 
 
 def test_celery_adapter_dispatches_complete_family(monkeypatch: pytest.MonkeyPatch) -> None:
-    state = new_run("toy.csv")
+    state = make_run("toy.csv")
     state.candidate_insights = [candidate("a"), candidate("b")]
     result = FakeAsyncResult({"proof_objects": []})
     captured: dict[str, Any] = {}
@@ -42,7 +41,8 @@ def test_celery_adapter_dispatches_complete_family(monkeypatch: pytest.MonkeyPat
 
 
 def test_celery_adapter_revokes_timeout_and_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
-    state = new_run("toy.csv")
+    state = make_run("toy.csv")
+    state.candidate_insights = [candidate("a")]
     result = FakeAsyncResult(error=CeleryTimeoutError())
     monkeypatch.setattr(
         "pramana.orchestration.tasks.enqueue_verification",
@@ -54,5 +54,17 @@ def test_celery_adapter_revokes_timeout_and_fails_closed(monkeypatch: pytest.Mon
 
 
 def test_celery_adapter_requires_dataset_reference() -> None:
+    state = make_run()
+    state.candidate_insights = [candidate("a")]
     with pytest.raises(ValueError, match="dataset_ref"):
-        celery_verification_adapter(new_run())
+        celery_verification_adapter(state)
+
+
+def test_celery_adapter_short_circuits_empty_family(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "pramana.orchestration.tasks.enqueue_verification",
+        lambda *_args: pytest.fail("an empty family must not be queued"),
+    )
+    assert celery_verification_adapter(make_run()) == {"proof_objects": []}

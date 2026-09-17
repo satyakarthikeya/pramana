@@ -47,6 +47,7 @@ class PramanaState(BaseModel):
     started_at: datetime | None = None
     deadline_at: datetime | None = None
     dataset_ref: str | None = None
+    user_query: str | None = None
     dataset: Any = None
     schema_profile: dict[str, Any] = Field(default_factory=dict)
     candidate_insights: list[CandidateInsight] = Field(default_factory=list)

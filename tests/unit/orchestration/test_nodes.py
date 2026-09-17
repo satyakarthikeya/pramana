@@ -5,12 +5,11 @@ import pytest
 from pramana.orchestration.nodes.memory_node import memory_node
 from pramana.orchestration.nodes.report_node import report_node
 from pramana.orchestration.nodes.verification_node import verification_node
-from pramana.orchestration.run_lifecycle import new_run
-from tests.unit.orchestration.helpers import candidate, proof
+from tests.unit.orchestration.helpers import candidate, make_run, proof
 
 
 def test_memory_node_forwards_only_explicit_pass() -> None:
-    state = new_run()
+    state = make_run()
     state.proof_objects = [proof("pass", passed=True), proof("reject", passed=False)]
     received: list[Any] = []
 
@@ -23,7 +22,7 @@ def test_memory_node_forwards_only_explicit_pass() -> None:
 
 
 def test_verification_node_rejects_duplicate_candidate_ids_before_dispatch() -> None:
-    state = new_run()
+    state = make_run()
     state.candidate_insights = [candidate("duplicate"), candidate("duplicate")]
     called = False
 
@@ -38,7 +37,7 @@ def test_verification_node_rejects_duplicate_candidate_ids_before_dispatch() -> 
 
 
 def test_report_node_rejects_an_unverified_insight() -> None:
-    state = new_run()
+    state = make_run()
 
     def unsafe_report(_state: Any) -> dict[str, Any]:
         return {"report": {"insights": [{"claim": "unsafe"}]}}
@@ -48,14 +47,14 @@ def test_report_node_rejects_an_unverified_insight() -> None:
 
 
 def test_report_node_rejects_malformed_report_shape() -> None:
-    state = new_run()
+    state = make_run()
 
     with pytest.raises(ValueError, match="mapping"):
         report_node(state, lambda _state: {"report": "unsafe"})
 
 
 def test_report_node_rejects_a_rejected_proof() -> None:
-    state = new_run()
+    state = make_run()
 
     def unsafe_report(_state: Any) -> dict[str, Any]:
         return {"report": {"insights": [{"claim": "unsafe", "proof": {"verdict": "REJECT"}}]}}
@@ -65,7 +64,7 @@ def test_report_node_rejects_a_rejected_proof() -> None:
 
 
 def test_report_node_rejects_forged_pass_not_issued_by_gateway() -> None:
-    state = new_run()
+    state = make_run()
 
     def forged_report(_state: Any) -> dict[str, Any]:
         return {
@@ -79,7 +78,7 @@ def test_report_node_rejects_forged_pass_not_issued_by_gateway() -> None:
 
 
 def test_report_node_accepts_original_claim_with_exact_pass_proof() -> None:
-    state = new_run()
+    state = make_run()
     original = candidate("x")
     issued = proof("x", passed=True)
     state.candidate_insights = [original]
@@ -102,7 +101,7 @@ def test_report_node_accepts_original_claim_with_exact_pass_proof() -> None:
 
 
 def test_report_node_rejects_mismatched_report_insight_id() -> None:
-    state = new_run()
+    state = make_run()
     original = candidate("x")
     issued = proof("x", passed=True)
     state.candidate_insights = [original]

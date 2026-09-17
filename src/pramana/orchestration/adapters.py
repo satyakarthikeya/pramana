@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from pramana.common.logging import get_logger
-from pramana.contracts import ProofObject
+from pramana.contracts import ProofObject, Verdict
 from pramana.orchestration.state import PramanaState
 
 NodeUpdate = Mapping[str, Any]
@@ -51,13 +51,23 @@ def _stub_memory(state: PramanaState, proofs: Sequence[ProofObject]) -> NodeUpda
     return {"memory_receipts": []}
 
 
-def _stub_report(state: PramanaState) -> NodeUpdate:
+def safe_report_adapter(state: PramanaState) -> NodeUpdate:
+    """Build a report containing only original claims with gateway-issued PASS proofs."""
+    candidates = {candidate.insight_id: candidate for candidate in state.candidate_insights}
     error_rows = [error.model_dump(mode="json") for error in state.errors]
     return {
         "report": {
             "run_id": str(state.run_id),
             "status": state.status.value,
-            "insights": [],
+            "insights": [
+                {
+                    "insight_id": proof.insight_id,
+                    "claim": candidates[proof.insight_id].claim,
+                    "proof": proof,
+                }
+                for proof in state.proof_objects
+                if proof.verdict is Verdict.PASS and proof.insight_id in candidates
+            ],
             "errors": error_rows,
         }
     }
@@ -84,7 +94,7 @@ def stub_adapters() -> WorkflowAdapters:
         analyze=_stub_analysis,
         verify=_stub_verification,
         memory_write=_stub_memory,
-        report=_stub_report,
+        report=safe_report_adapter,
         is_stub=True,
     )
 
@@ -110,6 +120,8 @@ def celery_verification_adapter(state: PramanaState) -> NodeUpdate:
 
     from pramana.orchestration.tasks import enqueue_verification
 
+    if not state.candidate_insights:
+        return {"proof_objects": []}
     if not state.dataset_ref:
         raise ValueError("dataset_ref is required for queued verification")
     candidates = [_serializable(candidate) for candidate in state.candidate_insights]

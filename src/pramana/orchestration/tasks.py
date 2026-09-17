@@ -7,10 +7,16 @@ import os
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any, cast
 
-from celery import Celery
+from celery import Celery, signals
 
 from pramana.common.config import load_runtime_config
-from pramana.common.logging import bind_run_context, get_logger
+from pramana.common.logging import (
+    bind_run_context,
+    clear_log_context,
+    configure_logging,
+    get_logger,
+)
+from pramana.contracts import ProofObject
 from pramana.orchestration.adapters import IntegrationDependencyError
 
 VerificationHandler = Callable[[Mapping[str, Any]], Mapping[str, Any]]
@@ -31,6 +37,29 @@ celery_app.conf.update(
     task_time_limit=_runtime.queue.task_hard_time_limit,
     worker_prefetch_multiplier=1,
 )
+
+
+def validate_worker_timeouts() -> None:
+    """Refuse a worker whose Celery soft limit cannot cover executor cleanup."""
+    from pramana.verification.config import load_config as load_verification_config
+
+    verification = load_verification_config()
+    if _runtime.queue.task_soft_time_limit <= verification.executor.timeout_seconds:
+        raise RuntimeError(
+            "Celery task_soft_time_limit must exceed verification executor timeout_seconds"
+        )
+
+
+@signals.setup_logging.connect  # type: ignore[untyped-decorator]
+def configure_worker_logging(**_kwargs: Any) -> None:
+    """Apply the project JSON logger when Celery initializes worker logging."""
+    configure_logging(_runtime.logging.level)
+
+
+@signals.worker_init.connect  # type: ignore[untyped-decorator]
+def validate_worker_configuration(**_kwargs: Any) -> None:
+    """Validate cross-module worker limits before accepting verification tasks."""
+    validate_worker_timeouts()
 
 
 def register_verification_handler(handler: VerificationHandler) -> None:
@@ -60,7 +89,7 @@ def _load_configured_handler() -> VerificationHandler:
     return _handler
 
 
-@celery_app.task(bind=True, name="pramana.verify_batch", acks_late=True)  # type: ignore[untyped-decorator]
+@celery_app.task(bind=True, name="pramana.verify_batch", acks_late=False)  # type: ignore[untyped-decorator]
 def verify_batch_task(
     self: Any,
     run_id: str,
@@ -77,10 +106,17 @@ def verify_batch_task(
     get_logger(component="celery", run_id=run_id).info(
         "verification_dispatched", n_candidates=len(candidates)
     )
-    result = _load_configured_handler()(request)
-    if not isinstance(result, Mapping) or "proof_objects" not in result:
-        raise ValueError("Verification handler must return a mapping containing proof_objects")
-    return result
+    try:
+        result = _load_configured_handler()(request)
+        if not isinstance(result, Mapping) or "proof_objects" not in result:
+            raise ValueError("Verification handler must return a mapping containing proof_objects")
+        proofs = [
+            item if isinstance(item, ProofObject) else ProofObject.model_validate(item)
+            for item in result["proof_objects"]
+        ]
+        return {"proof_objects": [proof.model_dump(mode="json") for proof in proofs]}
+    finally:
+        clear_log_context()
 
 
 def enqueue_verification(

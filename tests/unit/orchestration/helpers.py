@@ -1,5 +1,6 @@
 """Contract-valid fixtures local to the orchestration test suite."""
 
+from pramana.common.config import RuntimeConfig
 from pramana.contracts import (
     CandidateInsight,
     ClaimType,
@@ -10,6 +11,39 @@ from pramana.contracts import (
     TestType,
     Verdict,
 )
+from pramana.orchestration.run_lifecycle import new_run
+from pramana.orchestration.state import PramanaState
+
+
+def runtime_config() -> RuntimeConfig:
+    """Return deterministic runtime settings independent of developer environment."""
+    return RuntimeConfig.model_validate(
+        {
+            "run": {
+                "graph_timeout_seconds": 30,
+                "max_node_retries": 2,
+                "on_exhausted_retries": "degrade",
+            },
+            "queue": {
+                "broker_url": "redis://test.invalid/0",
+                "result_backend": "redis://test.invalid/1",
+                "task_soft_time_limit": 5,
+                "task_hard_time_limit": 6,
+                "result_timeout_seconds": 7,
+            },
+            "langfuse": {"enabled": False},
+            "logging": {"level": "INFO", "format": "json"},
+        }
+    )
+
+
+def make_run(
+    dataset_ref: str | None = None,
+    *,
+    user_query: str | None = None,
+) -> PramanaState:
+    """Create a run whose configuration never depends on YAML or shell variables."""
+    return new_run(dataset_ref, runtime=runtime_config(), user_query=user_query)
 
 
 def candidate(insight_id: str) -> CandidateInsight:

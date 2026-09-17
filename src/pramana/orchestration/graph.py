@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from datetime import UTC, datetime
 from typing import Any
 
 from pramana.common.langfuse_client import get_langfuse_client, traced_run
-from pramana.common.logging import bind_run_context, clear_log_context, get_logger
+from pramana.common.logging import (
+    bind_run_context,
+    clear_log_context,
+    configure_logging,
+    get_logger,
+)
 from pramana.contracts import Verdict
 from pramana.orchestration.adapters import (
     RetryableWorkflowError,
@@ -31,13 +36,11 @@ NodeCallable = Callable[[PramanaState], Mapping[str, Any]]
 def _as_state(value: PramanaState | Mapping[str, Any]) -> PramanaState:
     if isinstance(value, PramanaState):
         return value
-    validator = getattr(PramanaState, "model_validate", None)
-    return validator(value) if validator is not None else PramanaState.parse_obj(value)
+    return PramanaState.model_validate(value)
 
 
 def _dump_state(state: PramanaState) -> dict[str, Any]:
-    dumper = getattr(state, "model_dump", None)
-    return dumper(mode="python") if dumper is not None else state.dict()
+    return state.model_dump(mode="python")
 
 
 def _guarded(
@@ -60,8 +63,6 @@ def _guarded(
                 if current.deadline_at and datetime.now(UTC) >= current.deadline_at:
                     raise TimeoutError("Graph-level deadline exceeded")
                 update = dict(function(current))
-                if current.deadline_at and datetime.now(UTC) >= current.deadline_at:
-                    raise TimeoutError("Graph-level deadline exceeded")
                 update["errors"] = list(current.errors)
                 update["retry_counts"] = {**current.retry_counts, name: attempt - 1}
                 return update
@@ -182,11 +183,26 @@ def run_stub_graph(state: PramanaState) -> PramanaState:
 
 def run_graph(state: PramanaState, graph: Any) -> PramanaState:
     """Invoke a compiled graph under shared logging and Langfuse run context."""
+    configure_logging(state.runtime.logging.level)
     run_id = str(state.run_id)
     bind_run_context(run_id)
     client = get_langfuse_client(state.runtime.langfuse)
     try:
         with traced_run(client, run_id):
             return _as_state(graph.invoke(state))
+    finally:
+        clear_log_context()
+
+
+def stream_graph(state: PramanaState, graph: Any) -> Iterator[PramanaState]:
+    """Yield validated state snapshots after each graph update for live progress views."""
+    configure_logging(state.runtime.logging.level)
+    run_id = str(state.run_id)
+    bind_run_context(run_id)
+    client = get_langfuse_client(state.runtime.langfuse)
+    try:
+        with traced_run(client, run_id):
+            for value in graph.stream(state, stream_mode="values"):
+                yield _as_state(value)
     finally:
         clear_log_context()

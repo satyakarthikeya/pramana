@@ -81,7 +81,11 @@ class RuntimeConfig(StrictSettings):
 
 def load_yaml(name: str) -> dict[str, Any]:
     """Load a project config mapping without resolving secrets."""
-    path = config_path(name)
+    return _load_yaml_path(config_path(name))
+
+
+def _load_yaml_path(path: Path) -> dict[str, Any]:
+    """Load one YAML mapping from an already-resolved path."""
     if not path.is_file():
         raise FileNotFoundError(f"Configuration file does not exist: {path}")
     with path.open("r", encoding="utf-8") as handle:
@@ -117,8 +121,4 @@ def load_runtime_config() -> RuntimeConfig:
 
 def load_config_file(path: Path, model: type[ModelT]) -> ModelT:
     """Validate an explicit YAML file, primarily for isolated tests and tooling."""
-    with path.open("r", encoding="utf-8") as handle:
-        loaded = yaml.safe_load(handle)
-    if not isinstance(loaded, dict):
-        raise ValueError(f"Configuration root must be a mapping: {path}")
-    return model.model_validate(loaded)
+    return model.model_validate(_load_yaml_path(path))

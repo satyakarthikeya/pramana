@@ -27,3 +27,13 @@ PRAMANA_VERIFICATION_HANDLER=pramana.verification.<module>:<function>
 
 The handler receives one mapping containing `run_id`, `dataset_ref`, and the complete
 `candidate_insights` family. It must return a mapping containing `proof_objects`.
+
+The worker deliberately has no public egress because it executes untrusted generated code.
+The current default `llm.generator: template` therefore works offline. Before switching the
+verification configuration to the DeepSeek generator, falsification-code generation and
+Langfuse export must run in an egress-enabled trusted API/gateway process, with only the
+generated program dispatched to the isolated execution worker. Do not add general egress to
+the worker: that would also give generated code a network path and violate `AGENTS.md` section
+4. Worker-side Langfuse delivery is consequently unavailable in the current topology; its
+events must be emitted by the trusted gateway process or forwarded through a future bounded
+telemetry channel.
