@@ -2,12 +2,14 @@
 
 The acceptance criterion these tests exist to hold is narrow and hard: every object
 this module emits must pass the gateway unpatched. That means the real contract model
-(`pramana.contracts.CandidateInsight`), the real variable ordering the falsification
-templates unpack, and the real admissibility screen -- so one test here deliberately
-imports the gateway's screen. It is the only cross-module import in this folder and it
-is here as an interface-contract check: if the screen's vocabulary changes, the
-analysis module's claim templates should fail loudly in analysis's own suite rather
-than silently start producing NOT_TESTABLE claims in production.
+(`pramana.contracts.CandidateInsight`) and the real variable ordering the falsification
+templates unpack.
+
+Nothing here imports another member's module. `tests/` mirrors `src/` ownership
+(`tests/OWNERSHIP.md`), so this suite must run on the analysis module alone. The half
+of the criterion that needs the gateway's own admissibility screen is an integration
+property and lives in
+`tests/integration/test_candidate_generation_clears_admissibility.py`.
 
 `SCOPE_P_Rohith.md` 6 runs on the shared toy frame: one strong planted relationship,
 one pure-noise pair, one group difference. `tests/fixtures/frames.py` builds exactly
@@ -28,7 +30,6 @@ from pramana.analysis.hypotheses.generation import analyse, generate_candidates
 from pramana.analysis.schema_inference import SchemaProfile, infer_schema
 from pramana.contracts.candidate_insight import CandidateInsight
 from pramana.contracts.enums import ClaimType, Direction
-from pramana.verification.admissibility import screen
 from tests.fixtures.frames import toy_frame
 
 DATASET_REF = "toy_frame"
@@ -94,25 +95,6 @@ def test_nothing_is_marked_verified(candidates: list[CandidateInsight]) -> None:
     for candidate in candidates:
         assert not verdict_shaped & set(candidate.analysis_evidence)
         assert candidate.analysis_evidence["source"].endswith("not a test result")
-
-
-def test_every_candidate_survives_the_gateway_admissibility_screen(
-    candidates: list[CandidateInsight], frame: pd.DataFrame
-) -> None:
-    """The handoff criterion: the gateway accepts the whole batch, unpatched.
-
-    This is the one cross-module import in the analysis suite, and it is the point of
-    the exercise -- a claim template that trips the universal or causal vocabulary
-    should fail here, not in a run.
-    """
-    columns = [str(name) for name in frame.columns]
-
-    refused = {
-        candidate.insight_id: screen(candidate, columns).reason
-        for candidate in candidates
-        if not screen(candidate, columns).admissible
-    }
-    assert refused == {}
 
 
 # --- the contract ----------------------------------------------------------
@@ -405,34 +387,6 @@ def test_a_claim_screen_drops_what_it_refuses(
 
     assert candidates
     assert all(candidate.claim_type is not ClaimType.TREND for candidate in candidates)
-
-
-def test_the_gateway_screen_itself_can_be_passed_as_the_claim_screen(
-    frame: pd.DataFrame, schema: SchemaProfile, config: AnalysisConfig
-) -> None:
-    """Orchestration imports both modules; wiring the real screen in must work."""
-    columns = [str(name) for name in frame.columns]
-
-    def gateway_screen(claim: str, claim_type: ClaimType, variables: list[str]) -> bool:
-        return screen(
-            CandidateInsight(
-                insight_id="screen-probe",
-                claim=claim,
-                claim_type=claim_type,
-                variables=variables,
-                dataset_ref=DATASET_REF,
-            ),
-            columns,
-        ).admissible
-
-    screened = generate_candidates(
-        frame, schema, config.hypotheses, dataset_ref=DATASET_REF, claim_screen=gateway_screen
-    )
-    unscreened = generate_candidates(
-        frame, schema, config.hypotheses, dataset_ref=DATASET_REF
-    )
-
-    assert screened == unscreened
 
 
 # --- determinism and purity ------------------------------------------------
