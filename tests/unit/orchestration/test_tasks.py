@@ -55,11 +55,14 @@ def test_worker_timeout_covers_executor_timeout() -> None:
 def test_worker_refuses_soft_limit_that_cannot_cover_executor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from pramana.verification.config import load_config as load_verification_config
+
+    executor_timeout = load_verification_config().executor.timeout_seconds
     bad_queue = tasks._runtime.queue.model_copy(
         update={
-            "task_soft_time_limit": 60,
-            "task_hard_time_limit": 65,
-            "result_timeout_seconds": 70,
+            "task_soft_time_limit": executor_timeout,
+            "task_hard_time_limit": executor_timeout + 5,
+            "result_timeout_seconds": executor_timeout + 10,
         }
     )
     monkeypatch.setattr(tasks, "_runtime", tasks._runtime.model_copy(update={"queue": bad_queue}))
