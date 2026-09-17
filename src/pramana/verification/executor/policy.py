@@ -54,8 +54,21 @@ FORBIDDEN_BUILTINS: frozenset[str] = frozenset(
         "input",
         "breakpoint",
         "memoryview",
+        # Reflection: `getattr(obj, "__subclasses__")` walks straight past the dunder
+        # attribute check below, and `type` builds classes at runtime.
+        "getattr",
+        "setattr",
+        "delattr",
+        "type",
     }
 )
+
+#: The one module under the permitted stats package that generated code may never
+#: touch. `provenance.stamp` is what turns a number into evidence; code that can call
+#: it can stamp a fabricated number, and the whole check becomes decorative. Blocked
+#: by name in every form -- module path, imported name, attribute -- because a
+#: submodule of a whitelisted package is otherwise permitted by prefix.
+PROVENANCE_MODULE = "provenance"
 
 #: Modules that are import machinery in their own right. Listed separately from the
 #: whitelist check so the refusal says WHY rather than just "not permitted".
@@ -83,6 +96,12 @@ def _is_permitted(module: str, allowed: Sequence[str]) -> bool:
 
 def _check_module(module: str, allowed: Sequence[str], node: ast.AST) -> None:
     line = getattr(node, "lineno", "?")
+    if PROVENANCE_MODULE in module.split("."):
+        raise ImportPolicyViolation(
+            f"line {line}: generated code requests {module!r}. The provenance module is "
+            f"what stamps a result as evidence; code that can reach it can stamp a "
+            f"fabricated number, so it is off the import surface entirely."
+        )
     if module.split(".")[0] in IMPORT_MACHINERY:
         raise ImportPolicyViolation(
             f"line {line}: generated code requests {module!r}, which is import machinery. "
@@ -102,8 +121,10 @@ def check_imports(source: str, allowed_imports: Sequence[str]) -> None:
 
     Guarantees: returns None only when the source parses AND every `import` /
     `from ... import` names a permitted module AND no dynamic escape hatch appears
-    anywhere in the tree. Raises `ImportPolicyViolation` otherwise -- there is no
-    "warn and continue" path, because a warning nobody reads is not a policy.
+    anywhere in the tree AND the provenance module and every private (`_`-prefixed)
+    name of the stats package stay unreachable. Raises `ImportPolicyViolation`
+    otherwise -- there is no "warn and continue" path, because a warning nobody reads
+    is not a policy.
 
     Raises `ValueError` for an empty whitelist: that is a misconfiguration, not a
     statement about the code, and it must not be read as "permit nothing" (the gate
@@ -124,6 +145,7 @@ def check_imports(source: str, allowed_imports: Sequence[str]) -> None:
             f"Code we cannot read is code we cannot vouch for."
         ) from error
 
+    module_names = _imported_names(tree)
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
@@ -138,6 +160,14 @@ def check_imports(source: str, allowed_imports: Sequence[str]) -> None:
                     f"reach somewhere it should not."
                 )
             _check_module(node.module or "", allowed_imports, node)
+            for alias in node.names:
+                _check_imported_name(alias.name, node)
+
+        elif isinstance(node, ast.Name) and node.id == PROVENANCE_MODULE:
+            raise ImportPolicyViolation(
+                f"line {node.lineno}: generated code names {PROVENANCE_MODULE!r}. The "
+                f"provenance module stamps results as evidence and is off limits."
+            )
 
         elif isinstance(node, ast.Name) and node.id in FORBIDDEN_BUILTINS:
             raise ImportPolicyViolation(
@@ -151,6 +181,83 @@ def check_imports(source: str, allowed_imports: Sequence[str]) -> None:
                 f"{node.attr!r}. Introspection chains such as "
                 f"().__class__.__subclasses__() walk out of the policy entirely."
             )
+
+        elif isinstance(node, ast.Attribute) and node.attr == PROVENANCE_MODULE:
+            # `result.provenance` is the stamp STRING on a vetted result, and the
+            # templates must read it to build the payload. `stats.provenance` is the
+            # MODULE. Syntactically identical, so the chain's root decides: rooted at
+            # an imported name (or an alias of one), it is the module.
+            root = _chain_root(node)
+            if root is None or root in module_names:
+                raise ImportPolicyViolation(
+                    f"line {node.lineno}: generated code reaches for the attribute "
+                    f"{node.attr!r} through an imported module. Importing a submodule "
+                    f"binds it on its package, so `pramana.verification.stats.provenance` "
+                    f"is reachable as an attribute even when never imported by name."
+                )
+
+        elif isinstance(node, ast.Attribute) and node.attr.startswith("_"):
+            raise ImportPolicyViolation(
+                f"line {node.lineno}: generated code reaches for the private attribute "
+                f"{node.attr!r}. The stats package's private helpers include the one that "
+                f"stamps a result, and a leading underscore is the only thing marking "
+                f"them as not part of the vetted surface."
+            )
+
+
+def _imported_names(tree: ast.AST) -> frozenset[str]:
+    """Every local name bound to a module or an imported object, plus plain aliases.
+
+    `import a.b as m` binds `m`; `import a.b` binds `a`; `from a import f` binds `f`.
+    A bare `x = m` rebinding is followed one hop, so `x.provenance` is still caught.
+    Anything more indirect is outside the threat model (an LLM taking a shortcut,
+    not an adversary), and the runner's stamp check is the lock behind this one.
+    """
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.update(alias.asname or alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            names.update(alias.asname or alias.name for alias in node.names)
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Assign)
+            and isinstance(node.value, ast.Name)
+            and node.value.id in names
+        ):
+            names.update(t.id for t in node.targets if isinstance(t, ast.Name))
+    return frozenset(names)
+
+
+def _chain_root(node: ast.Attribute) -> str | None:
+    """The `Name` an attribute chain hangs off, or None when it hangs off an expression.
+
+    None is treated as suspicious by the caller: `(x).provenance` where `x` is not a
+    plain name could be anything, and fail-closed means refusing what cannot be read.
+    """
+    value: ast.expr = node.value
+    while isinstance(value, ast.Attribute):
+        value = value.value
+    return value.id if isinstance(value, ast.Name) else None
+
+
+def _check_imported_name(name: str, node: ast.AST) -> None:
+    """Refuse `from <module> import <name>` when `name` is private or the stamper.
+
+    `from pramana.verification.stats.permutation import _stamped` would hand generated
+    code the function that signs a result, with no forbidden module on the line.
+    """
+    line = getattr(node, "lineno", "?")
+    if name == PROVENANCE_MODULE:
+        raise ImportPolicyViolation(
+            f"line {line}: generated code imports {name!r}. The provenance module stamps "
+            f"results as evidence; code that can reach it can stamp a fabricated number."
+        )
+    if name.startswith("_"):
+        raise ImportPolicyViolation(
+            f"line {line}: generated code imports the private name {name!r}. Only the "
+            f"public, vetted surface of the stats package is available to generated code."
+        )
 
 
 def _is_dunder(name: str) -> bool:

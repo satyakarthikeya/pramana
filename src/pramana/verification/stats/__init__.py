@@ -10,6 +10,12 @@ The flat re-export exists for that generated code: the templates emit a single
 `from pramana.verification.stats import (...)` line, which keeps the generated module
 readable and keeps the import policy check trivial to write.
 
+`provenance` is deliberately NOT re-exported here, and `executor/policy.py` refuses it
+by name in every form. The stamper is what turns a number into evidence; the internal
+modules import it directly (`from pramana.verification.stats import provenance`), and
+that binding on the package is exactly why the policy blocks the attribute as well as
+the import.
+
 Owner: P.P. Satya Karthikeya
 Scope: SCOPE.md 4 step 2
 """

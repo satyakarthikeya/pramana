@@ -183,7 +183,9 @@ def hedges_g(a: ArrayLike, b: ArrayLike) -> float:
         (first.size - 1) * np.var(first, ddof=1) + (second.size - 1) * np.var(second, ddof=1)
     ) / (first.size + second.size - 2)
     if pooled_variance <= 0.0:
-        raise ValueError("pooled standard deviation is zero; a standardised difference is undefined")
+        raise ValueError(
+            "pooled standard deviation is zero; a standardised difference is undefined"
+        )
     cohens_d = float((np.mean(first) - np.mean(second)) / np.sqrt(pooled_variance))
     correction = 1.0 - 3.0 / (4.0 * (first.size + second.size) - 9.0)
     return cohens_d * correction

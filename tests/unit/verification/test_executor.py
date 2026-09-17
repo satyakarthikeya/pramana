@@ -263,3 +263,137 @@ def test_stamp_does_not_verify_against_a_different_run(
     assert first.payload is not None and second.payload is not None
     assert first.payload["p_value"] == second.payload["p_value"], "same seed, same result"
     assert first.payload["provenance"] != second.payload["provenance"], "different nonce"
+
+
+# --- non-finite effect sizes ---------------------------------------------
+
+
+@pytest.mark.parametrize("effect", ["float('nan')", "float('inf')", "-float('inf')"])
+def test_non_finite_effect_size_fails_closed(
+    config: VerificationConfig, frame: pd.DataFrame, effect: str
+) -> None:
+    """`json.loads` accepts NaN and every comparison against it is False, so an unchecked
+    NaN effect would reach the gate and pass the magnitude check it never took. The
+    executor refuses it before the gate ever sees it.
+    """
+    program = _program(
+        "def falsify(frame):\n"
+        f"    return {{'p_value': 0.001, 'effect_size': {effect},\n"
+        "            'effect_metric': 'spearman_rho',\n"
+        "            'reported_effect': 0.9, 'seed': 7, 'statistic': 0.9,\n"
+        "            'n_permutations': 1000, 'provenance': 'x'}\n"
+    )
+    result = execute(program, frame, config)
+    assert not result.ok
+    assert result.payload is None
+    assert "effect_size" in (result.failure_reason or "")
+    assert "not a finite number" in (result.failure_reason or "")
+
+
+# --- the effect size is under the stamp -----------------------------------
+
+
+def test_effect_size_that_is_not_the_stamped_statistic_is_rejected(
+    config: VerificationConfig, frame: pd.DataFrame
+) -> None:
+    """The stamp covers `statistic`; the gate decides on `effect_size`. This program
+    calls the real permutation test (so the stamp verifies) and then reports a larger
+    effect than the statistic it was stamped with. Without the equality check a
+    negligible-but-significant claim could be promoted to PASS by editing one field.
+    """
+    program = _program(
+        "from pramana.verification.stats import permutation_test, spearman_rho\n"
+        "\n"
+        "def falsify(frame):\n"
+        "    pair = frame[['age', 'bmi']].dropna()\n"
+        "    r = permutation_test(pair['age'], pair['bmi'], spearman_rho,\n"
+        f"                         n_permutations={config.statistics.n_permutations},\n"
+        f"                         seed={config.statistics.seed})\n"
+        "    return {'p_value': r.p_value, 'effect_size': 0.95, 'effect_metric': 'spearman_rho',\n"
+        "            'reported_effect': 0.95, 'seed': r.seed, 'statistic': r.statistic,\n"
+        "            'n_permutations': r.n_permutations, 'provenance': r.provenance}\n"
+    )
+    result = execute(program, frame, config)
+    assert not result.ok
+    assert "not the stamped statistic" in (result.failure_reason or "")
+
+
+# --- the test must be the configured test ---------------------------------
+
+
+@pytest.mark.parametrize(
+    ("n_permutations", "seed"),
+    [
+        ("N_PERMUTATIONS", "SEED + 1"),  # private seed: not reproducible
+        ("10", "SEED"),  # under-powered: floor 1/11 looks like a real p-value
+    ],
+)
+def test_genuinely_stamped_result_with_wrong_config_is_rejected(
+    config: VerificationConfig, frame: pd.DataFrame, n_permutations: str, seed: str
+) -> None:
+    """A stamp proves the numbers came from `permutation_test`. It does not prove the
+    test was the one this run promised to reproduce (AGENTS.md 3.4)."""
+    program = _program(
+        "from pramana.verification.stats import permutation_test, spearman_rho\n"
+        f"N_PERMUTATIONS = {config.statistics.n_permutations}\n"
+        f"SEED = {config.statistics.seed}\n"
+        "\n"
+        "def falsify(frame):\n"
+        "    pair = frame[['age', 'bmi']].dropna()\n"
+        "    r = permutation_test(pair['age'], pair['bmi'], spearman_rho,\n"
+        f"                         n_permutations={n_permutations}, seed={seed})\n"
+        "    return {'p_value': r.p_value, 'effect_size': r.statistic,\n"
+        "            'effect_metric': 'spearman_rho', 'reported_effect': r.statistic,\n"
+        "            'seed': r.seed, 'statistic': r.statistic,\n"
+        "            'n_permutations': r.n_permutations, 'provenance': r.provenance}\n"
+    )
+    result = execute(program, frame, config)
+    assert not result.ok
+    assert "configured for" in (result.failure_reason or "")
+
+
+# --- the stamper itself is unreachable ------------------------------------
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from pramana.verification.stats import provenance",
+        "from pramana.verification.stats.provenance import stamp",
+        "import pramana.verification.stats.provenance",
+        "import pramana.verification.stats as s\ns.provenance.stamp((1,))",
+        "import pramana.verification.stats.permutation as pm\npm.provenance",
+        "from pramana.verification.stats.permutation import _stamped",
+        "import pramana.verification.stats.permutation as pm\npm._stamped(0.1, 0.9, 1000, 7)",
+        "import pramana.verification.stats as s\nalias = s\nalias.provenance.stamp((1,))",
+        "import pramana.verification.stats\npramana.verification.stats.provenance.stamp((1,))",
+    ],
+)
+def test_provenance_module_and_private_helpers_are_unreachable(source: str) -> None:
+    """Whitelisting the stats package by prefix would otherwise admit its stamper. Code
+    that can call `provenance.stamp` can stamp a fabricated number, and the whole
+    check becomes decorative."""
+    with pytest.raises(ImportPolicyViolation):
+        check_imports(source, ALLOWED)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "getattr(object, '__subclasses__')",
+        "setattr(object, 'x', 1)",
+        "delattr(object, 'x')",
+        "type('X', (), {})",
+    ],
+)
+def test_reflection_builtins_are_blocked(source: str) -> None:
+    """`getattr(obj, "__subclasses__")` walks straight past the dunder-attribute check."""
+    with pytest.raises(ImportPolicyViolation, match="builtin"):
+        check_imports(source, ALLOWED)
+
+
+def test_the_template_still_passes_the_tightened_policy(config: VerificationConfig) -> None:
+    """The template names `_paired_numeric` as a plain local function and reads the stamp
+    STRING as `result.provenance`; the rules target imports, attributes on imported
+    modules and private names, so the real code stays admissible."""
+    check_imports(generate_from_template(TRUE_CORRELATION, config).source, ALLOWED)

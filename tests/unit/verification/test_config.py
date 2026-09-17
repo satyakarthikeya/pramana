@@ -141,3 +141,16 @@ def test_unknown_key_raises_at_load_time(tmp_path: Path) -> None:
     target.write_text(yaml.safe_dump(raw), encoding="utf-8")
     with pytest.raises(ValidationError):
         load_config(target)
+
+
+def test_floor_at_or_above_alpha_is_refused_at_load_time(tmp_path: Path) -> None:
+    """1000 permutations floor p at ~0.001; an alpha at or below that makes the
+    significance leg divide by log(1) and would raise on the first PASS. Refuse the
+    combination when the config loads, not when the run is nearly over."""
+    raw = yaml.safe_load(SHIPPED_CONFIG.read_text(encoding="utf-8"))
+    raw["statistics"]["n_permutations"] = 1000
+    raw["statistics"]["alpha"] = 0.0005
+    target = tmp_path / "floor.yaml"
+    target.write_text(yaml.safe_dump(raw), encoding="utf-8")
+    with pytest.raises(ValidationError, match="must be below alpha"):
+        load_config(target)

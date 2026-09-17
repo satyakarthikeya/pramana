@@ -96,7 +96,9 @@ class EffectBand(BaseModel):
     @model_validator(mode="after")
     def _ordered(self) -> Self:
         if not self.min < self.strong:
-            raise ValueError(f"effect band needs min < strong; got min={self.min}, strong={self.strong}")
+            raise ValueError(
+                f"effect band needs min < strong; got min={self.min}, strong={self.strong}"
+            )
         return self
 
 
@@ -184,6 +186,24 @@ class VerificationConfig(BaseModel):
     evidence: EvidenceConfig
     executor: ExecutorConfig
     llm: LLMConfig
+
+    @model_validator(mode="after")
+    def _floor_is_below_alpha(self) -> Self:
+        """Guarantees: `significance_leg` is defined for every q the run can produce.
+
+        The leg divides by `log(alpha / p_value_floor)`, so a config whose floor is at
+        or above alpha would raise at scoring time -- on the first claim to PASS, after
+        the expensive part. A test with that few resamples also cannot resolve
+        significance at that alpha at all, so the combination is refused at load.
+        """
+        if not self.p_value_floor < self.statistics.alpha:
+            raise ValueError(
+                f"p_value_floor 1/(n_permutations+1) = {self.p_value_floor:.3g} must be "
+                f"below alpha = {self.statistics.alpha}; with "
+                f"{self.statistics.n_permutations} permutations no p-value can clear this "
+                f"alpha, and the significance leg would be undefined"
+            )
+        return self
 
     @property
     def p_value_floor(self) -> float:
