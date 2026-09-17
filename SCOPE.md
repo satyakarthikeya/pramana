@@ -73,3 +73,16 @@ Feed the gateway a small dataframe with:
 Expected: true relationship → PASS with sensible effect size; false correlation → REJECT;
 all verdicts carry complete proof objects; nothing REJECTed appears in the memory-guard's
 accepted output.
+
+## 7. Open items (not yet done, carried deliberately)
+
+These are known gaps in this scope, recorded so they are not mistaken for oversights.
+Details and the decision each one needs are in `docs/OPEN_ISSUES.md`.
+
+| # | Item | Blocking what |
+|---|---|---|
+| 1 | **Effect-size bands are PROVISIONAL.** The five per-metric bands in `configs/verification.yaml` are structural placeholders chosen to be defensible and to satisfy the test suite, not calibrated against the demo data. They decide what PASSes. | Calibrate against the real NHANES / NFHS-5 subset BEFORE step 7 (gateway). Discovering at demo time that a floor rejects the planted true relationship is the failure this exists to prevent. |
+| 2 | **No categorical-vs-categorical claim type.** `EffectMetric.CRAMERS_V` is implemented, banded and tested, but no `ClaimType` can produce a contingency table, so it never fires. | A decision: add the claim type (contract change, needs announcing) or declare it out of scope here. |
+| 3 | **`bootstrap_ci` is not wired to any template.** Implemented and tested (step 2), but no falsification template calls it, so no proof object ever carries a confidence interval and `TestType.BOOTSTRAP` is unreachable. | Nothing. Deliberate future work / episode-mode capability. |
+| 4 | **`sens_slope` has an O(n^2) row ceiling.** All pairwise slopes are materialised, so the estimator refuses datasets above a documented row count rather than exhausting the sandbox's memory cap. | Nothing at demo scale (500-2,000 rows). Disclose the ceiling in the report's limitations section. |
+| 5 | **Permutation cost is unmeasured at benchmark scale.** 10,000 resamples per insight against a 60s executor timeout is comfortable for one demo dataset; 40 datasets x many candidates is not measured. | Measure during the ablation harness (step 9), not before. |
