@@ -8,6 +8,7 @@ CSV/XLSX input
   -> conservative cleaning and audit report
   -> descriptive profiling and exploratory relationship evidence
   -> future CandidateInsight generation
+  -> benchmark source manifest and contamination screening
 ```
 
 ## Implemented files
@@ -32,6 +33,19 @@ CSV/XLSX input
 Relationship evidence is not a verification verdict and is never presented as
 causal proof. Downstream verification owns falsification and PASS/REJECT
 decisions.
+
+## Benchmark curation
+
+`src/pramana/analysis/benchmark/curation.py` builds a Pydantic manifest of 40
+source records without copying raw data into Git. Each record includes its
+source family, official source URL, reproducibility seed, and an auditable
+contamination-screening result. `screen_source` rejects famous benchmark
+datasets and forbidden MIMIC/PhysioNet sources before a manifest can be marked
+ready.
+
+The manifest is metadata only. Local benchmark files must live under the
+gitignored `data/benchmark/` directory and can be checked with
+`validate_local_files`.
 
 ## Tests
 
