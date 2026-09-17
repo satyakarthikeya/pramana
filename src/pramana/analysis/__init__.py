@@ -10,6 +10,7 @@ Scope: scope/SCOPE_P_Rohith.md
 
 from .cleaning import CleaningReport, clean_dataset
 from .config import AnalysisConfig, load_config
+from .hypotheses.generation import analyse, generate_candidates
 from .ingestion import DatasetMetadata, get_dataset_metadata, load_dataset
 from .profiling import profile_dataset
 from .schema_inference import (
@@ -30,8 +31,10 @@ __all__ = [
     "DatasetMetadata",
     "SchemaProfile",
     "SemanticRefiner",
+    "analyse",
     "clean_dataset",
     "describe_unusable",
+    "generate_candidates",
     "get_dataset_metadata",
     "infer_schema",
     "load_config",
