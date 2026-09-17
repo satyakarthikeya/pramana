@@ -47,6 +47,16 @@ The manifest is metadata only. Local benchmark files must live under the
 gitignored `data/benchmark/` directory and can be checked with
 `validate_local_files`.
 
+## Demo dataset
+
+`build_demo_from_diabetes` accepts the local `demodataset/diabetic_data.csv`
+source directory and creates a reproducible 500–2,000 row demo CSV under the
+ignored `data/demo/` directory. It preserves hospital variables such as
+length of stay, lab procedures, medication count, utilization, demographics,
+and readmission status. It also adds one independently shuffled
+`injected_false_signal` column so the gateway receives a known noise
+relationship without modifying the source dataset.
+
 ## Tests
 
 Focused coverage is in:
