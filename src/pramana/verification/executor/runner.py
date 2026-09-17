@@ -348,7 +348,10 @@ def _resource_limits(config: VerificationConfig) -> dict[str, Any]:
     limit = config.executor.max_memory_mb * 1024 * 1024
 
     def _apply() -> None:  # pragma: no cover -- runs in the forked child
-        resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+        # `setrlimit` and `RLIMIT_AS` are POSIX-only and absent from the Windows stubs.
+        # The import above already returned on any platform that lacks them, so this
+        # line is unreachable there; the ignore silences a platform artifact, not a bug.
+        resource.setrlimit(resource.RLIMIT_AS, (limit, limit))  # type: ignore[attr-defined]
 
     return {"preexec_fn": _apply}
 
@@ -372,7 +375,10 @@ def execute(
         return _failed(program.insight_id, f"import policy violation: {violation}")
 
     attempts = 0
-    reason = "execution was never attempted"
+    # Annotated, not inferred: `_run_once` returns `str | None` for the reason, and an
+    # inferred `str` from this initial value makes that assignment a type error. The
+    # `or` at the return site below is what turns a None back into a usable string.
+    reason: str | None = "execution was never attempted"
     for attempts in range(1, config.executor.max_retries + 2):
         payload, reason, retryable = _run_once(program, frame, config)
         if payload is not None:
