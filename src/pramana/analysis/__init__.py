@@ -2,10 +2,11 @@
 
 Proposer role only. Nothing here may label an insight verified or true.
 
+Covers data ingestion, cleaning, profiling, and candidate analysis.
+
 Owner: P. Rohith
 Scope: scope/SCOPE_P_Rohith.md
 """
-"""Researcher 2 data ingestion, cleaning, profiling, and candidate analysis."""
 
 from .cleaning import CleaningReport, clean_dataset
 from .ingestion import DatasetMetadata, get_dataset_metadata, load_dataset
