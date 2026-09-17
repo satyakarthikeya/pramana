@@ -1,7 +1,22 @@
-"""Orchestration spine: LangGraph graph, run lifecycle, Celery plumbing.
+"""Orchestration spine: graph, run lifecycle, and queue plumbing."""
 
-Calls every other module; implements none of their internals.
+from pramana.orchestration.adapters import (
+    WorkflowAdapters,
+    celery_verification_adapter,
+    stub_adapters,
+)
+from pramana.orchestration.graph import build_graph, run_graph, run_stub_graph
+from pramana.orchestration.run_lifecycle import new_run
+from pramana.orchestration.state import PramanaState, RunStatus
 
-Owner: B. Karthikeya
-Scope: scope/SCOPE_B_Karthikeya.md
-"""
+__all__ = [
+    "PramanaState",
+    "RunStatus",
+    "WorkflowAdapters",
+    "build_graph",
+    "celery_verification_adapter",
+    "new_run",
+    "run_graph",
+    "run_stub_graph",
+    "stub_adapters",
+]
