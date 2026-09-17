@@ -14,6 +14,15 @@ cleaning:
 schema_inference:
   use_llm_for_ambiguous_only: true   # heuristics first; Gemma only when unclear
   model: gemma                        # local, cheap tasks only (AGENTS.md §2)
+  # Fail-closed cutoffs. A column the heuristics cannot place above min_confidence
+  # becomes UNKNOWN and is excluded from hypothesis generation — a guessed role is
+  # how a bad CandidateInsight reaches the gateway.
+  min_confidence: 0.70
+  min_non_null: 20             # fewer usable rows than this and the column is UNKNOWN
+  id_unique_ratio: 0.95        # distinct-value share at which a column is identifier-like
+  categorical_max_levels: 20   # more levels than this and labels are not a grouping
+  ordinal_max_levels: 12       # integer columns at or under this many levels read ordinal
+  datetime_parse_min_ratio: 0.90  # share of non-nulls that must parse as timestamps
 
 hypotheses:
   max_candidates_per_run: 50   # keeps BH-FDR sane; gateway shouldn't be flooded
@@ -22,6 +31,15 @@ hypotheses:
     group_difference: true
     trend: true
   min_abs_correlation: 0.15    # exploratory pre-filter ONLY — never a verdict
+  # Fail-closed floors. Below any of these no candidate is emitted at all, rather
+  # than one the gateway could only ever return INCONCLUSIVE for while still
+  # consuming a slot in the BH family.
+  min_observations: 30         # pairwise-complete rows required to propose anything
+  min_group_size: 10           # rows a level needs to count as a comparable group
+  min_group_levels: 2
+  max_group_levels: 10
+  min_group_effect: 0.01       # exploratory eta² floor — pre-filter, never a verdict
+  min_abs_trend_tau: 0.10      # exploratory |tau-b| floor — pre-filter, never a verdict
 
 benchmark:
   n_datasets: 40
