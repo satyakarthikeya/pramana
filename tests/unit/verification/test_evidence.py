@@ -199,3 +199,15 @@ def test_zero_q_is_refused() -> None:
     """p-values are add-one floored, so a zero q means something upstream is wrong."""
     with pytest.raises(ValueError, match="q_value must be positive"):
         significance_leg(0.0, ALPHA, 1.0 / 10001.0)
+
+
+# --- non-finite effects fail closed --------------------------------------
+
+
+@pytest.mark.parametrize("effect", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_effect_cannot_be_supported(config: VerificationConfig, effect: float) -> None:
+    """Every comparison against NaN is False, so `gated_effect < band.min` would let a
+    NaN past the magnitude check and `effect_leg` would clamp it to a full 1.0 -- a
+    false SUPPORTED / PASS. The gate must refuse to decide rather than mis-decide."""
+    with pytest.raises(ValueError, match="not a finite number"):
+        _gate(config, effect_size=effect)

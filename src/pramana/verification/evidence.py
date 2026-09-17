@@ -247,8 +247,18 @@ def evaluate_gate(
 
     Guarantees: `PASS` is returned exactly for `SUPPORTED`, and an evidence score exists
     exactly then. The score never influences any of the three checks. Raises rather than
-    guessing when a metric has no band or Cramer's V arrives without its table size.
+    guessing when a metric has no band, when Cramer's V arrives without its table size,
+    or when `effect_size` is not finite -- NaN compares False against everything, so
+    without this check it would pass the magnitude test it never took. The executor
+    refuses such a payload first; this is the second lock, for any caller that reaches
+    the gate without going through the executor.
     """
+    if not math.isfinite(effect_size):
+        raise ValueError(
+            f"effect_size is {effect_size!r}, which is not a finite number. Every comparison "
+            f"against a NaN is False, so a NaN would sail past the magnitude check and be "
+            f"clamped to a full effect leg; the gate refuses to decide on it instead."
+        )
     band = _band_for(effect_metric, config, table_k)
     gated_effect = (
         math.sqrt(abs(effect_size))

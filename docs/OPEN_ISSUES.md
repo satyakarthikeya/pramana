@@ -1,11 +1,13 @@
 # Open Issues — Verification Gateway
 
-> **STALE STATUS WARNING (16 September 2026).** The build-status claims in this file —
-> the "Where the code actually stands" table and the "Built since (3 September 2026)"
-> section — are **out of date and overstate what exists**. `docs/IMPLEMENTATION_STATUS.md`
-> is the current source of truth for what is implemented. The *decisions* recorded here
-> (issues 1-9) remain valid; only the status claims are wrong. Corrections are marked
-> inline below.
+> **STATUS (17 September 2026).** Phases 1–5 of `SCOPE.md` §4 — contracts, statistics
+> library, BH-FDR, evidence gate, sandboxed executor — plus the config loader, the
+> admissibility screen and the deterministic template generator are **implemented and
+> test-green**. The gateway orchestrator, the LLM generator path and the memory guard
+> (Phases 6–8) are still stubs. A post-review bugfix pass (non-finite effect sizes,
+> stamp coverage, config-match, policy hardening) was applied on 17 September; see
+> `docs/IMPLEMENTATION_STATUS.md`, which is the source of truth for build state. The
+> *decisions* recorded here (issues 1–11) remain valid.
 >
 > Written by: P.P. Satya Karthikeya (verification module)
 > Status: issues 1, 4, 5 and 6 are DECIDED and now IMPLEMENTED (see the bottom section).
@@ -208,46 +210,40 @@ what a teammate builds:
 
 ---
 
-## Where the code actually stands (2 September 2026)
+## Where the code actually stands (17 September 2026)
 
 | Part | Owner | State |
 |---|---|---|
-| Contracts, stats, BH-FDR | Satya Karthikeya | done, 171 tests passing (16 Sept) |
-| Evidence scorer | Satya Karthikeya | **stub** — the "done" claim in the 2 Sept version of this row was wrong |
-| Sandbox executor, falsification generator, gateway, memory guard | Satya Karthikeya | stubs |
-| Evaluation / ablation harness | Satya Karthikeya | empty |
+| Contracts, config loader, stats, BH-FDR, evidence gate, executor (policy + runner), admissibility, template generator | Satya Karthikeya | **done, test-green** (Phases 1–5 + bugfix pass) |
+| LLM generator path (`get_generator`, DeepSeek prompts) | Satya Karthikeya | stub (Phase 6) |
+| Gateway orchestrator | Satya Karthikeya | stub (Phase 7) |
+| Memory guard | Satya Karthikeya | stub (Phase 8) |
+| Evaluation / ablation harness | Satya Karthikeya | spec only (`src/pramana/evaluation/SPEC.md`) |
 | Analysis module | Rohith | stubs |
 | Orchestration graph | B. Karthikeya | stubs |
 | Memory, API, dashboard | Karthik Reddy | stubs |
 
-The deterministic core of the gateway is finished and tested. Nothing else in
-the repo runs yet, and no part of the system runs end to end.
+The deterministic core of the gateway is finished and tested. Nothing runs end to end
+yet: `tests/integration/test_gateway_e2e.py` is written and fails at collection until
+Phase 7 defines `verify_batch`.
 
 ---
 
 ## Built since (3 September 2026)
 
-Decisions 1, 4, 5 and 6 are now implemented, not just written down.
+Decisions 1, 4, 5 and 6 are implemented, not just written down. Rows marked *stub* are
+the pieces Phases 6–8 still owe; everything else is real and covered by the suite.
 
-> **CORRECTION (16 September 2026).** The original version of this paragraph claimed
-> "the whole gateway runs end to end, offline, with no API key and no teammate module."
-> **That was not true and is not true today.** The gateway orchestrator, the sandboxed
-> executor, the generator entry point and the memory guard are still stubs, so nothing
-> runs end to end yet. What exists is the deterministic core listed below plus the
-> contracts, config loader, statistics library and BH-FDR correction. The
-> `tests/integration/test_gateway_e2e.py` row below is the acceptance test's SOURCE,
-> which is written; it does not pass yet.
-
-| Piece | Where |
-|---|---|
-| `NOT_TESTABLE` + null-iff-untested contract | `contracts/enums.py`, `contracts/proof_object.py` |
-| Admissibility screen | `verification/admissibility.py` |
-| Memory guard | `verification/memory_guard.py` |
-| Template falsification generator | `verification/falsification/templates.py`, `generator.py` |
-| Sandboxed executor + provenance stamp | `verification/executor/`, `verification/stats/provenance.py` |
-| Gateway orchestrator | `verification/gateway.py` |
-| Acceptance test | `tests/integration/test_gateway_e2e.py` |
-| Evaluation spec (D) | `src/pramana/evaluation/SPEC.md` |
+| Piece | Where | State |
+|---|---|---|
+| `NOT_TESTABLE` + null-iff-untested contract | `contracts/enums.py`, `contracts/proof_object.py` | done |
+| Admissibility screen | `verification/admissibility.py` | done |
+| Template falsification generator | `verification/falsification/templates.py`, `generator.py` | done (deterministic path); LLM path stub |
+| Sandboxed executor + provenance stamp | `verification/executor/`, `verification/stats/provenance.py` | done |
+| Memory guard | `verification/memory_guard.py` | stub |
+| Gateway orchestrator | `verification/gateway.py` | stub |
+| Acceptance test | `tests/integration/test_gateway_e2e.py` | written, red until Phase 7 |
+| Evaluation spec (D) | `src/pramana/evaluation/SPEC.md` | proposal |
 
 ### 7. Contract change to announce: `reference_group`
 
@@ -268,6 +264,13 @@ The sandbox whitelist blocks statistics LIBRARIES, not arithmetic: generated cod
 only numpy and pandas can still hand-roll a permutation loop, or call
 `frame.corr(method="spearman")`, which needs no scipy at all. So `permutation_test` now
 HMACs its own result with a per-run nonce and the parent rejects anything unstamped.
+
+Since the 17 September bugfix pass the runner also requires the reported `effect_size`
+to equal the stamped `statistic` (so the gating effect is under the stamp without a
+second HMAC), requires `n_permutations` and `seed` to match the run's config, and the
+import policy refuses the provenance module itself — as a module path, an imported
+name, or an attribute reached through an imported module — along with every private
+`_`-prefixed name of the stats package.
 
 Stated honestly, because the report will be read by someone who asks: this is an
 ADHERENCE check, not a security boundary. It catches generated code that bypassed the

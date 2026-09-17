@@ -16,7 +16,10 @@ The checks, and what each one is for
    result cannot produce a complete proof object (AGENTS.md 3.6).
 4. **A p-value of exactly zero is refused.** `permutation_test` add-one floors at
    `1/(B+1)`, so zero is arithmetically impossible from the vetted path. Seeing one
-   proves the number came from somewhere else.
+   proves the number came from somewhere else. **A non-finite effect size is refused**
+   for a related reason: `json.loads` accepts `NaN`, every comparison against NaN is
+   False, and the gate's magnitude check is a comparison -- so a NaN effect would pass
+   the check it never took.
 5. **The effect metric must be a vetted gating metric.** An unrecognised name would
    otherwise reach the gate, which would have no band for it.
 6. **The provenance stamp must verify.** This is the check the import whitelist cannot
@@ -25,6 +28,16 @@ The checks, and what each one is for
    that never went near `permutation_test`. The stamp is an HMAC over the numbers
    themselves under a nonce this process generated, so a result that did not come from
    the audited function cannot carry a valid one.
+7. **The effect size must BE the stamped statistic.** The stamp covers `statistic`, not
+   `effect_size`, and the gate decides NEGLIGIBLE and REFUTED on `effect_size`. In every
+   vetted test the two are the same number -- the permutation statistic is the gating
+   metric -- so requiring equality puts the effect under the stamp without a second
+   HMAC. An effect that differs from the statistic was written by something other than
+   the audited function.
+8. **`n_permutations` and `seed` must match the run's config.** A stamp proves the
+   numbers came from `permutation_test`; it does not prove the test was the one this
+   run promised. Ten resamples produce a genuinely stamped p-value whose floor is
+   0.09, and a private seed produces a result nobody can reproduce (AGENTS.md 3.4).
 
 What retrying may and may not fix
 ---------------------------------
@@ -51,6 +64,8 @@ from __future__ import annotations
 
 import json
 import logging
+import math
+import os
 import subprocess
 import sys
 import tempfile
@@ -93,6 +108,14 @@ REQUIRED_KEYS: frozenset[str] = frozenset(
 #: this tuple without changing `stats/permutation.py` breaks every verification, which
 #: is exactly the coupling we want: the two must agree or nothing passes.
 _STAMPED_FIELDS = ("p_value", "statistic", "n_permutations", "seed")
+
+#: Environment variables the child may inherit. This is what an interpreter needs to
+#: BOOT, and nothing more: `SYSTEMROOT` is required by Python's startup on Windows,
+#: `PATH` and `LD_LIBRARY_PATH` are how numpy's shared libraries are found on some
+#: setups, and `PYTHONHOME` is only ever set for a relocated interpreter. The parent's
+#: environment is not the untrusted code's channel to the outside world, so nothing
+#: else crosses -- and a variable is copied only when the parent actually has it.
+_PASSTHROUGH_ENV: tuple[str, ...] = ("SYSTEMROOT", "PATH", "LD_LIBRARY_PATH", "PYTHONHOME")
 
 #: The trusted harness. It -- not the generated code -- owns every capability the
 #: generated code was denied: reading the frame, serialising the result, printing.
@@ -158,11 +181,13 @@ def _failed(insight_id: str, reason: str, attempts: int = 1) -> ExecutionResult:
     return ExecutionResult(ok=False, failure_reason=reason, attempts=attempts)
 
 
-def _validate_payload(payload: object, nonce: str) -> str | None:
+def _validate_payload(payload: object, nonce: str, config: VerificationConfig) -> str | None:
     """The reason `payload` is unusable, or None if it survives every check.
 
     The order is deliberate: structural problems are reported before the provenance
-    check, so a malformed result is described as malformed rather than as a forgery.
+    check, so a malformed result is described as malformed rather than as a forgery;
+    and the configuration match is checked last, so a forged stamp is reported as a
+    forgery rather than as a wrong resample count.
     """
     if not isinstance(payload, dict):
         return (
@@ -186,11 +211,32 @@ def _validate_payload(payload: object, nonce: str) -> str | None:
             f"floored at 1/(B+1), so an exact zero cannot come from the vetted test."
         )
 
+    effect_size = payload["effect_size"]
+    if (
+        not isinstance(effect_size, (int, float))
+        or isinstance(effect_size, bool)
+        or not math.isfinite(effect_size)
+    ):
+        return (
+            f"effect_size is {effect_size!r}, which is not a finite number. The gate compares "
+            f"it against a floor, and every comparison against NaN is False -- a NaN effect "
+            f"would pass the magnitude check it never took."
+        )
+
     metric = payload["effect_metric"]
     if metric not in set(EffectMetric):
         return (
             f"effect_metric {metric!r} is not one of the vetted gating metrics "
             f"{sorted(m.value for m in EffectMetric)}; the gate has no band for it"
+        )
+
+    statistic = payload["statistic"]
+    if effect_size != statistic:
+        return (
+            f"effect_size {effect_size!r} is not the stamped statistic {statistic!r}. The "
+            f"gating effect IS the permutation statistic in every vetted test, and only the "
+            f"statistic carries a provenance stamp -- an effect that differs from it is a "
+            f"number the audited function did not produce."
         )
 
     fields = tuple(payload[name] for name in _STAMPED_FIELDS)
@@ -199,6 +245,17 @@ def _validate_payload(payload: object, nonce: str) -> str | None:
             "provenance check failed: the result carries no valid stamp for this run, so "
             "it did not come from pramana.verification.stats. Numbers that look right are "
             "not evidence -- only numbers the audited function produced are."
+        )
+
+    expected_n = config.statistics.n_permutations
+    expected_seed = config.statistics.seed
+    if payload["n_permutations"] != expected_n or payload["seed"] != expected_seed:
+        return (
+            f"the test ran with n_permutations={payload['n_permutations']!r}, "
+            f"seed={payload['seed']!r}, but this run is configured for "
+            f"n_permutations={expected_n}, seed={expected_seed}. A genuinely stamped result "
+            f"from an under-powered or differently seeded test is still not the test this "
+            f"run promised to reproduce (AGENTS.md 3.4)."
         )
     return None
 
@@ -236,6 +293,7 @@ def _run_once(
                 text=True,
                 timeout=config.executor.timeout_seconds,
                 env={
+                    **{name: os.environ[name] for name in _PASSTHROUGH_ENV if name in os.environ},
                     provenance.NONCE_ENV_VAR: nonce,
                     "PYTHONHASHSEED": "0",
                     "PYTHONDONTWRITEBYTECODE": "1",
@@ -272,7 +330,7 @@ def _run_once(
         except json.JSONDecodeError as error:
             return None, f"result is not valid JSON ({error.msg}); it cannot be trusted", False
 
-        reason = _validate_payload(payload, nonce)
+        reason = _validate_payload(payload, nonce, config)
         return (None, reason, False) if reason else (payload, None, False)
 
 
@@ -301,9 +359,11 @@ def execute(
     """Run one falsification program and return only a verified result, or a failure.
 
     Guarantees: `ok=True` implies the code passed the import policy, ran to completion
-    inside the timeout, returned every required field, reported a p-value in (0, 1], named
-    a vetted gating metric, and carried a provenance stamp that verifies against a nonce
-    generated for THIS execution. Any other outcome returns `ok=False` with a reason.
+    inside the timeout, returned every required field, reported a p-value in (0, 1] and a
+    finite effect size equal to the stamped statistic, named a vetted gating metric,
+    carried a provenance stamp that verifies against a nonce generated for THIS
+    execution, and ran with the configured resample count and seed. Any other outcome
+    returns `ok=False` with a reason.
     There is no path in this function from a failure to a usable payload.
     """
     try:
