@@ -1,5 +1,19 @@
-"""Canonical project paths (data/, configs/, artifacts/). data/ is gitignored.
+"""Canonical, side-effect-free paths used throughout PRAMANA."""
 
-Owner: B. Karthikeya (shared utilities)
-Scope: scope/SCOPE_B_Karthikeya.md
-"""
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+CONFIG_DIR = PROJECT_ROOT / "configs"
+DATA_DIR = Path(os.getenv("PRAMANA_DATA_DIR", PROJECT_ROOT / "data")).resolve()
+ARTIFACTS_DIR = Path(os.getenv("PRAMANA_ARTIFACTS_DIR", PROJECT_ROOT / "artifacts")).resolve()
+
+
+def config_path(name: str) -> Path:
+    """Return a YAML config path and guarantee it remains inside ``configs/``."""
+    if not name or name in {".", ".."} or Path(name).name != name:
+        raise ValueError("Config name must be a single file name")
+    filename = name if name.endswith((".yaml", ".yml")) else f"{name}.yaml"
+    return CONFIG_DIR / filename

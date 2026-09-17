@@ -1,0 +1,94 @@
+name: pramana-dev
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    env_file:
+      - ../.env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: "8000"
+      PRAMANA_DATA_DIR: /data/pramana
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      chromadb:
+        condition: service_started
+    networks:
+      - queue
+      - storage
+      - egress
+    volumes:
+      - run-data:/data/pramana
+    init: true
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    env_file:
+      - ../.env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      PRAMANA_DATA_DIR: /data/pramana
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - queue
+    read_only: true
+    tmpfs:
+      - /tmp/pramana:size=256m,mode=1777
+    volumes:
+      - run-data:/data/pramana:ro
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 128
+    init: true
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - queue
+    restart: unless-stopped
+
+  chromadb:
+    image: chromadb/chroma:0.5.23
+    environment:
+      IS_PERSISTENT: "TRUE"
+      PERSIST_DIRECTORY: /chroma/chroma
+    volumes:
+      - chroma-data:/chroma/chroma
+    networks:
+      - storage
+    restart: unless-stopped
+
+networks:
+  queue:
+    internal: true
+  storage:
+    internal: true
+  egress: {}
+
+volumes:
+  chroma-data: {}
+  run-data: {}

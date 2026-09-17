@@ -1,0 +1,26 @@
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+COPY requirements /app/requirements
+RUN pip install \
+    -r requirements/analysis.txt \
+    -r requirements/verification.txt \
+    -r requirements/orchestration.txt \
+    -r requirements/memory.txt
+
+COPY pyproject.toml README.md /app/
+COPY src /app/src
+COPY configs /app/configs
+RUN pip install --no-deps -e . \
+    && addgroup --system pramana \
+    && adduser --system --ingroup pramana pramana
+
+USER pramana
+EXPOSE 8080
+
+CMD ["uvicorn", "pramana.api.main:app", "--host", "0.0.0.0", "--port", "8080"]
