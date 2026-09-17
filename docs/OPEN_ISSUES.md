@@ -210,39 +210,40 @@ what a teammate builds:
 
 ---
 
-## Where the code actually stands (17 September 2026)
+## Where the code actually stands (17 September 2026, after Phase 9)
 
 | Part | Owner | State |
 |---|---|---|
 | Contracts, config loader, stats, BH-FDR, evidence gate, executor (policy + runner), admissibility, template generator | Satya Karthikeya | **done, test-green** (Phases 1–5 + bugfix pass) |
-| LLM generator path (`get_generator`, DeepSeek prompts) | Satya Karthikeya | stub (Phase 6) |
-| Gateway orchestrator | Satya Karthikeya | stub (Phase 7) |
-| Memory guard | Satya Karthikeya | stub (Phase 8) |
+| LLM generator path (`get_generator`, DeepSeek prompts) | Satya Karthikeya | **done** (Phase 6) |
+| Gateway orchestrator | Satya Karthikeya | **done** (Phase 7) |
+| Memory guard | Satya Karthikeya | **done** (Phase 8) |
 | Evaluation / ablation harness | Satya Karthikeya | spec only (`src/pramana/evaluation/SPEC.md`) |
 | Analysis module | Rohith | stubs |
-| Orchestration graph | B. Karthikeya | stubs |
+| Orchestration graph | B. Karthikeya | stubs on `main`; spine built on an unmerged branch |
 | Memory, API, dashboard | Karthik Reddy | stubs |
 
-The deterministic core of the gateway is finished and tested. Nothing runs end to end
-yet: `tests/integration/test_gateway_e2e.py` is written and fails at collection until
-Phase 7 defines `verify_batch`.
+**The gateway now runs end to end.** `tests/integration/test_gateway_e2e.py` collects
+and passes (18 tests), and the full suite is 322 passed with zero failures and zero
+collection errors. See `docs/IMPLEMENTATION_STATUS.md` for the breakdown.
 
 ---
 
 ## Built since (3 September 2026)
 
-Decisions 1, 4, 5 and 6 are implemented, not just written down. Rows marked *stub* are
-the pieces Phases 6–8 still owe; everything else is real and covered by the suite.
+Decisions 1, 4, 5 and 6 are implemented, not just written down. As of Phase 9 there
+are no stub rows left in this table: every piece below is real and covered by the
+suite.
 
 | Piece | Where | State |
 |---|---|---|
 | `NOT_TESTABLE` + null-iff-untested contract | `contracts/enums.py`, `contracts/proof_object.py` | done |
 | Admissibility screen | `verification/admissibility.py` | done |
-| Template falsification generator | `verification/falsification/templates.py`, `generator.py` | done (deterministic path); LLM path stub |
+| Template falsification generator | `verification/falsification/templates.py`, `generator.py`, `prompts.py` | done — deterministic path (default) AND DeepSeek LLM path (Phase 6) |
 | Sandboxed executor + provenance stamp | `verification/executor/`, `verification/stats/provenance.py` | done |
-| Memory guard | `verification/memory_guard.py` | stub |
-| Gateway orchestrator | `verification/gateway.py` | stub |
-| Acceptance test | `tests/integration/test_gateway_e2e.py` | written, red until Phase 7 |
+| Memory guard | `verification/memory_guard.py` | done (Phase 8) |
+| Gateway orchestrator | `verification/gateway.py` | done (Phase 7) |
+| Acceptance test | `tests/integration/test_gateway_e2e.py` | done — 18 passed |
 | Evaluation spec (D) | `src/pramana/evaluation/SPEC.md` | proposal |
 
 ### 7. Contract change to announce: `reference_group`
@@ -257,6 +258,13 @@ not name a reference group.
 Additive and optional, so nothing upstream breaks. But `contracts/**` is consumed by all
 four modules and `OWNERSHIP.md` says schema changes are announced before they are merged,
 not after. **This is the announcement — it needs a nod from the team.**
+
+**Phase 9 status (17 September 2026): code side CLOSED, announcement still OWED.** The
+field is implemented, rendered by the group-difference template, carried through the
+gateway, and covered by the acceptance test (`c-true-group` passes with `reference_group
+= 'urban'` putting urban first, so a positive Cliff's delta means urban sits higher).
+What remains is not code: the team has still not been asked. This stays open until
+someone confirms it, because "merged and working" is not the same as "announced".
 
 ### 8. What the provenance stamp does and does not do
 
@@ -313,6 +321,11 @@ contract change, so it needs the same announcement as issue 7), or declare it ou
 scope in `SCOPE.md`. Leaving it as-is means a reviewer finds tested, configured,
 unreachable code and asks why.
 
+**Phase 9 status (17 September 2026): STILL OPEN, unchanged.** Phases 6–8 added no
+categorical claim type, so the metric is still unreachable. The decision has not been
+made. Recording it as untouched rather than quietly closing it: a reviewer will still
+find tested, configured, unreachable code.
+
 ### 11. Effect-size bands are provisional, not calibrated
 
 The five per-metric bands in `configs/verification.yaml` were chosen to be defensible
@@ -322,3 +335,37 @@ in the config file. They decide what PASSes, so they must be calibrated against 
 real NHANES / NFHS-5 demo subset **before the gateway is wired end to end**
 (`SCOPE.md` 4 step 7) -- discovering during the live demo that a floor rejects the
 planted true relationship is the failure mode this note exists to prevent.
+
+**Phase 9 status (17 September 2026): NOT RESOLVED, and now OVERDUE.** The condition
+this note set — calibrate *before* the gateway is wired end to end — has been passed.
+The gateway was wired in Phase 7 and the acceptance test is green, but it is green
+against `tests/fixtures/frames.py`, whose effect sizes are constructed to sit above
+these floors by design. A fixture built to clear a threshold cannot validate that
+threshold. **This is the highest-priority open item before the demo**, and it is the one
+place where a passing suite is actively misleading about readiness.
+
+---
+
+## Phase 9 closeout (17 September 2026)
+
+The gateway module is complete: all nine `SCOPE.md` §4 phases built, full suite 322
+passed, zero failures, zero collection errors, `ruff check .` clean, and the `SCOPE.md`
+§6 acceptance test passing end to end against real code at every layer.
+
+What that closed, and what it did not:
+
+| Item | Status after Phase 9 |
+|---|---|
+| Phases 6, 7, 8 listed as stubs | **Closed.** All three built, committed and green. |
+| "Nothing runs end to end yet" | **Closed.** The acceptance test collects and passes. |
+| Acceptance test "written, red until Phase 7" | **Closed.** 18 passed. |
+| §7 `reference_group` contract change | **Half closed.** Code shipped; the team announcement is still owed. Not a code task. |
+| §10 Cramér's V reachability | **Open, untouched.** No decision taken. |
+| §11 Effect-size band calibration | **Open and now overdue.** See the note above. |
+| §9 `AGENTS.md` §4 whitelist wording | **Open.** Shared file; still needs team sign-off, not a unilateral edit. |
+| Merge to `main` | **Open.** Phases 6–9 sit on a feature branch and have not been through a pull request (`AGENTS.md` §8.8). |
+| Issues 2 and 3 (benchmark ground truth, fair Condition C) | **Open by design.** Answered as a proposal in `evaluation/SPEC.md`; they belong to the ablation work item, which `SCOPE.md` §3 keeps separate from this scope. |
+
+Nothing above was deleted. An issue that turned out to be unresolved is recorded as
+unresolved, because a closeout that quietly drops the items it did not finish is worth
+less than no closeout at all.
