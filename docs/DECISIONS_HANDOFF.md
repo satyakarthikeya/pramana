@@ -25,7 +25,9 @@ that would weaken `memory_write ⟹ verdict == PASS` instead of implementing it.
 2. **The trust guarantee comes from the sandbox, not the model.** The verification LLM
    generates only; it computes nothing. The model is swappable. A deterministic template
    renderer is the DEFAULT generator, with the LLM behind the same interface.
-   (`PROJECT.md` §3)
+   (`PROJECT.md` §3) **Superseded 18 Sep 2026 for the default only:** decided that
+   DeepSeek becomes the default and the template the reference; not yet switched
+   (`docs/DECISIONS_LLM_ROLES.md` D1).
 
 3. **Whitelist tightened.** `scipy` and `sklearn` removed from
    `executor.allowed_imports`; only `numpy`, `pandas`, `pramana.verification.stats`
@@ -33,7 +35,9 @@ that would weaken `memory_write ⟹ verdict == PASS` instead of implementing it.
    in the whitelist (`FORBIDDEN_SANDBOX_IMPORTS`).
 
 4. **`llm.generator: template`** added to `configs/verification.yaml`, with a matching
-   `generator: Literal["template", "llm"]` field on `LLMConfig`.
+   `generator: Literal["template", "llm"]` field on `LLMConfig`. The value switches to
+   `llm` once W1 and W2 in `docs/DECISIONS_LLM_ROLES.md` land (and W13 for any deployed
+   setup).
 
 5. **Admissibility screen decided** (see B1) and recorded in `PROJECT.md` §2 and
    `SCOPE.md` §2 component 0.

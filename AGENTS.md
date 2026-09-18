@@ -25,16 +25,21 @@ If a change would weaken this, stop and flag it instead of implementing it.
 
 ## 2. Model usage rules
 
-- **DeepSeek V4 (API)** = verification gateway ONLY (falsification code generation, verification reasoning). Do not route routine tasks through it (cost) and do not replace it with a local model (trust thesis).
-- **Gemma (local)** = schema inference, cleaning, classification, other cheap sub-agent tasks. Do not use it for verification.
-- All LLM calls must be traced through **Langfuse**.
+The principle behind every rule below: **models propose and write code; code decides.**
+Where each model sits in the flow, and what is built, is in `PROJECT.md` §2.
+
+- **DeepSeek V4 (API)** = verification gateway ONLY, and inside it ONLY to write falsification code (`falsify(frame)`). That code may import only `numpy`, `pandas` and `pramana.verification.stats`, and must obtain every p-value and effect size by calling that library. DeepSeek never computes, estimates or reports a statistic, a q-value or a verdict. Do not route routine tasks through it (cost) and do not replace it with a local model (trust thesis).
+- **Analysis LLM** (Gemma or an API model, set in config) = proposes STRUCTURED candidate claims only (`claim_type`, `variables`, direction, reference group). Code renders the claim sentence from a hedged template; the model never authors `claim` text. Nothing it outputs is passed to the gate as evidence, and `analysis_evidence` never carries a p-value, q-value or verdict.
+- **Gemma (local)** = schema inference and cleaning help (label a column, suggest a step that code applies and logs), lesson abstraction, other cheap sub-agent tasks. It never edits data directly. Do not use it for verification.
+- **No silent model substitution.** A run configured for a model either gets that model's output or fails closed (NOT_TESTABLE / a recorded error). The template generator is chosen explicitly in config, never used as a quiet fallback.
+- All LLM calls must be traced through **Langfuse**, under the run's `run_id`.
 
 ## 3. Statistics correctness rules (non-negotiable)
 
 1. Falsification tests must be **actually executed** — never let an LLM "reason" its way to a p-value. If code fails to run, the insight is not verified (fail-closed → REJECT or RETRY, never PASS).
 2. **Benjamini-Hochberg FDR correction** is applied across ALL hypotheses tested in a run, not per-insight. Collect all raw p-values first, correct once, then issue verdicts.
 3. Thresholds (alpha, evidence score cutoffs) live in **one config file** — never hardcode them inline.
-4. Random seeds for permutation/bootstrap must be **configurable and logged** for reproducibility.
+4. Random seeds for permutation/bootstrap must be **configurable and logged** for reproducibility. When an LLM writes the test code, reproducibility means re-executing the stored `falsification_code` with the logged seed, which must give identical numbers; regenerating the code is not expected to.
 5. Report effect sizes alongside p-values. A tiny p with a negligible effect size is not a strong finding.
 6. Every verdict must produce a complete **proof object** (schema in `PROJECT.md` §5). No partial proof objects.
 

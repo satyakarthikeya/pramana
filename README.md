@@ -28,7 +28,7 @@ src/pramana/
     benchmark/       40-dataset curation + demo dataset
   verification/    THE GATEWAY                                            [Satya]
     stats/           permutation, bootstrap, effect size (the trust anchor)
-    falsification/   DeepSeek V4 code generation
+    falsification/   test-code generation: DeepSeek V4, or templates (offline)
     executor/        sandboxed runner + policy
     fdr.py, evidence.py, gateway.py, memory_guard.py
   memory/          ChromaDB verified lessons, guarded write path          [Karthik Reddy]
@@ -50,14 +50,18 @@ rules that apply inside it.
 ## Pipeline
 
 ```
-dataset → sub-agents (Gemma) → analysis agent → VERIFICATION GATEWAY (DeepSeek V4)
-                                                  ├─ PASS → memory (ChromaDB) → report
-                                                  └─ REJECT → discarded
+dataset → preparation (rules; Gemma only where stuck) → analysis agent (LLM proposes claims)
+        → VERIFICATION GATEWAY (DeepSeek writes the test; our code decides)
+              ├─ PASS → memory (ChromaDB) → report
+              └─ REJECT → discarded
 ```
 
-The gateway generates falsification code, **executes** it (permutation / bootstrap),
-applies Benjamini-Hochberg correction across the whole run, scores the evidence, and emits
-a proof object per insight. Every reported insight ships with its proof.
+Target design — models propose and write code; code decides. In the gateway, DeepSeek V4 writes a
+falsification program that may only call our vetted statistics library. That program is
+**executed** in a sandbox (permutation test), Benjamini-Hochberg correction runs once across
+the whole run, and a deterministic gate issues PASS or REJECT with a proof object per
+insight. No model produces a statistic or a verdict. Every reported insight ships with its
+proof. See `PROJECT.md` §2 for the full flow and for which parts are built today.
 
 ## Setup
 
