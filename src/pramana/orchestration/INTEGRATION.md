@@ -1,8 +1,14 @@
 # Orchestration integration contract
 
-The graph is complete independently of teammate implementation timing. Teammate packages
-plug in through four environment-configured public functions; no teammate package imports
-`pramana.orchestration`.
+The graph is complete independently of teammate implementation timing. By default,
+orchestration calls the public functions already exported by `pramana.analysis` through a
+thin native adapter. This adapter loads, cleans, profiles and classifies the data, persists
+the exact cleaned dataframe under `PRAMANA_DATA_DIR/runs/<run_id>/cleaned.pkl`, and generates
+candidate insights against that same reference.
+
+The three analysis environment handlers remain an all-or-none override for deployments that
+want a separate analysis service. Memory and verification use their configured integration
+boundaries. No teammate package imports `pramana.orchestration`.
 
 Each function accepts one mapping and returns one mapping. Unknown or missing response keys
 fail validation and degrade the run. The configured import path must remain inside its owned
@@ -10,13 +16,13 @@ package.
 
 | Environment variable | Package | Required response |
 |---|---|---|
-| `PRAMANA_INGEST_HANDLER` | `pramana.analysis` | `dataset`, `dataset_ref` |
-| `PRAMANA_PREPARATION_HANDLER` | `pramana.analysis` | `dataset`, `dataset_ref`, `schema_profile` |
-| `PRAMANA_ANALYSIS_HANDLER` | `pramana.analysis` | `candidate_insights` |
+| `PRAMANA_INGEST_HANDLER` (optional override) | `pramana.analysis` | `dataset`, `dataset_ref` |
+| `PRAMANA_PREPARATION_HANDLER` (optional override) | `pramana.analysis` | `dataset`, `dataset_ref`, `schema_profile` |
+| `PRAMANA_ANALYSIS_HANDLER` (optional override) | `pramana.analysis` | `candidate_insights` |
 | `PRAMANA_MEMORY_HANDLER` | `pramana.memory` | `memory_receipts` |
-| `PRAMANA_VERIFICATION_HANDLER` | `pramana.verification` | `proof_objects` |
+| `PRAMANA_VERIFICATION_HANDLER` (optional override) | `pramana.verification` | `proof_objects` |
 
-Example configuration:
+Example handler-override configuration:
 
 ```text
 PRAMANA_INGEST_HANDLER=pramana.analysis.public:ingest
@@ -25,6 +31,10 @@ PRAMANA_ANALYSIS_HANDLER=pramana.analysis.public:analyze
 PRAMANA_MEMORY_HANDLER=pramana.memory.public:write_verified
 PRAMANA_VERIFICATION_HANDLER=pramana.verification.public:verify_request
 ```
+
+Do not configure only one or two analysis overrides. Orchestration rejects partial
+configuration rather than mixing two potentially incompatible analysis implementations in
+one run.
 
 ## Analysis requests
 
@@ -56,7 +66,11 @@ gateway-issued PASS proof, so no external formatter can replace or forge either 
 
 ## Calling the completed workflow
 
-Once the five handler variables are configured, an API caller needs one entrypoint:
+Once the memory handler is configured, an API caller needs one entrypoint. The three
+analysis variables may be omitted to use the native adapter. The verification variable may
+also be omitted: the Celery worker then loads only the exact
+`PRAMANA_DATA_DIR/runs/<run_id>/cleaned.pkl` artifact and invokes the verification gateway's
+batch function directly.
 
 ```python
 from pramana.orchestration import run_configured_workflow

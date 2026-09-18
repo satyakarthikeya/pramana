@@ -18,7 +18,9 @@ COPY src /app/src
 COPY configs /app/configs
 RUN pip install --no-deps -e . \
     && addgroup --system pramana \
-    && adduser --system --ingroup pramana pramana
+    && adduser --system --ingroup pramana pramana \
+    && mkdir -p /data/pramana \
+    && chown pramana:pramana /data/pramana
 
 USER pramana
 EXPOSE 8080

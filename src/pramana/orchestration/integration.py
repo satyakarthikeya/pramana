@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib
 import os
 from collections.abc import Callable, Mapping, Sequence
+from pathlib import Path
 from typing import Any, TypeVar, cast
 from uuid import UUID
 
@@ -19,10 +20,15 @@ from pramana.common.config import RuntimeConfig
 from pramana.contracts import CandidateInsight, ProofObject, Verdict
 from pramana.orchestration.adapters import (
     IntegrationDependencyError,
+    MemoryAdapter,
     StateAdapter,
     WorkflowAdapters,
     celery_verification_adapter,
     safe_report_adapter,
+)
+from pramana.orchestration.analysis_integration import (
+    AnalysisNodeAdapters,
+    native_analysis_adapters,
 )
 from pramana.orchestration.state import PramanaState
 
@@ -180,12 +186,11 @@ def _response(
     return model.model_validate(response)
 
 
-def configured_adapters(*, verify: StateAdapter = celery_verification_adapter) -> WorkflowAdapters:
-    """Build production adapters from configured, package-restricted public handlers."""
+def _handler_analysis_adapters() -> AnalysisNodeAdapters:
+    """Build strict mapping adapters from three configured analysis handlers."""
     ingest_handler = load_handler(INGEST_HANDLER_ENV, "pramana.analysis")
     preparation_handler = load_handler(PREPARATION_HANDLER_ENV, "pramana.analysis")
     analysis_handler = load_handler(ANALYSIS_HANDLER_ENV, "pramana.analysis")
-    memory_handler = load_handler(MEMORY_HANDLER_ENV, "pramana.memory")
 
     def ingest(state: PramanaState) -> Mapping[str, Any]:
         if not state.dataset_ref:
@@ -237,7 +242,45 @@ def configured_adapters(*, verify: StateAdapter = celery_verification_adapter) -
             )
         return result.model_dump(mode="python")
 
-    def memory_write(state: PramanaState, proofs: Sequence[ProofObject]) -> Mapping[str, Any]:
+    return AnalysisNodeAdapters(ingest=ingest, prepare=prepare, analyze=analyze)
+
+
+def _analysis_adapters(data_dir: Path | None) -> AnalysisNodeAdapters:
+    """Select an all-handler override or the analysis package's native public API."""
+    environment_names = (
+        INGEST_HANDLER_ENV,
+        PREPARATION_HANDLER_ENV,
+        ANALYSIS_HANDLER_ENV,
+    )
+    configured = {name: bool(os.getenv(name, "").strip()) for name in environment_names}
+    if all(configured.values()):
+        return _handler_analysis_adapters()
+    if any(configured.values()):
+        missing = [name for name, present in configured.items() if not present]
+        raise IntegrationDependencyError(
+            "Analysis handler overrides are all-or-none; missing " + ", ".join(missing)
+        )
+    return native_analysis_adapters(data_dir=data_dir)
+
+
+def configured_adapters(
+    *,
+    verify: StateAdapter = celery_verification_adapter,
+    memory_write: MemoryAdapter | None = None,
+    analysis: AnalysisNodeAdapters | None = None,
+    data_dir: Path | None = None,
+) -> WorkflowAdapters:
+    """Build production adapters, using Rohith's native analysis API by default."""
+    selected_analysis = analysis or _analysis_adapters(data_dir)
+    memory_handler = None
+    if memory_write is None:
+        memory_handler = load_handler(MEMORY_HANDLER_ENV, "pramana.memory")
+
+    def configured_memory_write(
+        state: PramanaState, proofs: Sequence[ProofObject]
+    ) -> Mapping[str, Any]:
+        if memory_handler is None:
+            raise AssertionError("configured memory handler was not loaded")
         result = _response(
             memory_handler,
             MemoryWriteRequest(
@@ -250,11 +293,11 @@ def configured_adapters(*, verify: StateAdapter = celery_verification_adapter) -
         return result.model_dump(mode="python")
 
     return WorkflowAdapters(
-        ingest=ingest,
-        subagents=prepare,
-        analyze=analyze,
+        ingest=selected_analysis.ingest,
+        subagents=selected_analysis.prepare,
+        analyze=selected_analysis.analyze,
         verify=verify,
-        memory_write=memory_write,
+        memory_write=memory_write or configured_memory_write,
         report=safe_report_adapter,
     )
 

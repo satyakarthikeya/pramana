@@ -12,14 +12,16 @@ The worker joins only the queue network, so it can reach Redis but cannot reach 
 the public internet. It also runs as a non-root user with a read-only filesystem, dropped
 Linux capabilities, process/CPU/memory limits, and a bounded temporary directory.
 Uploaded run data is shared from the API to the worker through a dedicated volume that is
-read-only in the worker.
+read-only in the worker. Both images create that mount point with the same non-root owner,
+and the orchestration dependencies include `pyarrow` so the worker can deserialize dataframe
+artifacts produced by the API image.
 
 Generated-code import, filesystem, and subprocess policy remains owned by
 `pramana.verification.executor`. Container restrictions are an additional boundary, not a
 replacement for that policy.
 
-The stack will become runnable when the teammate-owned `pramana.api.main:app` and
-verification task handler are implemented. Configure the latter as a trusted import path:
+The worker uses the repository's native verification gateway by default. An alternate
+verification implementation can be configured as a trusted import path:
 
 ```text
 PRAMANA_VERIFICATION_HANDLER=pramana.verification.<module>:<function>

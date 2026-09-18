@@ -49,6 +49,9 @@ class PramanaState(BaseModel):
     dataset_ref: str | None = None
     user_query: str | None = None
     dataset: Any = None
+    dataset_metadata: dict[str, Any] = Field(default_factory=dict)
+    cleaning_report: dict[str, Any] = Field(default_factory=dict)
+    dataset_profile: dict[str, Any] = Field(default_factory=dict)
     schema_profile: dict[str, Any] = Field(default_factory=dict)
     candidate_insights: list[CandidateInsight] = Field(default_factory=list)
     proof_objects: list[ProofObject] = Field(default_factory=list)
