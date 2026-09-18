@@ -105,6 +105,25 @@ def _serializable(value: Any) -> Any:
     return value
 
 
+def inprocess_verification_adapter(state: PramanaState) -> NodeUpdate:
+    """Verify the complete candidate family in this process, with no queue involved.
+
+    For local and demo runs without Redis or a Celery worker. The gateway still runs
+    each falsification program in its own sandboxed subprocess; only the dispatch
+    changes. It receives the in-memory cleaned frame the candidates were generated
+    from, so no ``dataset_ref`` resolution is needed.
+    """
+    from pramana.verification.config import load_config as load_verification_config
+    from pramana.verification.gateway import verify_batch
+
+    if not state.candidate_insights:
+        return {"proof_objects": []}
+    if state.dataset is None:
+        raise ValueError("In-process verification requires the cleaned dataset in state")
+    proofs = verify_batch(state.candidate_insights, state.dataset, load_verification_config())
+    return {"proof_objects": proofs}
+
+
 def celery_verification_adapter(state: PramanaState) -> NodeUpdate:
     """Execute the full candidate family through the configured Celery gateway task."""
     from celery.exceptions import (
