@@ -27,12 +27,20 @@ User uploads dataset (+ optional question)
 [2] Analysis agent                     → proposes candidate insights (correlations, group
         │                                 differences, trends)
         ▼
-[3] VERIFICATION GATEWAY (DeepSeek V4) → per insight:
-        │                                 - generate falsification code
-        │                                 - EXECUTE it (permutation test / bootstrap)
+[3] VERIFICATION GATEWAY               → per insight:
+        │                                 - admissibility screen (deterministic, no LLM)
+        │                                 - write falsification code: a fixed template per
+        │                                   claim type (default), or DeepSeek V4 (optional).
+        │                                   Either way the code only CALLS our built-in
+        │                                   stats library -- it computes nothing itself
+        │                                 - EXECUTE it in the sandbox (permutation test /
+        │                                   bootstrap from pramana.verification.stats)
         │                                 - Benjamini-Hochberg FDR correction across all
         │                                   hypotheses in the run
-        │                                 - evidence score → verdict PASS / REJECT
+        │                                 - gate (q < alpha, effect floor, direction)
+        │                                   → verdict PASS / REJECT; evidence score for
+        │                                   ranking PASSes only
+        │                                 No LLM produces a statistic, a q-value, or a verdict.
         ▼
 [4] Memory write (ChromaDB)            → ONLY PASSed insights are abstracted into lessons
         │                                 and stored. REJECTed insights are discarded.
@@ -51,13 +59,15 @@ Across sessions ("episode mode"): on a new related dataset, the agent retrieves 
 | Orchestration | LangGraph | agent graph / state machine |
 | Backend API | FastAPI | |
 | Routine sub-agent LLM | Gemma (local) | schema inference, cleaning, classification — cheap tasks |
-| Verification LLM | DeepSeek V4 (API) | trust-critical step ONLY — do not swap to local model |
+| Verification LLM | DeepSeek V4 (API) | optional falsification-code writer ONLY; its code may import just `numpy`, `pandas` and `pramana.verification.stats` — do not swap to a local model |
 | Verified memory | ChromaDB | vector store; write access gated by verification verdict |
 | Observability | Langfuse | tracing LLM calls |
 | Task queue | Celery + Redis | async execution of falsification code |
 | Deployment | Docker | |
 
-**Model split rationale (do not change without team decision):** running the verification gate on a weak local model would undermine the core trust thesis. Gemma handles cheap routine work to control cost; DeepSeek V4 is reserved for verification.
+**Model split rationale (do not change without team decision):** Gemma handles cheap routine work to control cost; DeepSeek V4 is reserved for the verification gateway, and even there its only job is to write the falsification program. That program is a thin harness around our vetted statistics library (`pramana.verification.stats`): the permutation test, bootstrap and effect sizes are computed by our own tested code, never by LLM-written statistics. The p-value, BH correction, gate and verdict are deterministic code that no model touches.
+
+DeepSeek's code must pass four checks before it runs: it parses, it defines `falsify(frame)`, it uses the run's configured seed and permutation count, and it imports only the whitelist. If any check fails, the claim is NOT_TESTABLE. There is no silent fallback to the template. The deterministic template generator is the default (`llm.generator: template` in `configs/verification.yaml`), and the DeepSeek path is measured against it. Using a weak local model here would still undermine the trust thesis, which is why the verification step does not use Gemma.
 
 ## 4. Team & module ownership
 
