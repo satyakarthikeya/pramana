@@ -45,3 +45,16 @@ benchmark:
   n_datasets: 40
   excluded_famous: [iris, titanic, mtcars, boston, wine, diabetes]
   forbidden_sources: [mimic-iv, physionet]   # license conflict (AGENTS.md §6)
+  # The live demo subset (PROJECT.md §7). Read by analysis/benchmark/demo_dataset.py.
+  demo:
+    seed: 20260817              # row sample, pilot sample and decoy values all derive from it
+    n_rows: 1500                # PROJECT.md §7: ~500-2,000 rows
+    min_age_years: 20           # adults only; the published relationships are adult findings
+    # The injected false correlation: a nonsense column recorded on a tiny pilot
+    # subsample, coupled to one real column so the exploratory scan sees a genuine
+    # in-sample |rho| well above hypotheses.min_abs_correlation. At n = pilot_rows that
+    # rho is indistinguishable from chance, which is what the gateway must conclude.
+    decoy_column: birth_moon_phase_pct
+    decoy_target: hba1c_pct
+    decoy_pilot_rows: 40
+    decoy_target_rho: 0.30
