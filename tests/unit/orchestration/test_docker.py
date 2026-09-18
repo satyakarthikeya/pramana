@@ -27,7 +27,16 @@ def test_dockerfiles_use_non_root_user() -> None:
         text = (DOCKER_DIR / filename).read_text(encoding="utf-8")
         assert "FROM python:3.11-slim" in text
         assert "COPY configs /app/configs" in text
+        assert "mkdir -p /data/pramana" in text
+        assert "chown pramana:pramana /data/pramana" in text
         assert "USER pramana" in text
+
+
+def test_worker_can_read_api_dataframe_artifacts() -> None:
+    requirements = (PROJECT_ROOT / "requirements" / "orchestration.txt").read_text(
+        encoding="utf-8"
+    )
+    assert "pyarrow>=16.0" in requirements
 
 
 def test_docker_build_context_excludes_secrets_and_local_data() -> None:

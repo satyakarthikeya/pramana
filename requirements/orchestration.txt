@@ -10,3 +10,7 @@ langchain-core>=0.3
 # Async execution of falsification code (queue plumbing here; task internals in verification)
 celery>=5.4
 redis>=5.0
+
+# Cross-container dataframe artifacts. The API's pandas/pyarrow dataframe pickles
+# must be readable by the isolated verification worker.
+pyarrow>=16.0

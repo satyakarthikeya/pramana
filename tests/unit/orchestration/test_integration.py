@@ -101,12 +101,14 @@ def test_handler_loader_requires_owned_package(monkeypatch: pytest.MonkeyPatch) 
         load_handler("PRAMANA_ANALYSIS_HANDLER", "pramana.analysis")
 
 
-def test_configured_adapters_fail_early_when_handler_is_missing(
+def test_configured_adapters_refuse_partial_analysis_handler_overrides(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("PRAMANA_ANALYSIS_HANDLER", "pramana.analysis.public:analyze")
     monkeypatch.delenv("PRAMANA_INGEST_HANDLER", raising=False)
-    with pytest.raises(IntegrationDependencyError, match="PRAMANA_INGEST_HANDLER"):
-        configured_adapters()
+    monkeypatch.delenv("PRAMANA_PREPARATION_HANDLER", raising=False)
+    with pytest.raises(IntegrationDependencyError, match="all-or-none"):
+        configured_adapters(memory_write=lambda _state, _proofs: {})
 
 
 def test_mismatched_candidate_dataset_degrades_before_verification(

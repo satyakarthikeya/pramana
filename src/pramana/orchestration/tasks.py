@@ -5,8 +5,11 @@ from __future__ import annotations
 import importlib
 import os
 from collections.abc import Callable, Mapping, Sequence
+from pathlib import Path
 from typing import Any, cast
+from uuid import UUID
 
+import pandas as pd
 from celery import Celery, signals
 
 from pramana.common.config import load_runtime_config
@@ -16,7 +19,8 @@ from pramana.common.logging import (
     configure_logging,
     get_logger,
 )
-from pramana.contracts import ProofObject
+from pramana.common.paths import DATA_DIR
+from pramana.contracts import CandidateInsight, ProofObject
 from pramana.orchestration.adapters import IntegrationDependencyError
 
 VerificationHandler = Callable[[Mapping[str, Any]], Mapping[str, Any]]
@@ -68,15 +72,57 @@ def register_verification_handler(handler: VerificationHandler) -> None:
     _handler = handler
 
 
+def native_verification_handler(
+    request: Mapping[str, Any],
+    *,
+    data_dir: Path | None = None,
+) -> Mapping[str, Any]:
+    """Call the verification gateway on the exact cleaned artifact for this run."""
+    from pramana.verification.config import load_config as load_verification_config
+    from pramana.verification.gateway import verify_batch
+
+    run_id = UUID(str(request.get("run_id", "")))
+    artifact_root = (data_dir or DATA_DIR).resolve()
+    expected_path = artifact_root / "runs" / str(run_id) / "cleaned.pkl"
+    supplied_path = Path(str(request.get("dataset_ref", ""))).resolve()
+    if supplied_path != expected_path.resolve():
+        raise ValueError("Verification may only read the cleaned artifact produced for this run")
+    if not supplied_path.is_file():
+        raise FileNotFoundError(f"Cleaned dataset does not exist: {supplied_path}")
+
+    frame = pd.read_pickle(supplied_path)
+    if not isinstance(frame, pd.DataFrame):
+        raise TypeError("Cleaned dataset artifact must contain a pandas DataFrame")
+    raw_candidates = request.get("candidate_insights")
+    if not isinstance(raw_candidates, Sequence) or isinstance(raw_candidates, (str, bytes)):
+        raise TypeError("candidate_insights must be a sequence")
+    candidates = [
+        item if isinstance(item, CandidateInsight) else CandidateInsight.model_validate(item)
+        for item in raw_candidates
+    ]
+    mismatched = [
+        candidate.insight_id
+        for candidate in candidates
+        if Path(candidate.dataset_ref).resolve() != supplied_path
+    ]
+    if mismatched:
+        raise ValueError(
+            "Verification candidates must reference the exact cleaned artifact; "
+            f"mismatched insight IDs: {mismatched}"
+        )
+    proofs = verify_batch(candidates, frame, load_verification_config())
+    return {"proof_objects": proofs}
+
+
 def _load_configured_handler() -> VerificationHandler:
-    """Load only an explicitly configured function inside ``pramana.verification``."""
+    """Load a package-scoped override or use the native verification gateway."""
     global _handler
     if _handler is not None:
         return _handler
 
     import_path = os.getenv("PRAMANA_VERIFICATION_HANDLER", "")
     if not import_path:
-        raise IntegrationDependencyError("PRAMANA_VERIFICATION_HANDLER is not configured")
+        return native_verification_handler
     module_name, separator, attribute = import_path.partition(":")
     if not separator or not module_name.startswith("pramana.verification."):
         raise IntegrationDependencyError(
@@ -98,9 +144,25 @@ def verify_batch_task(
 ) -> Mapping[str, Any]:
     """Dispatch one complete candidate family and propagate failures unchanged."""
     bind_run_context(run_id, task_id=self.request.id)
+    validated_candidates = [
+        item if isinstance(item, CandidateInsight) else CandidateInsight.model_validate(item)
+        for item in candidates
+    ]
+    mismatched = [
+        candidate.insight_id
+        for candidate in validated_candidates
+        if candidate.dataset_ref != dataset_ref
+    ]
+    if mismatched:
+        raise ValueError(
+            "Verification candidates must reference the queued cleaned dataset; "
+            f"mismatched insight IDs: {mismatched}"
+        )
     request = {
         "run_id": run_id,
-        "candidate_insights": list(candidates),
+        "candidate_insights": [
+            candidate.model_dump(mode="json") for candidate in validated_candidates
+        ],
         "dataset_ref": dataset_ref,
     }
     get_logger(component="celery", run_id=run_id).info(
@@ -114,6 +176,12 @@ def verify_batch_task(
             item if isinstance(item, ProofObject) else ProofObject.model_validate(item)
             for item in result["proof_objects"]
         ]
+        candidate_ids = [candidate.insight_id for candidate in validated_candidates]
+        proof_ids = [proof.insight_id for proof in proofs]
+        if proof_ids != candidate_ids:
+            raise ValueError(
+                "Verification must return exactly one proof per candidate in input order"
+            )
         return {"proof_objects": [proof.model_dump(mode="json") for proof in proofs]}
     finally:
         clear_log_context()
