@@ -374,3 +374,37 @@ What that closed, and what it did not:
 Nothing above was deleted. An issue that turned out to be unresolved is recorded as
 unresolved, because a closeout that quietly drops the items it did not finish is worth
 less than no closeout at all.
+
+---
+
+## First end-to-end run (18 September 2026)
+
+`scripts/run_demo.py` runs the real LangGraph graph on the NHANES demo subset, in one
+process, with no Redis or Celery: ingest → prepare → analyse → gateway → memory → report.
+Result: 34 candidates, all 34 admitted at stage 0, 29 PASS, 5 REJECT, 29 records written,
+about 7 minutes (roughly 13 s per candidate, dominated by 10,000 permutations inside a
+sandboxed subprocess). Both planted true pairs PASS (age ~ systolic BP, BMI ~ HDL). The
+injected decoy REJECTs as INCONCLUSIVE (p 0.062, q 0.070, n 40).
+
+Integration gaps this run surfaced. Each was flagged, not patched around:
+
+| # | Gap | Owners |
+|---|---|---|
+| E1 | **No Celery verification handler.** `PRAMANA_VERIFICATION_HANDLER` must name a function in `pramana.verification`, and none exists. It would also need to load the frame from `dataset_ref`, and the cleaned ref (source path + content hash) is not worker-loadable. The demo uses `inprocess_verification_adapter` instead. | Satya, Karthikeya, Rohith |
+| E2 | **Memory never sees the claim text.** `MemoryWriteRequest` carries proof objects only, and `ProofObject` has no claim, so a stored record cannot hold the lesson text SCOPE_M §2.1 asks for. | Karthikeya, Karthik Reddy |
+| E3 | **The memory store is a JSONL file, not ChromaDB.** chromadb is not installed in the venv. Temporary, and marked as such in `memory/store.py`. | Karthik Reddy |
+
+Findings for §11 (band calibration), now measured on the real subset rather than fixtures:
+
+- **The decoy's margin is thin by construction.** A planted rho of 0.30 on 40 rows gives p = 0.062
+  against alpha = 0.05. It is seeded, so the result reproduces exactly, but a larger pilot or a higher
+  target rho in `configs/analysis.yaml` `benchmark.demo` would flip it to PASS. That PASS would be
+  correct: the association would then be real in this data.
+- **The gateway cannot reject a well-powered in-sample confound.** There is no held-out split,
+  replication, or adjustment check, so any association that clears the pre-filter on ~1,500 rows
+  passes. This is why the decoy had to be a small-sample chance finding.
+- **epsilon-squared passes at 1.4% of variance explained.** Race/ethnicity ~ HbA1c PASSes with
+  epsilon² = 0.014, because the 0.10 floor applies to its square root (effective floor 0.01, Cohen's
+  "small"). Nine of the 29 PASSes are race/ethnicity differences with epsilon² between 0.014 and
+  0.078. That may be the intended
+  bar, but it is the band deciding the demo's PASS count.

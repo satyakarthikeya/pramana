@@ -68,3 +68,36 @@ def test_celery_adapter_short_circuits_empty_family(
         lambda *_args: pytest.fail("an empty family must not be queued"),
     )
     assert celery_verification_adapter(make_run()) == {"proof_objects": []}
+
+
+def test_inprocess_adapter_passes_the_whole_family_and_state_frame(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import pramana.verification.gateway as gateway
+    from pramana.orchestration.adapters import inprocess_verification_adapter
+    from tests.unit.orchestration.helpers import proof
+
+    state = make_run("toy.csv")
+    state.dataset = {"frame": "sentinel"}
+    state.candidate_insights = [candidate("a"), candidate("b")]
+    seen: dict[str, Any] = {}
+
+    def fake_verify_batch(candidates: Any, frame: Any, config: Any) -> list[Any]:
+        seen.update(ids=[item.insight_id for item in candidates], frame=frame)
+        return [proof("a", passed=True), proof("b", passed=False)]
+
+    monkeypatch.setattr(gateway, "verify_batch", fake_verify_batch)
+    result = inprocess_verification_adapter(state)
+
+    assert seen == {"ids": ["a", "b"], "frame": {"frame": "sentinel"}}
+    assert [item.insight_id for item in result["proof_objects"]] == ["a", "b"]
+
+
+def test_inprocess_adapter_short_circuits_empty_family_and_requires_a_frame() -> None:
+    from pramana.orchestration.adapters import inprocess_verification_adapter
+
+    assert inprocess_verification_adapter(make_run("toy.csv")) == {"proof_objects": []}
+    state = make_run("toy.csv")
+    state.candidate_insights = [candidate("a")]
+    with pytest.raises(ValueError, match="cleaned dataset"):
+        inprocess_verification_adapter(state)
