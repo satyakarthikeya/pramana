@@ -20,7 +20,7 @@
 | # | Decision | Written into |
 |---|---|---|
 | 1 | One run = one gateway invocation = one BH family. A claim is tested **once**. REFUTED/INCONCLUSIVE claims are never revised and resubmitted to the same gate — revisions go to the next run. Graph-level retries cover crashed code only, and the counter stays with the graph (B. Karthikeya). | `PROJECT.md` §2 |
-| 4 | Reworded. The guarantee comes from the sandbox and the import whitelist, not from model choice. The verification model is swappable; a deterministic template renderer is the default generator and the baseline the LLM is measured against. | `PROJECT.md` §3, `SCOPE.md` §2 |
+| 4 | Reworded. The guarantee comes from the sandbox and the import whitelist, not from model choice. The verification model is swappable; a deterministic template renderer is the default generator and the baseline the LLM is measured against. **Default superseded 18 Sep: DeepSeek to become the default, template the reference; not yet switched (`docs/DECISIONS_LLM_ROLES.md` D1).** | `PROJECT.md` §3, `SCOPE.md` §2 |
 | 5 | `NOT_TESTABLE` added as a fifth `GateOutcome`, mapping to `verdict = REJECT`. It is produced by a new admissibility screen that runs **before** code generation. Untested claims have no p-value and are **excluded from the BH family** and from `n_hypotheses_in_batch`. | `PROJECT.md` §2, `SCOPE.md` §2 component 0 |
 
 **New (6): unfalsifiable claim wording.** A permutation test can support "X tends to be
@@ -119,6 +119,11 @@ as if we were trying to make it win.
 ---
 
 ## 4. The DeepSeek reason in PROJECT.md is stated wrongly — **RESOLVED**
+
+> **Partly superseded, 18 September 2026:** decided that DeepSeek becomes the default
+> generator and the template becomes the reference / explicit offline mode (not yet
+> switched in config). The trust reasoning below still
+> stands. See `docs/DECISIONS_LLM_ROLES.md` D1.
 
 **What the doc says.** `PROJECT.md` §3 says we must use DeepSeek V4 for
 verification, and that using a weak local model would "undermine the trust
