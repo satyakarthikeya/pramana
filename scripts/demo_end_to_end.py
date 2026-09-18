@@ -114,7 +114,7 @@ def _json_default(value: Any) -> Any:
 
 
 def _print_schema(state: PramanaState, trace: DemoTrace) -> None:
-    print("\nSchema inference (rules; OpenRouter refiner only for UNKNOWN columns)")
+    print("\nSchema inference (rules; LLM refiner only for UNKNOWN columns)")
     for name, col in state.schema_profile.get("columns", {}).items():
         usable = "usable" if col["usable_for_hypotheses"] else "SKIPPED"
         print(
@@ -136,7 +136,11 @@ def _print_candidates(state: PramanaState, trace: DemoTrace) -> None:
         f"(before cap: {trace.candidates_before_cap}; generator -> {by_source})"
     )
     if trace.proposer_error:
-        print(f"  OpenRouter proposer failed, rules-only batch used: {trace.proposer_error}")
+        print(f"  LLM proposer failed, rules-only batch used: {trace.proposer_error}")
+    if trace.llm_proposals:
+        print("  LLM proposals and what happened to each:")
+        for line in trace.llm_proposals:
+            print(f"    - {line}")
     for candidate in state.candidate_insights:
         ev = candidate.analysis_evidence
         print(
@@ -262,6 +266,12 @@ def main() -> int:
         action="store_true",
         help="set verification llm.generator='llm' for this run (DeepSeek; needs DEEPSEEK_API_KEY)",
     )
+    parser.add_argument(
+        "--gateway-model",
+        default=None,
+        help="with --enable-gateway-llm: override configs/verification.yaml's llm.model for "
+        "this run only (e.g. deepseek-flash). Default keeps the YAML value.",
+    )
     parser.add_argument("--out-dir", type=Path, default=REPO_ROOT / "artifacts" / "demo_review")
     parser.add_argument("--log-level", default="WARNING")
     args = parser.parse_args()
@@ -282,15 +292,23 @@ def main() -> int:
     print(f"  dataset:           {csv_path} ({len(frame)} rows x {len(frame.columns)} cols)"
           f"{'  [SYNTHETIC]' if synthetic else '  [NHANES 2017-2018: P_DEMO + P_BMX + P_GLU]'}")
 
-    settings = DemoSettings.from_env(csv_path, enable_gateway_llm=args.enable_gateway_llm)
-    print(
-        "  OPENROUTER (analysis assist): "
-        + ("ON, model=" + str(settings.openrouter_model) if settings.openrouter_enabled
-           else "off (OPENROUTER_API_KEY and/or OPENROUTER_MODEL unset -> rules only, no network)")
+    settings = DemoSettings.from_env(
+        csv_path, enable_gateway_llm=args.enable_gateway_llm, gateway_model=args.gateway_model
     )
+    if settings.llm_enabled:
+        print(f"  analysis LLM assist: ON via {settings.llm_label}")
+    else:
+        print(
+            "  analysis LLM assist: off (DEEPSEEK_API_KEY unset, and no OPENROUTER fallback "
+            "-> rules only, no network)"
+        )
     if args.enable_gateway_llm:
         key_state = "set" if os.getenv("DEEPSEEK_API_KEY") else "MISSING -> will fail closed"
-        print(f"  gateway generator:  llm (DeepSeek; DEEPSEEK_API_KEY {key_state})")
+        model_note = (
+            f"model override {args.gateway_model}" if args.gateway_model
+            else "model from configs/verification.yaml"
+        )
+        print(f"  gateway generator:  llm (DeepSeek; DEEPSEEK_API_KEY {key_state}; {model_note})")
     else:
         print("  gateway generator:  template (deterministic, offline)")
 

@@ -8,23 +8,30 @@ node validates (see `orchestration/nodes/*.py`):
                   load_dataset + clean_dataset; dataset_ref becomes the cleaned-frame
                   hash ref (handlers.cleaned_dataset_ref) so analysis_node's
                   candidate.dataset_ref == state.dataset_ref check holds.
-  subagents    -> {schema_profile}   infer_schema, optional OpenRouter SemanticRefiner
+  subagents    -> {schema_profile}   infer_schema, optional LLM SemanticRefiner
   analyze      -> {candidate_insights}   generate_candidates (rules), optional
-                  OpenRouter pair proposer merged under the same cap
+                  LLM pair proposer merged under the same cap
   verify       -> {proof_objects}   verification.gateway.verify_batch in-process;
                   one ProofObject per candidate, same insight_ids, which is what
                   verification_node requires
   memory_write -> {memory_receipts: []}   explicit no-op for this demo
   report       -> orchestration.adapters.safe_report_adapter, unchanged
 
-Optional LLM assists are behind env vars and never make a network call when unset:
+Optional LLM assists are behind env vars and never make a network call when unset.
+Provider selection for the ANALYSIS step (schema refiner + candidate proposer):
 
-  OPENROUTER_API_KEY + OPENROUTER_MODEL   analysis steps (schema refiner for columns
-                                          the rules left UNKNOWN; extra candidate
-                                          pairs). Still an open decision for the team.
-  DEEPSEEK_API_KEY                        gateway falsification-code generator, only
-                                          when the run is started with
-                                          --enable-gateway-llm. Decided: DeepSeek.
+  primary   DEEPSEEK_API_KEY           the same key the gateway uses. Base URL from
+                                       DEEPSEEK_BASE_URL (default https://api.deepseek.com),
+                                       model from DEEPSEEK_ANALYSIS_MODEL (default
+                                       "deepseek-flash"). Deliberately NOT the gateway's
+                                       llm.model from configs/verification.yaml: the
+                                       analysis step is not the trust-critical one.
+  fallback  OPENROUTER_API_KEY +       used only when DEEPSEEK_API_KEY is unset.
+            OPENROUTER_MODEL           OpenAI-compatible client at openrouter.ai.
+
+The GATEWAY's falsification-code generator is a separate switch: `--enable-gateway-llm`
+flips configs/verification.yaml's llm.generator to "llm" for the run, and the
+gateway itself reads DEEPSEEK_API_KEY / DEEPSEEK_BASE_URL (falsification/generator.py).
 
 This file does not edit orchestration/adapters.py (B. Karthikeya's) or anything under
 verification/ or analysis/. It is demo glue only.
@@ -65,6 +72,8 @@ from pramana.verification.config import VerificationConfig
 from pramana.verification.config import load_config as load_verification_config
 from pramana.verification.gateway import verify_batch
 
+DEEPSEEK_DEFAULT_BASE_URL = "https://api.deepseek.com"
+DEEPSEEK_DEFAULT_ANALYSIS_MODEL = "deepseek-flash"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 RULES_SOURCE = "rules"
 
@@ -75,18 +84,54 @@ class DemoSettings:
 
     csv_path: Path
     enable_gateway_llm: bool = False
+    #: Demo-only override of configs/verification.yaml's llm.model for this run.
+    #: None keeps the YAML value. Exists because that YAML currently names a model id
+    #: the live DeepSeek API does not accept; fixing the YAML is the gateway owner's call.
+    gateway_model: str | None = None
+    deepseek_api_key: str | None = None
+    deepseek_base_url: str = DEEPSEEK_DEFAULT_BASE_URL
+    deepseek_analysis_model: str = DEEPSEEK_DEFAULT_ANALYSIS_MODEL
     openrouter_api_key: str | None = None
     openrouter_model: str | None = None
 
     @property
-    def openrouter_enabled(self) -> bool:
-        return bool(self.openrouter_api_key and self.openrouter_model)
+    def llm_provider(self) -> str | None:
+        """Which provider the ANALYSIS step's optional LLM path uses, or None."""
+        if self.deepseek_api_key:
+            return "deepseek"
+        if self.openrouter_api_key and self.openrouter_model:
+            return "openrouter"
+        return None
+
+    @property
+    def llm_model(self) -> str | None:
+        if self.llm_provider == "deepseek":
+            return self.deepseek_analysis_model
+        if self.llm_provider == "openrouter":
+            return self.openrouter_model
+        return None
+
+    @property
+    def llm_enabled(self) -> bool:
+        return self.llm_provider is not None
+
+    @property
+    def llm_label(self) -> str:
+        return f"{self.llm_provider}:{self.llm_model}" if self.llm_enabled else "off"
 
     @classmethod
-    def from_env(cls, csv_path: Path, *, enable_gateway_llm: bool) -> DemoSettings:
+    def from_env(
+        cls, csv_path: Path, *, enable_gateway_llm: bool, gateway_model: str | None = None
+    ) -> DemoSettings:
         return cls(
             csv_path=csv_path,
             enable_gateway_llm=enable_gateway_llm,
+            gateway_model=gateway_model or None,
+            deepseek_api_key=os.getenv("DEEPSEEK_API_KEY") or None,
+            deepseek_base_url=os.getenv("DEEPSEEK_BASE_URL") or DEEPSEEK_DEFAULT_BASE_URL,
+            deepseek_analysis_model=(
+                os.getenv("DEEPSEEK_ANALYSIS_MODEL") or DEEPSEEK_DEFAULT_ANALYSIS_MODEL
+            ),
             openrouter_api_key=os.getenv("OPENROUTER_API_KEY") or None,
             openrouter_model=os.getenv("OPENROUTER_MODEL") or None,
         )
@@ -102,32 +147,42 @@ class DemoTrace:
     refiner_decisions: dict[str, str] = field(default_factory=dict)
     candidate_sources: dict[str, str] = field(default_factory=dict)
     candidates_before_cap: int = 0
+    llm_proposals: list[str] = field(default_factory=list)
     proposer_error: str | None = None
     gateway_generator: str = "template"
     gateway_model: str | None = None
 
 
-# --------------------------------------------------------------------------- OpenRouter
+# --------------------------------------------------------------------------- LLM client
 
 
-def _openrouter_chat(settings: DemoSettings, system: str, user: str) -> str:
-    """One OpenAI-compatible completion against OpenRouter. Caller handles errors."""
+def _llm_chat(settings: DemoSettings, system: str, user: str) -> str:
+    """One OpenAI-compatible completion against the selected provider.
+
+    Caller handles errors. Temperature 0 so a re-run with the same frame asks the
+    same question and, as far as the provider allows, gets the same answer.
+    """
     from openai import OpenAI
 
-    client = OpenAI(api_key=settings.openrouter_api_key, base_url=OPENROUTER_BASE_URL)
+    if settings.llm_provider == "deepseek":
+        client = OpenAI(api_key=settings.deepseek_api_key, base_url=settings.deepseek_base_url)
+    elif settings.llm_provider == "openrouter":
+        client = OpenAI(api_key=settings.openrouter_api_key, base_url=OPENROUTER_BASE_URL)
+    else:
+        raise RuntimeError("no LLM provider configured")
     response = client.chat.completions.create(
-        model=str(settings.openrouter_model),
+        model=str(settings.llm_model),
         temperature=0.0,
         messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
     )
     content = response.choices[0].message.content if response.choices else None
     if not content or not content.strip():
-        raise RuntimeError("OpenRouter returned an empty response")
+        raise RuntimeError(f"{settings.llm_provider} returned an empty response")
     return content
 
 
-class OpenRouterRefiner:
-    """`schema_inference.SemanticRefiner` backed by OpenRouter.
+class LLMRefiner:
+    """`schema_inference.SemanticRefiner` backed by the selected provider.
 
     Offered only the columns the heuristics left UNKNOWN (infer_schema enforces that).
     Returns a usable ColumnRole or None; infer_schema records the role at exactly
@@ -157,7 +212,7 @@ class OpenRouterRefiner:
             }
         )
         try:
-            answer = _openrouter_chat(self._settings, self._SYSTEM, user).strip().lower()
+            answer = _llm_chat(self._settings, self._SYSTEM, user).strip().lower()
             word = re.split(r"\W+", answer)[0] if answer else ""
             role = ColumnRole(word) if word in {r.value for r in ColumnRole} else None
         except Exception as error:  # noqa: BLE001 - refiner failure must not fail the run
@@ -168,6 +223,9 @@ class OpenRouterRefiner:
             return None
         self._trace.refiner_decisions[profile.name] = role.value
         return role
+
+
+# --------------------------------------------------------------------------- LLM proposer
 
 
 def _eta_squared(groups: list[pd.Series]) -> float:
@@ -191,32 +249,35 @@ def _candidate_for_pair(
     *,
     dataset_ref: str,
     source: str,
-) -> CandidateInsight | None:
-    """Build a contract-valid candidate for an LLM-proposed pair, or None.
+) -> CandidateInsight | str:
+    """Build a contract-valid candidate for an LLM-proposed pair, or say why not.
 
     The LLM only names the pair and the claim shape. The exploratory statistic, the
     hedged wording, the direction and the reference group are all computed here the
     way the rule-based strategies compute them, and the same pre-filters apply.
-    Nothing the LLM says becomes evidence.
+    Nothing the LLM says becomes evidence. Returns a reason string when dropped.
     """
     hyp = config.hypotheses
-    if x == y or x not in schema.columns or y not in schema.columns:
-        return None
+    if x == y:
+        return "x and y are the same column"
+    if x not in schema.columns or y not in schema.columns:
+        return "names a column that is not in the frame"
     if not (schema.columns[x].usable_for_hypotheses and schema.columns[y].usable_for_hypotheses):
-        return None
+        return "uses a column schema inference marked unusable"
     numeric = set(schema.usable(ColumnRole.NUMERIC))
     groupings = set(schema.usable(ColumnRole.CATEGORICAL, ColumnRole.ORDINAL))
+    note = f"exploratory scan of a {source}-proposed pair; not a test result"
 
     if claim_type is ClaimType.CORRELATION:
         if x not in numeric or y not in numeric:
-            return None
+            return "correlation needs two numeric columns"
         pair = usable_pair(frame, x, y, hyp.min_observations)
         if pair is None:
-            return None
+            return f"fewer than min_observations={hyp.min_observations} complete rows"
         rho = float(pair[x].corr(pair[y], method="spearman"))
         if math.isnan(rho) or abs(rho) < hyp.min_abs_correlation:
-            return None
-        return emit(
+            return f"|rho|={abs(rho):.3f} below min_abs_correlation={hyp.min_abs_correlation}"
+        candidate = emit(
             strategy=source,
             claim=f"{y} is associated with {x}",
             claim_type=claim_type,
@@ -227,27 +288,28 @@ def _candidate_for_pair(
                 "stat": "spearman_rho",
                 "raw_value": rho,
                 "n_observations": int(len(pair)),
-                "source": f"exploratory scan of an {source}-proposed pair; not a test result",
+                "source": note,
             },
         )
+        return candidate if candidate is not None else "contract refused the candidate"
 
     if claim_type is ClaimType.GROUP_DIFFERENCE:
         if x not in groupings or y not in numeric:
-            return None
+            return "group_difference needs x categorical/ordinal and y numeric"
         pair = frame[[x, y]].dropna()
         labels = pair[x].astype(str)
         counts = labels.value_counts()
         kept = sorted(str(lvl) for lvl, n in counts.items() if n >= hyp.min_group_size)
         if not (hyp.min_group_levels <= len(kept) <= hyp.max_group_levels):
-            return None
+            return f"{len(kept)} usable levels outside the configured group-level range"
         pair = pair.loc[labels.isin(kept)]
         if len(pair) < hyp.min_observations or pair[y].nunique() < 2:
-            return None
+            return "too few rows or a constant measure"
         grouped = pair.groupby(pair[x].astype(str), observed=True)[y]
         groups = [grouped.get_group(lvl) for lvl in kept]
         effect = _eta_squared(groups)
         if effect < hyp.min_group_effect:
-            return None
+            return f"eta^2={effect:.3f} below min_group_effect={hyp.min_group_effect}"
         medians = {lvl: float(g.median()) for lvl, g in zip(kept, groups, strict=True)}
         if len(kept) == 2:
             higher = max(medians, key=lambda lvl: medians[lvl])
@@ -256,7 +318,7 @@ def _candidate_for_pair(
             reference: str | None = higher
         else:
             claim, direction, reference = f"{y} tends to differ between {x} groups", None, None
-        return emit(
+        candidate = emit(
             strategy=source,
             claim=claim,
             claim_type=claim_type,
@@ -270,16 +332,17 @@ def _candidate_for_pair(
                 "n_observations": int(len(pair)),
                 "group_levels": kept,
                 "group_medians": medians,
-                "source": f"exploratory scan of an {source}-proposed pair; not a test result",
+                "source": note,
             },
         )
+        return candidate if candidate is not None else "contract refused the candidate"
 
     if claim_type is ClaimType.TREND:
         if not schema.columns[x].is_time_like or y not in numeric:
-            return None
+            return "trend needs a time-like x and a numeric y"
         pair = usable_pair(frame, x, y, hyp.min_observations)
         if pair is None:
-            return None
+            return f"fewer than min_observations={hyp.min_observations} complete rows"
         if pd.api.types.is_datetime64_any_dtype(pair[x]):
             axis = pair[x].astype("int64")
         else:
@@ -287,8 +350,8 @@ def _candidate_for_pair(
         ordered = pd.DataFrame({x: axis, y: pair[y]}).dropna()
         tau = float(ordered[x].corr(ordered[y], method="kendall"))
         if math.isnan(tau) or abs(tau) < hyp.min_abs_trend_tau:
-            return None
-        return emit(
+            return f"|tau|={abs(tau):.3f} below min_abs_trend_tau={hyp.min_abs_trend_tau}"
+        candidate = emit(
             strategy=source,
             claim=f"{y} is associated with {x}",
             claim_type=claim_type,
@@ -299,13 +362,14 @@ def _candidate_for_pair(
                 "stat": "kendall_tau_b",
                 "raw_value": tau,
                 "n_observations": int(len(ordered)),
-                "source": f"exploratory scan of an {source}-proposed pair; not a test result",
+                "source": note,
             },
         )
-    return None
+        return candidate if candidate is not None else "contract refused the candidate"
+    return f"claim_type {claim_type.value} is not proposable here"
 
 
-def _propose_with_openrouter(
+def _propose_with_llm(
     frame: pd.DataFrame,
     schema: SchemaProfile,
     config: AnalysisConfig,
@@ -313,9 +377,14 @@ def _propose_with_openrouter(
     trace: DemoTrace,
     *,
     dataset_ref: str,
-    already: set[frozenset[str]],
+    rules: Sequence[CandidateInsight],
 ) -> list[CandidateInsight]:
-    """Ask the model for extra (x, y, claim_type) pairs; keep only those the data supports."""
+    """Ask the model for (x, y, claim_type) pairs; keep only those the data supports.
+
+    Every proposal is recorded in `trace.llm_proposals` with what happened to it:
+    added, duplicate of a rules candidate (which is then labelled `rules+<provider>`),
+    or dropped with the pre-filter that refused it.
+    """
     columns = {
         name: {
             "role": p.role.value,
@@ -328,15 +397,15 @@ def _propose_with_openrouter(
     }
     system = (
         "You propose hypotheses about a tabular dataset for a statistical verifier to test. "
-        "Reply with ONLY a JSON array, no prose. Each item: {\"x\": <column>, \"y\": <column>, "
-        "\"claim_type\": one of correlation | group_difference | trend}. Rules: correlation "
+        'Reply with ONLY a JSON array, no prose. Each item: {"x": <column>, "y": <column>, '
+        '"claim_type": one of correlation | group_difference | trend}. Rules: correlation '
         "needs two numeric columns; group_difference needs x categorical/ordinal and y numeric; "
         "trend needs x time-like and y numeric. Propose at most 8 pairs. Prefer pairs a domain "
         "expert would expect to be real. Do not invent columns."
     )
     user = json.dumps({"columns": columns, "n_rows": int(len(frame))})
     try:
-        raw = _openrouter_chat(settings, system, user)
+        raw = _llm_chat(settings, system, user)
         match = re.search(r"\[.*\]", raw, flags=re.DOTALL)
         items = json.loads(match.group(0) if match else raw)
         if not isinstance(items, list):
@@ -345,25 +414,43 @@ def _propose_with_openrouter(
         trace.proposer_error = f"{type(error).__name__}: {error}"
         return []
 
-    source = f"openrouter:{settings.openrouter_model}"
+    label = settings.llm_label
+    by_pair = {(frozenset(c.variables), c.claim_type): c for c in rules}
+    seen: set[tuple[frozenset[str], ClaimType]] = set()
     extras: list[CandidateInsight] = []
     for item in items[:8]:
         if not isinstance(item, dict):
-            continue
-        try:
-            claim_type = ClaimType(str(item.get("claim_type", "")).strip().lower())
-        except ValueError:
+            trace.llm_proposals.append(f"{item!r}: dropped (not an object)")
             continue
         x, y = str(item.get("x", "")), str(item.get("y", ""))
-        if frozenset((x, y)) in already:
+        raw_type = str(item.get("claim_type", "")).strip().lower()
+        try:
+            claim_type = ClaimType(raw_type)
+        except ValueError:
+            trace.llm_proposals.append(f"{x} ~ {y} [{raw_type}]: dropped (unknown claim_type)")
             continue
-        candidate = _candidate_for_pair(
-            frame, schema, config, x, y, claim_type, dataset_ref=dataset_ref, source="openrouter"
+        key = (frozenset((x, y)), claim_type)
+        if key in seen:
+            trace.llm_proposals.append(f"{x} ~ {y} [{claim_type.value}]: duplicate proposal")
+            continue
+        seen.add(key)
+        existing = by_pair.get(key)
+        if existing is not None:
+            trace.candidate_sources[existing.insight_id] = f"{RULES_SOURCE}+{label}"
+            trace.llm_proposals.append(
+                f"{x} ~ {y} [{claim_type.value}]: also found by rules -> {existing.insight_id}"
+            )
+            continue
+        result = _candidate_for_pair(
+            frame, schema, config, x, y, claim_type,
+            dataset_ref=dataset_ref, source=str(settings.llm_provider),
         )
-        if candidate is not None:
-            already.add(frozenset((x, y)))
-            extras.append(candidate)
-            trace.candidate_sources[candidate.insight_id] = source
+        if isinstance(result, str):
+            trace.llm_proposals.append(f"{x} ~ {y} [{claim_type.value}]: dropped ({result})")
+            continue
+        extras.append(result)
+        trace.candidate_sources[result.insight_id] = label
+        trace.llm_proposals.append(f"{x} ~ {y} [{claim_type.value}]: ADDED -> {result.insight_id}")
     return extras
 
 
@@ -389,11 +476,11 @@ def build_demo_adapters(settings: DemoSettings) -> tuple[WorkflowAdapters, DemoT
         }
 
     def subagents_adapter(state: PramanaState) -> dict[str, Any]:
-        """Real schema inference; the OpenRouter refiner only sees UNKNOWN columns."""
+        """Real schema inference; the LLM refiner only sees UNKNOWN columns."""
         frame = state.dataset
         if not isinstance(frame, pd.DataFrame):
             raise TypeError("schema inference requires the cleaned DataFrame in state")
-        refiner = OpenRouterRefiner(settings, trace) if settings.openrouter_enabled else None
+        refiner = LLMRefiner(settings, trace) if settings.llm_enabled else None
         schema = infer_schema(frame, analysis_config.schema_inference, refiner=refiner)
         trace.unusable_columns = describe_unusable(schema)
         return {"schema_profile": schema.model_dump(mode="json")}
@@ -410,15 +497,12 @@ def build_demo_adapters(settings: DemoSettings) -> tuple[WorkflowAdapters, DemoT
         for candidate in candidates:
             trace.candidate_sources[candidate.insight_id] = RULES_SOURCE
 
-        if settings.openrouter_enabled:
-            already = {frozenset(c.variables) for c in candidates}
-            candidates = [
-                *candidates,
-                *_propose_with_openrouter(
-                    frame, schema, analysis_config, settings, trace,
-                    dataset_ref=state.dataset_ref, already=already,
-                ),
-            ]
+        if settings.llm_enabled:
+            extras = _propose_with_llm(
+                frame, schema, analysis_config, settings, trace,
+                dataset_ref=state.dataset_ref, rules=candidates,
+            )
+            candidates = [*candidates, *extras]
         trace.candidates_before_cap = len(candidates)
         if len(candidates) > hyp.max_candidates_per_run:
             # Same ranking rule generation.py uses: largest exploratory effect, id tiebreak.
@@ -434,9 +518,10 @@ def build_demo_adapters(settings: DemoSettings) -> tuple[WorkflowAdapters, DemoT
         with matching insight_ids -- exactly what verification_node checks."""
         config: VerificationConfig = load_verification_config()
         if settings.enable_gateway_llm:
-            config = config.model_copy(
-                update={"llm": config.llm.model_copy(update={"generator": "llm"})}
-            )
+            llm_update: dict[str, Any] = {"generator": "llm"}
+            if settings.gateway_model:
+                llm_update["model"] = settings.gateway_model
+            config = config.model_copy(update={"llm": config.llm.model_copy(update=llm_update)})
         trace.gateway_generator = config.llm.generator
         trace.gateway_model = config.llm.model if config.llm.generator == "llm" else None
         if not state.candidate_insights:
