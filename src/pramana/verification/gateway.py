@@ -60,10 +60,12 @@ from pramana.verification.admissibility import screen
 from pramana.verification.config import VerificationConfig
 from pramana.verification.evidence import evaluate_gate
 from pramana.verification.executor.runner import COLUMN_POLICY_REASON_PREFIX, execute
+from pramana.verification.falsification import templates
 from pramana.verification.falsification.generator import (
     FalsificationProgram,
     GeneratorError,
     GeneratorUnavailable,
+    generate_from_template,
     get_generator,
 )
 from pramana.verification.fdr import apply_bh
@@ -217,6 +219,25 @@ def _incomplete_payload_reason(payload: dict[str, Any] | None) -> str | None:
 GENERATOR_UNAVAILABLE_REASON_PREFIX = "generator unavailable"
 
 
+#: What a claim's template outcome is recorded as when the template run did not complete.
+TEMPLATE_UNAVAILABLE = "template_unavailable"
+
+
+class TemplateDisagreement(BaseModel):
+    """One claim whose gate outcome differs between the LLM path and the template path.
+
+    Diagnostic only (docs/DECISIONS_LLM_ROLES.md W8): the LLM-path outcome is the one in
+    the proof object; this records that the reference test would have said otherwise.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    insight_id: str
+    claim_type: str
+    llm_outcome: str
+    template_outcome: str
+
+
 class BatchSummary(BaseModel):
     """Run-level facts a list of proof objects cannot carry on its own.
 
@@ -235,6 +256,14 @@ class BatchSummary(BaseModel):
     n_tested: int = Field(ge=0, description="Claims whose code reached the executor.")
     generator_unavailable_count: int = Field(ge=0)
     column_check_by_claim_type: dict[str, dict[str, int]]
+    n_template_comparisons: int = Field(
+        default=0, ge=0, description="Claims whose template outcome was obtained (W8)."
+    )
+    n_template_unavailable: int = Field(
+        default=0, ge=0, description="Claims whose template run did not complete (W8)."
+    )
+    template_unavailable_ids: list[str] = Field(default_factory=list)
+    template_disagreements: list[TemplateDisagreement] = Field(default_factory=list)
 
     @property
     def generator_unavailable(self) -> bool:
@@ -420,6 +449,97 @@ def _proof_for_result(
     )
 
 
+def _shadow_template_outcomes(
+    tested: Sequence[_Tested],
+    frame: pd.DataFrame,
+    config: VerificationConfig,
+    family_id: str,
+) -> dict[str, GateOutcome | None]:
+    """Gate outcome the template test would give each tested claim; None if it crashed.
+
+    DIAGNOSTIC ONLY (W8). Guarantees: touches no proof, q-value, p-value or the real BH
+    family. Each tested claim's template program is run on the same frame, config and
+    seed; the template p-values then go through their OWN BH correction over a family
+    of the same size as the real one (a claim with no template or a failed template run
+    keeps its LLM-path p-value as a placeholder, so the size and the correction stay
+    comparable), and the same gate decides each outcome. The result is discarded after
+    the comparison. Never raises: any failure of a template run becomes None.
+    """
+    template_results: dict[str, dict[str, Any] | None] = {}
+    for item in tested:
+        candidate = item.candidate
+        if (
+            item.program.generator == "template"
+            or candidate.claim_type not in templates.SUPPORTED_CLAIM_TYPES
+        ):
+            continue
+        try:
+            result = execute(generate_from_template(candidate, config), frame, config)
+            payload = result.payload if result.ok else None
+            if payload is not None and _incomplete_payload_reason(payload) is not None:
+                payload = None
+            if payload is not None:
+                EffectMetric(payload["effect_metric"])
+                float(payload["p_value"])
+                float(payload["effect_size"])
+        except Exception as error:  # diagnostic: must never take the batch down
+            _log.warning(
+                json.dumps(
+                    {
+                        "event": "template_unavailable",
+                        "insight_id": candidate.insight_id,
+                        "bh_family_id": family_id,
+                        "error": f"{type(error).__name__}: {error}",
+                    }
+                )
+            )
+            payload = None
+        else:
+            if payload is None:
+                _log.warning(
+                    json.dumps(
+                        {
+                            "event": "template_unavailable",
+                            "insight_id": candidate.insight_id,
+                            "bh_family_id": family_id,
+                            "error": result.failure_reason or "no verified result",
+                        }
+                    )
+                )
+        template_results[candidate.insight_id] = payload
+
+    if not template_results:
+        return {}
+
+    shadow_p = [
+        float(template_results[item.candidate.insight_id]["p_value"])  # type: ignore[index]
+        if template_results.get(item.candidate.insight_id) is not None
+        else item.p_value
+        for item in tested
+    ]
+    shadow_q = apply_bh(shadow_p, config.statistics.alpha)
+    outcomes: dict[str, GateOutcome | None] = {}
+    for item, q_value in zip(tested, shadow_q, strict=True):
+        insight_id = item.candidate.insight_id
+        if insight_id not in template_results:
+            continue
+        payload = template_results[insight_id]
+        if payload is None:
+            outcomes[insight_id] = None
+            continue
+        decision = evaluate_gate(
+            q_value=q_value,
+            effect_size=float(payload["effect_size"]),
+            effect_metric=EffectMetric(payload["effect_metric"]),
+            alpha=config.statistics.alpha,
+            p_value_floor=config.p_value_floor,
+            config=config.evidence,
+            asserted_direction=item.candidate.asserted_direction,
+        )
+        outcomes[insight_id] = decision.outcome
+    return outcomes
+
+
 def verify_batch(
     candidates: Sequence[CandidateInsight],
     frame: pd.DataFrame,
@@ -545,6 +665,59 @@ def verify_batch_with_summary(
         else:
             proofs.append(_proof_for_result(item, family_id, q_value, family_size, config))
 
+    # --- agreement check (W8): diagnostic, after every verdict is final ------
+    # Runs only on the LLM path. Reads the proofs, never writes them.
+    disagreements: list[TemplateDisagreement] = []
+    unavailable_ids: list[str] = []
+    n_compared = 0
+    if config.llm.generator == "llm" and tested:
+        try:
+            shadow = _shadow_template_outcomes(tested, frame, config, family_id)
+        except Exception as error:  # diagnostic only: never fail the batch over it
+            _log.warning(
+                json.dumps(
+                    {
+                        "event": "template_comparison_failed",
+                        "bh_family_id": family_id,
+                        "error": f"{type(error).__name__}: {error}",
+                    }
+                )
+            )
+            shadow = {}
+        proof_by_id = {proof.insight_id: proof for proof in proofs}
+        for item in tested:
+            insight_id = item.candidate.insight_id
+            if insight_id not in shadow:
+                continue
+            template_outcome = shadow[insight_id]
+            if template_outcome is None:
+                unavailable_ids.append(insight_id)
+                continue
+            n_compared += 1
+            llm_outcome = proof_by_id[insight_id].gate_outcome
+            if template_outcome is not llm_outcome:
+                flagged = TemplateDisagreement(
+                    insight_id=insight_id,
+                    claim_type=item.candidate.claim_type.value,
+                    llm_outcome=llm_outcome.value,
+                    template_outcome=template_outcome.value,
+                )
+                disagreements.append(flagged)
+                _log.warning(
+                    json.dumps(
+                        {
+                            "event": "template_disagreement",
+                            "bh_family_id": family_id,
+                            **flagged.model_dump(),
+                            "message": (
+                                "the template reference test reaches a different gate "
+                                "outcome than the LLM-written program; the LLM-path "
+                                "verdict stands and this is flagged for review only."
+                            ),
+                        }
+                    )
+                )
+
     summary = BatchSummary(
         bh_family_id=family_id,
         generator=config.llm.generator,
@@ -553,6 +726,10 @@ def verify_batch_with_summary(
         n_tested=family_size,
         generator_unavailable_count=tally.unavailable,
         column_check_by_claim_type=tally.summary(),
+        n_template_comparisons=n_compared,
+        n_template_unavailable=len(unavailable_ids),
+        template_unavailable_ids=unavailable_ids,
+        template_disagreements=disagreements,
     )
     if summary.generator_unavailable:
         _log.warning(
