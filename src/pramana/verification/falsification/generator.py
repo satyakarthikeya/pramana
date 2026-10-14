@@ -14,10 +14,12 @@ how many resamples, WITHOUT re-deriving any of it from the candidate afterwards.
 `generator` names which path produced the code, so an ablation can tell a template run
 from an LLM run in the audit trail rather than by inference.
 
-Why the template path is the default
-------------------------------------
-It needs no API key and no network, and its output is byte-reproducible. The LLM path
-is the secondary generator measured against it, not a replacement for it.
+Why the template path still exists
+----------------------------------
+The shipped default is the LLM path (docs/DECISIONS_LLM_ROLES.md D1). The template path
+is the reference the LLM path is measured against and the explicit offline mode: it
+needs no API key and no network, and its output is byte-reproducible. It is selected in
+config (or by PRAMANA_VERIFICATION_GENERATOR), never used as a silent fallback.
 
 What the LLM is trusted with, and what it is not
 ------------------------------------------------
@@ -90,6 +92,17 @@ class GeneratorError(RuntimeError):
     the gateway can record the failure and issue REJECT / NOT_TESTABLE. There is no
     path from this exception to a PASS, and no path from it back to the template
     renderer.
+    """
+
+
+class GeneratorUnavailable(GeneratorError):
+    """The generator could not be reached at all, as opposed to answering badly.
+
+    Raised for a missing API key, a provider the gate refuses to use, and a failed
+    request. The distinction matters at the batch level: every claim then comes back
+    REJECT / NOT_TESTABLE, which is indistinguishable from a batch of genuinely
+    untestable claims unless something says the verifier never ran. A model that
+    answers with unusable code is a plain `GeneratorError`: that is about one claim.
     """
 
 
@@ -222,7 +235,7 @@ def _call_deepseek(system: str, user: str, config: VerificationConfig) -> str:
     call, and so every network failure funnels through one `GeneratorError`.
     """
     if config.llm.provider != _REQUIRED_PROVIDER:
-        raise GeneratorError(
+        raise GeneratorUnavailable(
             f"the falsification generator is configured for provider "
             f"{config.llm.provider!r}, but verification runs on "
             f"{_REQUIRED_PROVIDER!r} only (AGENTS.md 2). Routing the gate through "
@@ -232,10 +245,12 @@ def _call_deepseek(system: str, user: str, config: VerificationConfig) -> str:
 
     api_key = os.getenv("DEEPSEEK_API_KEY")
     if not api_key:
-        raise GeneratorError(
+        raise GeneratorUnavailable(
             "DEEPSEEK_API_KEY is not set, so the LLM generator cannot run. The "
-            "template generator is the offline default; selecting 'llm' without a "
-            "key fails closed rather than quietly falling back to it."
+            "template generator is the reference and the explicit offline mode "
+            "(llm.generator or PRAMANA_VERIFICATION_GENERATOR set to 'template'); "
+            "selecting 'llm' without a key fails closed rather than quietly "
+            "falling back to it."
         )
 
     try:
@@ -254,7 +269,7 @@ def _call_deepseek(system: str, user: str, config: VerificationConfig) -> str:
             ],
         )
     except Exception as error:  # any transport/API failure is a generation failure
-        raise GeneratorError(
+        raise GeneratorUnavailable(
             f"the DeepSeek request failed ({type(error).__name__}: {error}). A claim "
             f"whose test could not be generated has not been tested."
         ) from error

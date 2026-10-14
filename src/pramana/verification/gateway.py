@@ -51,6 +51,7 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 import pandas as pd
+from pydantic import BaseModel, ConfigDict, Field
 
 from pramana.contracts.candidate_insight import CandidateInsight
 from pramana.contracts.enums import ClaimType, EffectMetric, GateOutcome, Verdict
@@ -62,6 +63,7 @@ from pramana.verification.executor.runner import COLUMN_POLICY_REASON_PREFIX, ex
 from pramana.verification.falsification.generator import (
     FalsificationProgram,
     GeneratorError,
+    GeneratorUnavailable,
     get_generator,
 )
 from pramana.verification.fdr import apply_bh
@@ -208,6 +210,38 @@ def _incomplete_payload_reason(payload: dict[str, Any] | None) -> str | None:
     return None
 
 
+#: Starts the failure reason of a claim whose generator could not be reached at all
+#: (no key, refused provider, failed request). Per-claim verdicts are unchanged by it;
+#: it lets a reader of one proof object, and the batch summary, tell "the verifier never
+#: ran" apart from "the claim could not be tested".
+GENERATOR_UNAVAILABLE_REASON_PREFIX = "generator unavailable"
+
+
+class BatchSummary(BaseModel):
+    """Run-level facts a list of proof objects cannot carry on its own.
+
+    A batch in which the generator was unreachable returns the same verdicts as a batch
+    of untestable claims: REJECT / NOT_TESTABLE for every one. Only this summary says the
+    difference, so a caller that reports "no insights" can check `generator_unavailable`
+    first and report an error instead.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    bh_family_id: str
+    generator: str = Field(description="Which generator the config selected for the run.")
+    n_candidates: int = Field(ge=0)
+    n_screened_out: int = Field(ge=0, description="Refused or ungenerated: not in the family.")
+    n_tested: int = Field(ge=0, description="Claims whose code reached the executor.")
+    generator_unavailable_count: int = Field(ge=0)
+    column_check_by_claim_type: dict[str, dict[str, int]]
+
+    @property
+    def generator_unavailable(self) -> bool:
+        """True when at least one claim could not be tested because no generator ran."""
+        return self.generator_unavailable_count > 0
+
+
 class _ColumnCheckTally:
     """How often the column check refuses LLM-written programs, per claim type.
 
@@ -220,6 +254,7 @@ class _ColumnCheckTally:
     def __init__(self) -> None:
         self._programs: dict[str, int] = {}
         self._refused: dict[str, int] = {}
+        self.unavailable = 0
 
     def record(
         self, candidate: CandidateInsight, generator: str, ok: bool, reason: str | None
@@ -264,6 +299,14 @@ def _run_one(
     """
     try:
         program = generate(candidate, config)
+    except GeneratorUnavailable as error:
+        tally.unavailable += 1
+        _emit("generator_unavailable_for_claim", candidate.insight_id, error=str(error))
+        return (
+            f"{GENERATOR_UNAVAILABLE_REASON_PREFIX}: {error} The verifier did not run "
+            f"for this claim, so it has not been tested; this says nothing about the "
+            f"claim itself."
+        )
     except (GeneratorError, ValueError) as error:
         _emit("generation_failed", candidate.insight_id, error=str(error))
         return (
@@ -384,7 +427,23 @@ def verify_batch(
     *,
     generate: Generator | None = None,
 ) -> list[ProofObject]:
-    """Verify a whole batch of candidate insights and return one proof object each.
+    """Verify a batch and return one proof object per candidate.
+
+    The proofs-only entry point existing callers use. Callers that must tell "the
+    generator was unreachable" from "the claims were untestable" call
+    `verify_batch_with_summary` instead; the per-claim result is identical.
+    """
+    return verify_batch_with_summary(candidates, frame, config, generate=generate)[0]
+
+
+def verify_batch_with_summary(
+    candidates: Sequence[CandidateInsight],
+    frame: pd.DataFrame,
+    config: VerificationConfig,
+    *,
+    generate: Generator | None = None,
+) -> tuple[list[ProofObject], BatchSummary]:
+    """Verify a whole batch of candidate insights: one proof object each, plus a summary.
 
     Guarantees:
 
@@ -408,7 +467,15 @@ def verify_batch(
     """
     _require_unique_ids(candidates)
     if not candidates:
-        return []
+        return [], BatchSummary(
+            bh_family_id=_family_id(candidates),
+            generator=config.llm.generator,
+            n_candidates=0,
+            n_screened_out=0,
+            n_tested=0,
+            generator_unavailable_count=0,
+            column_check_by_claim_type={},
+        )
 
     family_id = _family_id(candidates)
     seed = config.statistics.seed
@@ -477,4 +544,31 @@ def verify_batch(
             )
         else:
             proofs.append(_proof_for_result(item, family_id, q_value, family_size, config))
-    return proofs
+
+    summary = BatchSummary(
+        bh_family_id=family_id,
+        generator=config.llm.generator,
+        n_candidates=len(candidates),
+        n_screened_out=len(candidates) - family_size,
+        n_tested=family_size,
+        generator_unavailable_count=tally.unavailable,
+        column_check_by_claim_type=tally.summary(),
+    )
+    if summary.generator_unavailable:
+        _log.warning(
+            json.dumps(
+                {
+                    "event": "generator_unavailable",
+                    "bh_family_id": family_id,
+                    "generator": summary.generator,
+                    "generator_unavailable_count": summary.generator_unavailable_count,
+                    "n_candidates": summary.n_candidates,
+                    "message": (
+                        "the falsification generator could not be reached for some or all "
+                        "claims; those claims were NOT tested. Zero insights from this run "
+                        "means the verifier did not run, not that nothing was found."
+                    ),
+                }
+            )
+        )
+    return proofs, summary
