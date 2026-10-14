@@ -1,5 +1,9 @@
 # Open Issues — Verification Gateway
 
+> **UPDATE (14 October 2026):** the finishing pass is recorded in the last section of this
+> file ("Finishing pass") and in `docs/IMPLEMENTATION_STATUS.md`. Items 10 and 11 below
+> carry their new status there; the text under them is the history.
+>
 > **STATUS (17 September 2026).** Phases 1–5 of `SCOPE.md` §4 — contracts, statistics
 > library, BH-FDR, evidence gate, sandboxed executor — plus the config loader, the
 > admissibility screen and the deterministic template generator are **implemented and
@@ -408,3 +412,28 @@ Findings for §11 (band calibration), now measured on the real subset rather tha
   "small"). Nine of the 29 PASSes are race/ethnicity differences with epsilon² between 0.014 and
   0.078. That may be the intended
   bar, but it is the band deciding the demo's PASS count.
+
+---
+
+## Finishing pass (14 October 2026)
+
+Branch `feat/gateway-finish`, not yet through a pull request (`AGENTS.md` §8.8). Full
+suite 632 passed with `DEEPSEEK_API_KEY` unset. Details per item are in
+`docs/IMPLEMENTATION_STATUS.md`.
+
+| Item | Status now |
+|---|---|
+| 5. Permutation cost at benchmark scale | **Measured** by `scripts/measure_permutation_cost.py` on the dev machine, shipped `n_permutations` 10,000, template generator, 1,500 rows x 12 columns. Per candidate: correlation about 18.8 s, trend about 20.6 s, group difference about 11.9 s. Slowest single candidate 20.6 s against the 60 s timeout, so about 2.9x headroom; with `max_retries` 1 the worst case per candidate is 120 s, and a timeout is INCONCLUSIVE, never PASS. All 52 testable pairs of one dataset take about 15 min, so 40 datasets is about 9.8 h sequential (about 2.9 h at 15 candidates per dataset). **Wall time, not the timeout, is the constraint:** parallelise or cap candidates. Re-measure on the CI machine before relying on the 3x margin. |
+| 6. DeepSeek default | **Switched.** `llm.generator: llm` (D1). `template` stays as reference and offline mode, selectable in config or with `PRAMANA_VERIFICATION_GENERATOR`. W13 (generation outside the offline worker) is still B. Karthikeya's and still blocks any deployed setup. |
+| 7. W1 column check, W8 agreement check | **Built** (WP2, WP4). The column check is static and errs toward refusing; its real over-refusal rate on live DeepSeek output is **unmeasured** (counts are logged, per claim type, for the first live run). |
+| 10. Cramer's V unreachable | **Still open; needs a decision.** Two options and a recommendation (declare out of scope now) are in `docs/WP7_PROPOSALS.md` section 3. No claim type was added. |
+| 11. Effect-size bands | **Partly calibrated.** `spearman_rho` measured (floor 0.10 clears the weaker planted pair, 0.328, by 0.23); the other four metrics are still convention-based. The floor does not separate chance nulls from truth; q < alpha does. Open decision: a stricter rho/delta floor of 0.20 would take demo PASSes from 29 to 23. `docs/CALIBRATION_BANDS.md`. |
+| `outlier_warning` never set | Proposal in `docs/WP7_PROPOSALS.md` section 1; awaiting approval. |
+| Generator unavailable vs untestable | **Closed.** `BatchSummary.generator_unavailable_count` and a WARNING. B. Karthikeya's graph does not read it yet, so a no-key run through the graph can still look like "no insights". |
+| Evaluation harness | A and D built; B and C stubs. Scoring rules not in SPEC.md (undirected claim counts as false positive; correlation and trend both accepted for a numeric pair; recall by effect level; and others in the `metrics.py` docstring) need the owner's sign-off before results are reported. `configs/evaluation.yaml` `analysis_model` is a placeholder. |
+| Decoy margin (demo) | `scripts/build_demo_nhanes.py` is now at `decoy_target_rho` 0.20 and the decoy REJECTs in 6 of 6 seeds (q 0.22 to 0.33). The main demo's decoy is still set by `configs/analysis.yaml` (0.30, p 0.062), which is not this module's file. |
+
+**Still owed to people, not code:** the `reference_group` contract announcement (issue 7);
+the `AGENTS.md` §4 whitelist wording (issue 9); notes to B. Karthikeya and P. Rohith
+(drafted separately).
+
