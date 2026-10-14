@@ -189,6 +189,25 @@ class _Tested:
         return _FAILED_P_VALUE if self.payload is None else float(self.payload["p_value"])
 
 
+def _incomplete_payload_reason(payload: dict[str, Any] | None) -> str | None:
+    """Why a verified payload still cannot become a complete proof object, or None.
+
+    Guarantees: a reported effect always travels with a non-empty metric name. A number
+    without its unit is not a reportable effect (AGENTS.md 3.5, 3.6), and a program that
+    omits the label has not followed the contract, however genuine its stamp.
+    """
+    if payload is None:
+        return None
+    metric = payload.get("reported_effect_metric")
+    if not isinstance(metric, str) or not metric.strip():
+        return (
+            "the program returned a reported_effect without a non-empty "
+            "reported_effect_metric, so the record is incomplete; the claim is "
+            "recorded as inconclusive rather than gated (AGENTS.md 3.6)"
+        )
+    return None
+
+
 def _run_one(
     candidate: CandidateInsight,
     frame: pd.DataFrame,
@@ -219,6 +238,15 @@ def _run_one(
             reason=result.failure_reason,
         )
         return _Tested(candidate, program, None, result.failure_reason)
+
+    incomplete = _incomplete_payload_reason(result.payload)
+    if incomplete is not None:
+        # The executor's required keys are the floor for "a stamped result"; the proof
+        # object needs one more thing it cannot be handed without -- the unit of the
+        # reported effect. Treated like any other failed execution: kept in the family
+        # at p = 1.0, so it can never become SUPPORTED.
+        _emit("payload_incomplete", candidate.insight_id, reason=incomplete)
+        return _Tested(candidate, program, None, incomplete)
 
     _emit("execution_verified", candidate.insight_id, attempts=result.attempts)
     return _Tested(candidate, program, result.payload, None)

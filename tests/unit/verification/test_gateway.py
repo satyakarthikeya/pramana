@@ -86,3 +86,51 @@ def test_unknown_columns_are_refused_rather_than_crashing_the_executor(config, f
     proof = verify_batch([ghost], frame, config)[0]
     assert proof.gate_outcome is GateOutcome.NOT_TESTABLE
     assert "ghost" in (proof.failure_reason or "")
+
+
+# --- an LLM program that leaves out `reported_effect_metric` ---------------------
+
+
+def _template_minus(line_fragment: str):
+    """A generator that renders the template, then deletes the line containing a key.
+
+    Stands in for an LLM-written program that is otherwise correct and stamped but
+    omits one field of the returned dict.
+    """
+    from pramana.verification.falsification.generator import generate_from_template
+
+    def generate(candidate, cfg):
+        program = generate_from_template(candidate, cfg)
+        kept = [ln for ln in program.source.splitlines() if line_fragment not in ln]
+        assert len(kept) < len(program.source.splitlines()), "fragment not in the template"
+        return program.model_copy(update={"source": "\n".join(kept) + "\n"})
+
+    return generate
+
+
+def test_control_the_untampered_template_passes(config) -> None:
+    """Without this, the fail-closed test below could pass for an unrelated reason."""
+    from tests.fixtures.candidates import TRUE_CORRELATION
+
+    proofs = verify_batch([TRUE_CORRELATION], toy_frame(), config)
+    assert proofs[0].verdict is Verdict.PASS
+
+
+def test_program_omitting_reported_effect_metric_ends_as_reject(config) -> None:
+    """A reported effect with no unit is not a complete record (AGENTS.md 3.6).
+
+    It must come out REJECT, not PASS and not an exception, even though the program's
+    p-value, effect size and stamp are all genuine.
+    """
+    from tests.fixtures.candidates import TRUE_CORRELATION
+
+    proofs = verify_batch(
+        [TRUE_CORRELATION],
+        toy_frame(),
+        config,
+        generate=_template_minus('"reported_effect_metric"'),
+    )
+    assert len(proofs) == 1
+    assert proofs[0].verdict is Verdict.REJECT
+    assert proofs[0].gate_outcome is not GateOutcome.SUPPORTED
+    assert "reported_effect_metric" in (proofs[0].failure_reason or "")

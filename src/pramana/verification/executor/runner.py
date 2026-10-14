@@ -78,7 +78,12 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 import pramana
 from pramana.contracts.enums import EffectMetric
 from pramana.verification.config import VerificationConfig
-from pramana.verification.executor.policy import ImportPolicyViolation, check_imports
+from pramana.verification.executor.policy import (
+    ColumnPolicyViolation,
+    ImportPolicyViolation,
+    check_columns,
+    check_imports,
+)
 from pramana.verification.stats import provenance
 
 if TYPE_CHECKING:  # pragma: no cover -- import cycle at runtime, Phase 6 owns this model
@@ -373,6 +378,10 @@ def execute(
         check_imports(program.source, config.executor.allowed_imports)
     except ImportPolicyViolation as violation:
         return _failed(program.insight_id, f"import policy violation: {violation}")
+    try:
+        check_columns(program.source, (program.var_x, program.var_y), program.claim_type)
+    except ColumnPolicyViolation as violation:
+        return _failed(program.insight_id, f"column policy violation: {violation}")
 
     attempts = 0
     # Annotated, not inferred: `_run_once` returns `str | None` for the reason, and an
