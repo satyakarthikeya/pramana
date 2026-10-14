@@ -19,8 +19,10 @@ from .schema_inference import (
     SchemaProfile,
     SemanticRefiner,
     describe_unusable,
-    infer_schema,
     schema_profile,
+)
+from .schema_inference import (
+    infer_schema_with_gemma as infer_schema,
 )
 
 __all__ = [

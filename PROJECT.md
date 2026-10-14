@@ -95,7 +95,7 @@ Across sessions ("episode mode"): on a new related dataset, the agent retrieves 
 | Step | Model | What it may do | What it may never do | Status |
 |---|---|---|---|---|
 | [0] + [4] memory search | all-MiniLM-L6-v2 embeddings (local, `configs/memory.yaml`) | Find lessons similar to a new dataset | Decide what is stored (the guard does) | Not built |
-| [1] schema inference | Gemma (local) | Label a column the rules could not classify, or decline to | Edit data; decide anything statistical | Hook built (`SemanticRefiner`), no implementation |
+| [1] schema inference | Gemma (local) | Label a column the rules could not classify, or decline to | Edit data; decide anything statistical | Ollama refiner built; requires configured Langfuse tracing and a run UUID |
 | [1] cleaning | Gemma (local), optional | Suggest a step for a non-standard case; code applies it and records it in the cleaning report | Edit data directly | Not built — cleaning is rules only |
 | [2] analysis agent | Configurable: Gemma (local) or an API model | Propose structured claims | Write a claim's sentence; supply a number the gate uses | **Not built** — analysis is a deterministic scan today |
 | [3b] falsification code | DeepSeek V4 (API) | Write `falsify(frame)` calling our library | Compute or report a statistic; import anything else | Built; **config still defaults to the template generator** |

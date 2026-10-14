@@ -120,6 +120,7 @@ def test_ordinal_cap_above_categorical_cap_is_refused() -> None:
         SchemaInferenceConfig(
             use_llm_for_ambiguous_only=True,
             model="gemma",
+            gemma=load_config().schema_inference.gemma,
             min_confidence=0.7,
             min_non_null=20,
             id_unique_ratio=0.95,

@@ -38,11 +38,11 @@ one that reaches the semantic refiner.
 
 Gemma's place in this
 ----------------------
-`SemanticRefiner` is the seam. Heuristics run first and always; the refiner is offered
-only the columns they left `UNKNOWN`, which is what `use_llm_for_ambiguous_only`
-means. No refiner is wired in here -- there is no Gemma client in the repository yet
--- so the default is no refinement, and ambiguous columns stay `UNKNOWN`. That is the
-fail-closed default, not a stub standing in for one.
+`SemanticRefiner` is the seam. Heuristics run first; the refiner is offered only the
+columns they left `UNKNOWN`. `infer_schema` remains the deterministic low-level API.
+`infer_schema_with_gemma`, also exported as the package's public `infer_schema`,
+connects the configured Ollama client when a traced run is available. Missing tracing
+or a run UUID leaves ambiguous columns unknown, with no untraced model request.
 
 Owner: P. Rohith (built by P.P. Satya Karthikeya -- team-agreed cross-module work)
 Scope: scope/SCOPE_P_Rohith.md 2, component 2 / 4, step 2
@@ -54,6 +54,7 @@ import re
 from collections.abc import Sequence
 from enum import StrEnum
 from typing import Protocol
+from uuid import UUID
 
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field
@@ -371,9 +372,7 @@ def _classify_labelled(
     )
 
 
-def infer_column(
-    series: pd.Series, name: str, config: SchemaInferenceConfig
-) -> ColumnProfile:
+def infer_column(series: pd.Series, name: str, config: SchemaInferenceConfig) -> ColumnProfile:
     """Classify one column from its values, with its name as a corroborating hint only.
 
     Guarantees: deterministic for a given `(series, config)` -- no sampling, no model
@@ -513,8 +512,22 @@ def infer_schema(
             and refiner is not None
             and config.use_llm_for_ambiguous_only
             and profile.n_non_null >= config.min_non_null
+            and profile.n_unique >= 2
         ):
             profile = _apply_refiner(profile, refiner, config)
+            if profile.role in USABLE_ROLES:
+                profile = profile.model_copy(
+                    update={
+                        "is_time_like": profile.role is ColumnRole.DATETIME
+                        or (
+                            profile.role is ColumnRole.ORDINAL
+                            and _name_matches(name, TIME_NAME_TOKENS)
+                        ),
+                        "levels": sorted(str(value) for value in frame[column].dropna().unique())
+                        if profile.role in {ColumnRole.CATEGORICAL, ColumnRole.ORDINAL}
+                        else [],
+                    }
+                )
         profiles[name] = profile
 
     return SchemaProfile(
@@ -543,7 +556,7 @@ def _apply_refiner(
         return profile.model_copy(
             update={"reasons": [*profile.reasons, "semantic refiner declined to classify"]}
         )
-    if suggested not in USABLE_ROLES:
+    if not isinstance(suggested, ColumnRole) or suggested not in USABLE_ROLES:
         return profile.model_copy(
             update={
                 "reasons": [
@@ -564,6 +577,28 @@ def _apply_refiner(
             ],
         }
     )
+
+
+def infer_schema_with_gemma(
+    frame: pd.DataFrame,
+    config: SchemaInferenceConfig,
+    *,
+    refiner: SemanticRefiner | None = None,
+    run_id: str | UUID | None = None,
+) -> SchemaProfile:
+    """Use configured Gemma for ambiguity, preserving the deterministic classifier.
+
+    Graph calls inherit the UUID bound by orchestration's logging context; standalone
+    calls may pass one explicitly. With no UUID, no model is called. An explicit
+    refiner overrides configuration for callers that supply their own implementation.
+    """
+    from structlog.contextvars import get_contextvars
+
+    from pramana.analysis.gemma import configured_refiner
+
+    context_run = run_id or get_contextvars().get("run_id")
+    selected = refiner if refiner is not None else configured_refiner(frame, config, context_run)
+    return infer_schema(frame, config, refiner=selected)
 
 
 def schema_profile(

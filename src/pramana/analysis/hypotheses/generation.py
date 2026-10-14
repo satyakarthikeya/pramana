@@ -26,12 +26,14 @@ Scope: scope/SCOPE_P_Rohith.md 2, component 4
 
 from __future__ import annotations
 
+from uuid import UUID
+
 import pandas as pd
 
 from pramana.analysis.config import AnalysisConfig, HypothesesConfig, load_config
 from pramana.analysis.hypotheses import correlation, group_difference, trend
 from pramana.analysis.hypotheses.base import ClaimScreen
-from pramana.analysis.schema_inference import SchemaProfile, infer_schema
+from pramana.analysis.schema_inference import SchemaProfile, infer_schema_with_gemma
 from pramana.contracts.candidate_insight import CandidateInsight
 
 #: Strategy name -> (toggle attribute on `StrategyToggles`, propose function). Ordered,
@@ -116,6 +118,7 @@ def analyse(
     dataset_ref: str,
     config: AnalysisConfig | None = None,
     claim_screen: ClaimScreen | None = None,
+    run_id: str | UUID | None = None,
 ) -> tuple[SchemaProfile, list[CandidateInsight]]:
     """Infer the schema and propose candidates in one call -- the module's front door.
 
@@ -126,7 +129,7 @@ def analyse(
     from `configs/analysis.yaml`.
     """
     resolved = config if config is not None else load_config()
-    schema = infer_schema(frame, resolved.schema_inference)
+    schema = infer_schema_with_gemma(frame, resolved.schema_inference, run_id=run_id)
     candidates = generate_candidates(
         frame,
         schema,

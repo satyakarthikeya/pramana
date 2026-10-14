@@ -24,9 +24,13 @@ import pandas as pd
 
 from pramana.analysis.cleaning import clean_dataset
 from pramana.analysis.config import load_config
-from pramana.analysis.hypotheses.generation import analyse
+from pramana.analysis.hypotheses.generation import generate_candidates
 from pramana.analysis.ingestion import load_dataset
-from pramana.analysis.schema_inference import describe_unusable, infer_schema
+from pramana.analysis.schema_inference import (
+    SchemaProfile,
+    describe_unusable,
+    infer_schema_with_gemma,
+)
 
 
 def cleaned_dataset_ref(source_ref: str, frame: pd.DataFrame) -> str:
@@ -57,7 +61,9 @@ def prepare(request: Mapping[str, Any]) -> dict[str, Any]:
     its reason, so nothing is dropped silently.
     """
     cleaned, report = clean_dataset(request["dataset"])
-    schema = infer_schema(cleaned, load_config().schema_inference)
+    schema = infer_schema_with_gemma(
+        cleaned, load_config().schema_inference, run_id=request["run_id"]
+    )
     profile = schema.model_dump(mode="json")
     profile["cleaning_report"] = report.model_dump(mode="json")
     profile["unusable_columns"] = describe_unusable(schema)
@@ -70,5 +76,15 @@ def prepare(request: Mapping[str, Any]) -> dict[str, Any]:
 
 def analyze(request: Mapping[str, Any]) -> dict[str, Any]:
     """`AnalysisRequest` -> `AnalysisResult`: propose one capped candidate batch."""
-    _, candidates = analyse(request["dataset"], dataset_ref=str(request["dataset_ref"]))
+    # Reuse preparation's roles so one run cannot classify the same column twice.
+    profile = request["schema_profile"]
+    schema = SchemaProfile.model_validate(
+        {key: profile[key] for key in ("n_rows", "n_columns", "columns")}
+    )
+    candidates = generate_candidates(
+        request["dataset"],
+        schema,
+        load_config().hypotheses,
+        dataset_ref=str(request["dataset_ref"]),
+    )
     return {"candidate_insights": candidates}

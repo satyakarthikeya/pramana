@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Self
+from urllib.parse import urlsplit
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -44,6 +45,41 @@ VERIFICATION_TIER_MODELS: frozenset[str] = frozenset(
 )
 
 
+class GemmaSettings(BaseModel):
+    """Bounded local Ollama requests; model output never makes verification decisions."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    enabled: bool
+    base_url: str
+    model: str
+    timeout_seconds: float = Field(gt=0, le=120)
+    temperature: float = Field(ge=0, le=1)
+    seed: int = Field(ge=0)
+    max_columns_per_pass: int = Field(ge=1)
+    sample_size: int = Field(ge=1)
+    sample_chars: int = Field(ge=1)
+    max_output_tokens: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def _local_gemma_only(self) -> Self:
+        url = urlsplit(self.base_url)
+        if (
+            url.scheme not in {"http", "https"}
+            or url.hostname
+            not in {"localhost", "127.0.0.1", "::1", "ollama", "host.docker.internal"}
+            or url.username
+            or url.password
+            or url.query
+            or url.fragment
+            or url.path not in {"", "/"}
+        ):
+            raise ValueError("Gemma base_url must name a local Ollama server")
+        if not self.model.casefold().startswith("gemma") or "cloud" in self.model.casefold():
+            raise ValueError("schema refinement requires a local Gemma model")
+        return self
+
+
 class SchemaInferenceConfig(BaseModel):
     """Cutoffs for deterministic column classification (SCOPE_P 2, component 2)."""
 
@@ -57,6 +93,7 @@ class SchemaInferenceConfig(BaseModel):
         min_length=1,
         description="The local sub-agent model for cheap semantic work. Gemma-tier only.",
     )
+    gemma: GemmaSettings
     min_confidence: float = Field(
         gt=0.0,
         le=1.0,

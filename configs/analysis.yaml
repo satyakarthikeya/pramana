@@ -14,6 +14,17 @@ cleaning:
 schema_inference:
   use_llm_for_ambiguous_only: true   # heuristics first; Gemma only when unclear
   model: gemma                        # local, cheap tasks only (AGENTS.md §2)
+  gemma:
+    enabled: true
+    base_url: http://localhost:11434   # GEMMA_BASE_URL may override this local endpoint
+    model: gemma2:2b                 # GEMMA_MODEL may select another local Gemma tag
+    timeout_seconds: 30
+    temperature: 0
+    seed: 20260817
+    max_columns_per_pass: 8
+    sample_size: 5
+    sample_chars: 128
+    max_output_tokens: 256
   # Fail-closed cutoffs. A column the heuristics cannot place above min_confidence
   # becomes UNKNOWN and is excluded from hypothesis generation — a guessed role is
   # how a bad CandidateInsight reaches the gateway.

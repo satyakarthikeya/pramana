@@ -48,8 +48,9 @@ CSV/XLSX input
   - Fails closed: below `min_confidence`, below `min_non_null`, constant, or
     unique-but-unnamed and the column is `UNKNOWN` and excluded from hypothesis
     generation. `describe_unusable()` reports every exclusion.
-  - `SemanticRefiner` is the Gemma seam and sees ambiguous columns only. No
-    refiner is wired in yet, so the shipped default is no refinement.
+  - `SemanticRefiner` sees ambiguous columns only. The public entrypoint now wires
+    local Ollama/Gemma when Langfuse and a run UUID are available; the low-level
+    deterministic classifier remains available directly from `schema_inference`.
 - `src/pramana/analysis/hypotheses/`
   - `base.py` — the strategy interface plus `emit()`, the single place a
     `CandidateInsight` is constructed. `emit()` raises if `analysis_evidence`
@@ -105,16 +106,16 @@ pytest tests/unit/analysis
 
 Full suite as of 2026-09-18: **472 passed**, `ruff` and `mypy` clean.
 
-## Still open in this module
+## Module status
 
-Everything below is unbuilt; `SCOPE_P_Rohith.md` §4 gives the order.
+The table records component status; `SCOPE_P_Rohith.md` §4 gives the build order.
 
 | Step | Component | State |
 |---|---|---|
 | 6 | `prioritization.py` — per-strategy quotas, protecting planted demo signals | **not started.** `generation.py` applies only the blunt `max_candidates_per_run` cap |
 | 7 | `benchmark/curation.py`, `benchmark/contamination.py` — the 40-dataset benchmark | not started |
 | 8 | `benchmark/demo_dataset.py` — demo subset + seeded false-correlation injection | not started |
-| — | A Gemma client behind `SemanticRefiner` | not started; ambiguous columns stay `UNKNOWN` until one exists |
+| — | A Gemma client behind `SemanticRefiner` | implemented; live activation requires local Gemma and Langfuse credentials |
 
 ## Cross-module note
 
@@ -124,7 +125,49 @@ agreement, recorded in the two commit messages that introduced them, and are
 pending Rohith's review (`AGENTS.md` §8.10). Points worth his attention are
 listed in the PR description; the substantive ones are the `min_abs_correlation`
 pre-filter's interaction with the demo's injected false correlation, and the
-`use_llm_for_ambiguous_only: false` branch, which is currently unimplemented.
+`use_llm_for_ambiguous_only: false` branch, which now explicitly disables refinement.
+
+## Local Gemma setup (14 October 2026)
+
+This feature is independent of the 40-dataset benchmark. `analysis/gemma.py`
+implements `SemanticRefiner` using the already-declared Ollama dependency and
+structured JSON. `schema_inference.gemma` in `configs/analysis.yaml` defines the
+model tag, local server, timeout, generation seed, temperature, output budget,
+sample limits and maximum ambiguous columns handled in each inference pass.
+`GEMMA_MODEL` and `GEMMA_BASE_URL` may override the tag and endpoint, but only local
+Gemma models/endpoints are accepted; there is no Qwen, cloud, or DeepSeek fallback.
+
+Every actual request starts a Langfuse generation under its run UUID. The native
+graph's public analysis import inherits the UUID already bound by orchestration;
+the optional handlers pass their request's run UUID explicitly. Standalone callers
+can pass `run_id` to `analyse` or the public `infer_schema`. The deterministic
+low-level `schema_inference.infer_schema` does not automatically call a model.
+
+Missing tracing, disabled refinement, malformed responses, transport failure,
+insufficient semantic confidence and value-incompatible roles all leave the column
+unknown. Setting `use_llm_for_ambiguous_only: false` explicitly disables refinement;
+it never lets the model overrule confident heuristics. Constant/thin columns are
+not offered to the model. Refined datetime/ordinal roles receive the appropriate
+time-axis metadata, and refined categorical/ordinal roles receive their levels.
+
+Raw sample values go to local Ollama only. Langfuse receives column metadata with
+the levels array omitted, configured model/seed and the structured decision, not
+the raw sample array. Column classification is still a proposal-side operation;
+it cannot create a verdict or write memory.
+
+### Activation
+
+1. Install the existing analysis requirements and run `ollama pull gemma2:2b`.
+2. Ask the team for the Langfuse host and project public/secret keys. Put them in
+   the ignored `.env` using `.env.example`, or set process environment variables.
+   Do not paste or commit keys. Existing Docker `env_file` loading already supplies
+   them to services. For other entrypoints, load `.env` before running the pipeline.
+3. Run `.venv/Scripts/python.exe scripts/check_gemma.py`. This script loads the local
+   `.env`, checks tracing credentials and authentication, and classifies synthetic
+   column data with a fresh run UUID. It never prints secrets or stores dataset files.
+
+Automated tests use fake Ollama and Langfuse clients. A live backend run cannot be
+claimed until valid Langfuse credentials and the configured model are available.
 
 ## Data policy
 
