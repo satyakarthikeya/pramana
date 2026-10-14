@@ -313,10 +313,15 @@ def test_the_cap_keeps_the_largest_exploratory_effects(
     uncapped = generate_candidates(
         frame, schema, config.hypotheses, dataset_ref=DATASET_REF
     )
+    magnitude_only = config.hypotheses.strategy_min_candidates.model_copy(
+        update={"correlation": 0, "group_difference": 0, "trend": 0}
+    )
     capped = generate_candidates(
         frame,
         schema,
-        config.hypotheses.model_copy(update={"max_candidates_per_run": 2}),
+        config.hypotheses.model_copy(
+            update={"max_candidates_per_run": 2, "strategy_min_candidates": magnitude_only}
+        ),
         dataset_ref=DATASET_REF,
     )
 
@@ -336,6 +341,23 @@ def test_the_cap_is_deterministic(
     second = generate_candidates(frame, schema, capped, dataset_ref=DATASET_REF)
 
     assert first == second
+
+
+def test_tight_cap_preserves_the_strongest_planted_signal_per_strategy(
+    frame: pd.DataFrame, schema: SchemaProfile, config: AnalysisConfig
+) -> None:
+    uncapped = generate_candidates(frame, schema, config.hypotheses, dataset_ref=DATASET_REF)
+    capped = generate_candidates(
+        frame, schema, config.hypotheses.model_copy(update={"max_candidates_per_run": 3}),
+        dataset_ref=DATASET_REF,
+    )
+    for kind in (ClaimType.CORRELATION, ClaimType.GROUP_DIFFERENCE, ClaimType.TREND):
+        strongest = sorted(
+            (item for item in uncapped if item.claim_type is kind),
+            key=lambda item: (-abs(float(item.analysis_evidence["raw_value"])), item.insight_id),
+        )[0]
+        assert strongest in capped
+    assert len(capped) == 3
 
 
 # --- strategy toggles and the claim screen ---------------------------------
