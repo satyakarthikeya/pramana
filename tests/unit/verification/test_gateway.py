@@ -11,19 +11,20 @@ from __future__ import annotations
 import pytest
 
 from pramana.contracts.enums import GateOutcome, Verdict
-from pramana.verification.config import VerificationConfig, load_config
+from pramana.verification.config import VerificationConfig
 from pramana.verification.gateway import verify_batch
 from tests.fixtures.candidates import (
     INADMISSIBLE_CANDIDATES,
     UNIVERSAL_CLAIM,
     candidate,
 )
+from tests.fixtures.config import load_pinned_config
 from tests.fixtures.frames import toy_frame
 
 
 @pytest.fixture(scope="module")
 def config() -> VerificationConfig:
-    shipped = load_config()
+    shipped = load_pinned_config()
     return shipped.model_copy(
         update={"statistics": shipped.statistics.model_copy(update={"n_permutations": 1000})}
     )
@@ -134,3 +135,97 @@ def test_program_omitting_reported_effect_metric_ends_as_reject(config) -> None:
     assert proofs[0].verdict is Verdict.REJECT
     assert proofs[0].gate_outcome is not GateOutcome.SUPPORTED
     assert "reported_effect_metric" in (proofs[0].failure_reason or "")
+
+
+# --- column-check refusals are counted per claim type, for LLM programs only ---------
+
+
+def _llm_labelled(mutate=None):
+    """A generator rendering the template, labelled as the `llm` path.
+
+    `mutate` edits the source, to stand in for an LLM program that drifted off the
+    claim's columns.
+    """
+    from pramana.verification.falsification.generator import generate_from_template
+
+    def generate(candidate, cfg):
+        program = generate_from_template(candidate, cfg)
+        source = program.source if mutate is None else mutate(candidate, program.source)
+        return program.model_copy(update={"source": source, "generator": "llm"})
+
+    return generate
+
+
+def _summary(caplog):
+    import json
+
+    events = [
+        json.loads(record.getMessage())
+        for record in caplog.records
+        if record.getMessage().startswith("{")
+    ]
+    summaries = [e for e in events if e.get("event") == "column_check_summary"]
+    assert len(summaries) == 1, "exactly one summary per batch"
+    return summaries[0], [e for e in events if e.get("event") == "column_check_refused"]
+
+
+def test_column_check_refusals_are_counted_per_claim_type(config, caplog) -> None:
+    import logging
+
+    from pramana.contracts.enums import ClaimType
+    from tests.fixtures.candidates import TRUE_CORRELATION, candidate
+
+    drifting = candidate(
+        "c-drifts", "bmi is associated with income", ClaimType.CORRELATION, ["income", "bmi"]
+    )
+
+    def mutate(cand, source):
+        if cand.insight_id != "c-drifts":
+            return source
+        return source.replace("frame[[VAR_X, VAR_Y]]", "frame[[VAR_X, VAR_Y, 'age']]")
+
+    with caplog.at_level(logging.INFO):
+        proofs = verify_batch(
+            [TRUE_CORRELATION, drifting], toy_frame(), config, generate=_llm_labelled(mutate)
+        )
+
+    summary, refusals = _summary(caplog)
+    assert summary["by_claim_type"]["correlation"] == {"llm_programs": 2, "column_check_refused": 1}
+    assert [r["insight_id"] for r in refusals] == ["c-drifts"]
+    assert refusals[0]["claim_type"] == "correlation"
+    # The refusal is a fail-closed outcome, never a PASS.
+    assert proofs[1].verdict is Verdict.REJECT
+    assert proofs[0].verdict is Verdict.PASS
+
+
+def test_template_programs_are_not_counted_as_llm_programs(config, caplog) -> None:
+    """The metric is the LLM path's over-refusal; the reference generator must not dilute it."""
+    import logging
+
+    from tests.fixtures.candidates import TRUE_CORRELATION
+
+    with caplog.at_level(logging.INFO):
+        verify_batch([TRUE_CORRELATION], toy_frame(), config)  # config pins `template`
+
+    summary, refusals = _summary(caplog)
+    assert summary["by_claim_type"] == {}
+    assert refusals == []
+
+
+def test_other_failures_are_not_counted_as_column_refusals(config, caplog) -> None:
+    """A crash is not an over-refusal; counting it would overstate how strict the check is."""
+    import logging
+
+    from tests.fixtures.candidates import TRUE_CORRELATION
+
+    def crash(cand, source):
+        return source.replace(
+            "def falsify(frame):", "def falsify(frame):\n    raise ValueError('boom')"
+        )
+
+    with caplog.at_level(logging.INFO):
+        verify_batch([TRUE_CORRELATION], toy_frame(), config, generate=_llm_labelled(crash))
+
+    summary, refusals = _summary(caplog)
+    assert summary["by_claim_type"]["correlation"] == {"llm_programs": 1, "column_check_refused": 0}
+    assert refusals == []

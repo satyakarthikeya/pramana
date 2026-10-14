@@ -95,6 +95,10 @@ _log = logging.getLogger("pramana.verification.executor")
 #: print, but a stray print must not be mistaken for the result.
 RESULT_SENTINEL = "__PRAMANA_RESULT__"
 
+#: Starts the failure reason of a program the column check refused. A named constant so
+#: the gateway can count over-refusals without parsing prose that someone later rewords.
+COLUMN_POLICY_REASON_PREFIX = "column policy violation"
+
 #: Every field a payload must carry. Anything missing is a partial result.
 REQUIRED_KEYS: frozenset[str] = frozenset(
     {
@@ -381,7 +385,7 @@ def execute(
     try:
         check_columns(program.source, (program.var_x, program.var_y), program.claim_type)
     except ColumnPolicyViolation as violation:
-        return _failed(program.insight_id, f"column policy violation: {violation}")
+        return _failed(program.insight_id, f"{COLUMN_POLICY_REASON_PREFIX}: {violation}")
 
     attempts = 0
     # Annotated, not inferred: `_run_once` returns `str | None` for the reason, and an

@@ -15,7 +15,7 @@ import pandas as pd
 import pytest
 
 from pramana.contracts.enums import ClaimType, TestType
-from pramana.verification.config import VerificationConfig, load_config
+from pramana.verification.config import VerificationConfig
 from pramana.verification.executor.policy import ImportPolicyViolation, check_imports
 from pramana.verification.executor.runner import execute
 from pramana.verification.falsification.generator import (
@@ -23,6 +23,7 @@ from pramana.verification.falsification.generator import (
     generate_from_template,
 )
 from tests.fixtures.candidates import TRUE_CORRELATION
+from tests.fixtures.config import load_pinned_config
 from tests.fixtures.frames import toy_frame
 
 ALLOWED = ["numpy", "pandas", "pramana.verification.stats"]
@@ -30,7 +31,7 @@ ALLOWED = ["numpy", "pandas", "pramana.verification.stats"]
 
 @pytest.fixture(scope="module")
 def config() -> VerificationConfig:
-    shipped = load_config()
+    shipped = load_pinned_config()
     return shipped.model_copy(
         update={"statistics": shipped.statistics.model_copy(update={"n_permutations": 1000})}
     )

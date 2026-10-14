@@ -28,6 +28,7 @@ Scope: SCOPE.md 2 component 8
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Literal, Self
 
@@ -41,6 +42,16 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 
 #: The config the gateway runs on unless a caller passes another path.
 DEFAULT_CONFIG_PATH = _REPO_ROOT / "configs" / "verification.yaml"
+
+#: Environment override for `llm.generator` ONLY. It exists so a deployment or a test
+#: harness can choose the offline reference generator without editing the YAML. It is
+#: deliberately not a general override: every threshold, seed and limit still comes
+#: from the YAML (AGENTS.md 3.3).
+GENERATOR_ENV_VAR = "PRAMANA_VERIFICATION_GENERATOR"
+
+#: The only values the override accepts. Matched exactly: no case folding, no
+#: whitespace stripping, so a typo fails loudly instead of selecting a generator.
+_GENERATOR_CHOICES = ("template", "llm")
 
 #: Root packages generated code may never import. Each one can produce a p-value, an
 #: effect size or a model fit on its own, which is exactly the capability the gate
@@ -164,9 +175,11 @@ class ExecutorConfig(BaseModel):
 class LLMConfig(BaseModel):
     """Which falsification generator runs, and the model behind the optional one.
 
-    The default is `template`: deterministic, no API key, no network, so the gateway
-    runs offline and its output is byte-reproducible. The `llm` path is the secondary
-    generator measured against it.
+    The shipped default is `llm` (docs/DECISIONS_LLM_ROLES.md D1): DeepSeek writes each
+    claim's test, inside the column check and the provenance stamp. `template` stays as
+    the reference the LLM path is measured against and as the explicit offline mode:
+    deterministic, no API key, no network, byte-reproducible. It is chosen in config
+    (or by `PRAMANA_VERIFICATION_GENERATOR`), never used as a silent fallback.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -226,4 +239,12 @@ def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> VerificationConfig:
     whitelist raises `ValidationError` here, before any claim is tested.
     """
     raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    override = os.environ.get(GENERATOR_ENV_VAR)
+    if override is not None:
+        if override not in _GENERATOR_CHOICES:
+            raise ValueError(
+                f"{GENERATOR_ENV_VAR}={override!r} is not valid; it must be exactly one "
+                f"of {list(_GENERATOR_CHOICES)} (unset it to use the YAML value)"
+            )
+        raw["llm"]["generator"] = override
     return VerificationConfig.model_validate(raw)

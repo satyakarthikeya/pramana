@@ -15,7 +15,7 @@ from __future__ import annotations
 import pytest
 
 from pramana.contracts.enums import ClaimType
-from pramana.verification.config import VerificationConfig, load_config
+from pramana.verification.config import VerificationConfig
 from pramana.verification.executor.policy import ColumnPolicyViolation, check_columns
 from pramana.verification.executor.runner import execute
 from pramana.verification.falsification.generator import (
@@ -25,6 +25,7 @@ from pramana.verification.falsification.generator import (
 from tests.fixtures.candidates import (
     TESTABLE_CANDIDATES,
 )
+from tests.fixtures.config import load_pinned_config
 from tests.fixtures.frames import toy_frame
 
 VARS = ("age", "bmi")
@@ -57,7 +58,7 @@ def _refused(body: str, claim_type: ClaimType = ClaimType.CORRELATION) -> str:
 
 @pytest.fixture(scope="module")
 def config() -> VerificationConfig:
-    return load_config()
+    return load_pinned_config()
 
 
 @pytest.mark.parametrize("candidate", TESTABLE_CANDIDATES, ids=lambda c: c.insight_id)

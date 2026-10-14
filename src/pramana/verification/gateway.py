@@ -58,7 +58,7 @@ from pramana.contracts.proof_object import ProofObject
 from pramana.verification.admissibility import screen
 from pramana.verification.config import VerificationConfig
 from pramana.verification.evidence import evaluate_gate
-from pramana.verification.executor.runner import execute
+from pramana.verification.executor.runner import COLUMN_POLICY_REASON_PREFIX, execute
 from pramana.verification.falsification.generator import (
     FalsificationProgram,
     GeneratorError,
@@ -208,11 +208,53 @@ def _incomplete_payload_reason(payload: dict[str, Any] | None) -> str | None:
     return None
 
 
+class _ColumnCheckTally:
+    """How often the column check refuses LLM-written programs, per claim type.
+
+    The check errs toward refusing, so its cost is NOT_TESTABLE-shaped claims the LLM
+    path could not test. That cost has to be measured, not guessed, before the check is
+    ever loosened, and the template path is excluded because its programs are the
+    reference and are not expected to be refused. Counts are logged, never gated on.
+    """
+
+    def __init__(self) -> None:
+        self._programs: dict[str, int] = {}
+        self._refused: dict[str, int] = {}
+
+    def record(
+        self, candidate: CandidateInsight, generator: str, ok: bool, reason: str | None
+    ) -> None:
+        if generator != "llm":
+            return
+        key = candidate.claim_type.value
+        self._programs[key] = self._programs.get(key, 0) + 1
+        refused = not ok and (reason or "").startswith(COLUMN_POLICY_REASON_PREFIX)
+        self._refused.setdefault(key, 0)
+        if refused:
+            self._refused[key] += 1
+            _emit(
+                "column_check_refused",
+                candidate.insight_id,
+                claim_type=key,
+                reason=reason,
+            )
+
+    def summary(self) -> dict[str, dict[str, int]]:
+        return {
+            key: {
+                "llm_programs": self._programs[key],
+                "column_check_refused": self._refused.get(key, 0),
+            }
+            for key in sorted(self._programs)
+        }
+
+
 def _run_one(
     candidate: CandidateInsight,
     frame: pd.DataFrame,
     config: VerificationConfig,
     generate: Generator,
+    tally: _ColumnCheckTally,
 ) -> _Tested | str:
     """Generate and execute one claim's falsification test.
 
@@ -230,6 +272,7 @@ def _run_one(
         )
 
     result = execute(program, frame, config)
+    tally.record(candidate, program.generator, result.ok, result.failure_reason)
     if not result.ok:
         _emit(
             "execution_failed",
@@ -371,6 +414,7 @@ def verify_batch(
     seed = config.statistics.seed
     generator = generate or get_generator(config)
     columns = list(frame.columns)
+    tally = _ColumnCheckTally()
 
     # --- screen, generate, execute ------------------------------------------
     # Nothing is corrected or gated yet: BH needs every p-value in hand first.
@@ -383,11 +427,21 @@ def verify_batch(
             outcomes.append(_not_testable(candidate, family_id, seed, reason))
             continue
 
-        outcome = _run_one(candidate, frame, config, generator)
+        outcome = _run_one(candidate, frame, config, generator, tally)
         if isinstance(outcome, str):
             outcomes.append(_not_testable(candidate, family_id, seed, outcome))
         else:
             outcomes.append(outcome)
+
+    _log.info(
+        json.dumps(
+            {
+                "event": "column_check_summary",
+                "bh_family_id": family_id,
+                "by_claim_type": tally.summary(),
+            }
+        )
+    )
 
     # --- correct once, across the whole family -------------------------------
     tested = [item for item in outcomes if isinstance(item, _Tested)]
