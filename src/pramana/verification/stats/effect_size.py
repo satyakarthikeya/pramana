@@ -42,8 +42,12 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from scipy import stats
 
-#: Below this, a correlation-style statistic has too few points to mean anything.
-MIN_PAIRED_OBSERVATIONS = 3
+#: The "can this be computed at all" floor shared by every estimator, permutation test
+#: and bootstrap in this package: below it there is nothing to rank, shuffle or
+#: resample. It is NOT a threshold on what is worth concluding -- that is the gate's
+#: `statistics.min_observations` in `configs/verification.yaml`, which every template
+#: passes in separately and which is far higher. Do not tune this to change what passes.
+MINIMUM_COMPUTABLE_OBSERVATIONS = 3
 
 #: Row ceiling for `sens_slope`, which materialises all n(n-1)/2 pairwise slopes.
 #: At 3,000 rows that is ~4.5M pairs across roughly six intermediate arrays -- about
@@ -67,7 +71,7 @@ def _as_float_array(values: ArrayLike, *, name: str) -> NDArray[np.float64]:
 
 
 def _as_pair(
-    x: ArrayLike, y: ArrayLike, *, min_n: int = MIN_PAIRED_OBSERVATIONS
+    x: ArrayLike, y: ArrayLike, *, min_n: int = MINIMUM_COMPUTABLE_OBSERVATIONS
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Two equal-length float arrays with at least `min_n` paired observations."""
     left = _as_float_array(x, name="x")

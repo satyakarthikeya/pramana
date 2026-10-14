@@ -143,3 +143,46 @@ def test_constant_column_is_not_a_finding() -> None:
     result = permutation_test(x, y, _rho, n_permutations=500, seed=1)
     assert result.statistic == 0.0
     assert result.p_value == 1.0
+
+
+# --- characterization: the "can this be computed at all" floor ------------
+
+
+def test_permutation_test_floor_is_three_paired_observations() -> None:
+    with pytest.raises(ValueError, match="below the minimum of 3"):
+        permutation_test([1.0, 2.0], [1.0, 2.0], _rho, n_permutations=50, seed=1)
+    for n in (3, 4):
+        x = [float(i) for i in range(n)]
+        y = [float(i % 2) + 0.1 * i for i in range(n)]
+        result = permutation_test(x, y, _rho, n_permutations=50, seed=1)
+        assert 0.0 < result.p_value <= 1.0
+
+
+def test_group_permutation_floor_is_set_by_group_size_not_the_total() -> None:
+    """Every group needs 2 rows, so two groups already total 4 and the pooled floor of 3
+    can never be what stops a run."""
+    with pytest.raises(ValueError, match="at least 2 observations"):
+        permutation_test_groups(
+            [[1.0, 2.0], [3.0]], cliffs_delta, n_permutations=50, seed=1
+        )
+    result = permutation_test_groups(
+        [[1.0, 2.0], [3.0, 4.0]],
+        lambda g: cliffs_delta(g[0], g[1]),
+        n_permutations=50,
+        seed=1,
+    )
+    assert 0.0 < result.p_value <= 1.0
+
+
+def test_every_template_receives_the_configured_floor_not_the_stats_floor() -> None:
+    """Each rendered falsification module carries `statistics.min_observations` verbatim."""
+    from pramana.verification.falsification.generator import generate_from_template
+    from tests.fixtures.candidates import TESTABLE_CANDIDATES
+    from tests.fixtures.config import load_pinned_config
+
+    config = load_pinned_config()
+    assert config.statistics.min_observations != 3
+    for candidate in TESTABLE_CANDIDATES:
+        source = generate_from_template(candidate, config).source
+        assert f"MIN_OBSERVATIONS = {config.statistics.min_observations}\n" in source
+        assert "MIN_OBSERVATIONS = 3\n" not in source

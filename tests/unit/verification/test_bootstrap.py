@@ -87,3 +87,18 @@ def test_paired_columns_must_match_in_length() -> None:
             seed=1,
             paired=True,
         )
+
+
+# --- characterization: the "can this be computed at all" floor ------------
+
+
+def test_bootstrap_floor_is_three_observations_unpaired_and_paired() -> None:
+    with pytest.raises(ValueError, match="at least 3"):
+        bootstrap_ci([1.0, 2.0], np.mean, n_bootstrap=50, seed=1)
+    with pytest.raises(ValueError, match="at least 3"):
+        bootstrap_ci([[1.0, 2.0], [2.0, 1.0]], spearman_rho, n_bootstrap=50, seed=1, paired=True)
+    for n in (3, 4):
+        result = bootstrap_ci(
+            [float(i) for i in range(n)], np.mean, n_bootstrap=50, seed=1
+        )
+        assert result.n_bootstrap == 50

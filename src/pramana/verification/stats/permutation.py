@@ -39,12 +39,10 @@ from numpy.typing import ArrayLike, NDArray
 from pydantic import BaseModel, ConfigDict, Field
 
 from pramana.verification.stats import provenance
+from pramana.verification.stats.effect_size import MINIMUM_COMPUTABLE_OBSERVATIONS
 
 #: How the observed statistic is compared against the null distribution.
 Alternative = Literal["two-sided", "greater", "less"]
-
-#: Below this there is no relationship to shuffle.
-MIN_OBSERVATIONS = 3
 
 #: Guards the "as extreme as" comparison against floating-point noise: a permutation
 #: that reproduces the observed statistic up to rounding COUNTS. Erring this way makes
@@ -145,9 +143,10 @@ def permutation_test(
             f"x and y must be of equal length; got {left.size} and {right.size}. "
             f"Unpaired rows cannot be tested."
         )
-    if left.size < MIN_OBSERVATIONS:
+    if left.size < MINIMUM_COMPUTABLE_OBSERVATIONS:
         raise ValueError(
-            f"{left.size} paired observations is below the minimum of {MIN_OBSERVATIONS}; "
+            f"{left.size} paired observations is below the minimum of "
+            f"{MINIMUM_COMPUTABLE_OBSERVATIONS}; "
             f"a permutation test on this many points concludes nothing"
         )
 
@@ -188,10 +187,10 @@ def permutation_test_groups(
     if any(group.size < 2 for group in parsed):
         raise ValueError("every group needs at least 2 observations")
     total = sum(group.size for group in parsed)
-    if total < MIN_OBSERVATIONS:
+    if total < MINIMUM_COMPUTABLE_OBSERVATIONS:
         raise ValueError(
             f"{total} observations across all groups is below the minimum of "
-            f"{MIN_OBSERVATIONS}; nothing can be concluded"
+            f"{MINIMUM_COMPUTABLE_OBSERVATIONS}; nothing can be concluded"
         )
 
     observed = float(statistic(parsed))

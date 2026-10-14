@@ -187,3 +187,37 @@ def test_table_k_is_the_smaller_dimension() -> None:
 def test_degenerate_input_raises(call: object) -> None:
     with pytest.raises(ValueError):
         call()  # type: ignore[operator]
+
+
+# --- characterization: the "can this be computed at all" floor ------------
+#
+# Pinned before the three duplicated stats-level constants were collapsed into one,
+# so the refactor is provably behaviour-preserving. This floor is NOT the gate's
+# `statistics.min_observations`: it only says "an association can be computed from
+# this many points", not "this many points are worth concluding from".
+
+_PAIRED_ESTIMATORS = [
+    es.pearson_r,
+    es.spearman_rho,
+    es.kendall_tau_b,
+    es.sens_slope,
+    es.outlier_divergence,
+]
+
+
+@pytest.mark.parametrize("estimator", _PAIRED_ESTIMATORS, ids=lambda f: f.__name__)
+def test_paired_estimators_refuse_two_points_and_accept_three_and_four(estimator) -> None:
+    with pytest.raises(ValueError, match="below the minimum of 3"):
+        estimator([1.0, 2.0], [1.0, 2.0])
+    for n in (3, 4):
+        x = [float(i) for i in range(n)]
+        y = [float(i % 2) + 0.1 * i for i in range(n)]
+        assert math.isfinite(estimator(x, y))
+
+
+def test_the_computability_floor_is_far_below_the_configured_gate_floor() -> None:
+    """The stats floor must stay a computability guard, not a conclusion threshold."""
+    from tests.fixtures.config import load_pinned_config
+
+    assert es.MINIMUM_COMPUTABLE_OBSERVATIONS == 3
+    assert load_pinned_config().statistics.min_observations > es.MINIMUM_COMPUTABLE_OBSERVATIONS
