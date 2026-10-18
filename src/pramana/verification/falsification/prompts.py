@@ -116,7 +116,15 @@ _NULL_FRAMING: dict[ClaimType, str] = {
         "HOW TO DESTROY IT: reshuffle group membership with `permutation_test_groups`, "
         "preserving group SIZES and moving only the labels. For exactly two groups use "
         "`cliffs_delta` as the statistic; for more than two use `epsilon_squared`, "
-        "which is unsigned because 'these groups differ' has no direction."
+        "which is unsigned because 'these groups differ' has no direction.\n"
+        "`permutation_test_groups` calls `statistic` with ONE argument, the list of "
+        "groups, so wrap the metric: `lambda parts: cliffs_delta(parts[0], parts[1])` "
+        "for two groups, `lambda parts: epsilon_squared(list(parts))` for more. Passing "
+        "`cliffs_delta` itself fails with a missing-argument error.\n"
+        "Build each group in exactly this form, and no other (groupby, boolean masks and "
+        "`.query` are refused): `columns = frame[[VAR_X, VAR_Y]].dropna()`, then "
+        "`columns.loc[columns[VAR_X].astype(str) == level, VAR_Y].to_numpy(dtype=float)` "
+        "for each `level` in `sorted(columns[VAR_X].astype(str).unique())`."
     ),
 }
 

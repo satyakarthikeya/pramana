@@ -79,3 +79,25 @@ def test_the_prompt_names_the_reported_effect_function_for_the_claim_type(claim_
         ClaimType.GROUP_DIFFERENCE: "hedges_g",
     }[claim_type]
     assert expected in _user_prompt(_BY_TYPE[claim_type])
+
+
+def test_group_difference_prompt_shows_the_statistic_callable_signature() -> None:
+    """`permutation_test_groups` calls `statistic(list_of_groups)`, one argument.
+
+    Found by the first live DeepSeek run: told only "use `cliffs_delta`", the model
+    passed the function itself, so every group-difference program died with
+    `cliffs_delta() missing 1 required positional argument: 'b'` (fail-closed, but a
+    100% refusal rate for the claim type).
+    """
+    user = _user_prompt(TRUE_GROUP_DIFFERENCE)
+    assert "lambda parts: cliffs_delta(parts[0], parts[1])" in user
+    assert "lambda parts: epsilon_squared(list(parts))" in user
+
+
+def test_group_difference_prompt_shows_the_one_row_selection_the_column_check_accepts() -> None:
+    """The second live-run finding: with the signature fixed, DeepSeek built groups with
+    a boolean-mask or other row filter and `check_columns` refused all of them. The only
+    accepted form is `.loc[<frame>[VAR_X] == level, VAR_Y]`; the prompt must show it.
+    """
+    user = _user_prompt(TRUE_GROUP_DIFFERENCE)
+    assert ".loc[columns[VAR_X].astype(str) == level, VAR_Y]" in user

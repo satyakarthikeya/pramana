@@ -27,16 +27,25 @@ passes. The suite still has no ignores and no skips.
 | Gateway fix | A program returning `reported_effect` without `reported_effect_metric` used to reach PASS. It is now INCONCLUSIVE / REJECT and stays in the BH family at p = 1.0. | done |
 | WP2 (W1) | `check_columns` in `executor/policy.py`: static refusal of generated code that reads columns outside the claim's `variables` or filters rows the claim does not state. Runs before any subprocess. It is a static AST check, not a proof; its limits are written at the top of the section. | done |
 | WP3 (W2, W3) | Verification tests are pinned to `generator: template` (`tests/fixtures/config.py`). `llm.generator` in `configs/verification.yaml` is now `llm` (D1); `template` stays as the reference and offline mode. `PRAMANA_VERIFICATION_GENERATOR` overrides that one value (`template` or `llm`, anything else raises). | done |
-| Logging | LLM-path column-check refusals are counted per claim type (`column_check_refused` events, `column_check_summary` per batch). `check_columns` was not loosened. | done; **no live measurement yet** |
+| Logging | LLM-path column-check refusals are counted per claim type (`column_check_refused` events, `column_check_summary` per batch). `check_columns` was not loosened. | done; first live measurement 2026-10-18 (below) |
 | Generator unavailable | `GeneratorUnavailable` separates "the generator could not be reached" from "the claim is untestable". `verify_batch_with_summary` returns `(proofs, BatchSummary)` with `generator_unavailable_count`; one WARNING per batch. Per-claim verdicts are unchanged. `verify_batch` still returns the proofs only. | done |
 | WP4 (W8) | On the LLM path each tested claim's template program is also run; a separate shadow BH family and the same gate give the template outcome. Differences are flagged in `BatchSummary.template_disagreements` and as WARNING events. Diagnostic only: it cannot change a verdict, p, q or the real family. Costs roughly 2x sandbox time per LLM-path run. | done |
 | WP5 | Effect-size bands measured against the demo frame; no band value changed. Only `spearman_rho` is anchored; `kendall_tau_b`, `cliffs_delta`, `epsilon_squared` and `cramers_v` remain convention-based. See `docs/CALIBRATION_BANDS.md`. | **partial** |
 | WP6 | `src/pramana/evaluation/`: planted-dataset builder, conditions A and D as flags on one pipeline (B and C raise `NotImplementedError`), precision / recall / empirical FDR, per-condition table, SPEC section 5 run log, `configs/evaluation.yaml`. | done for A and D |
 | WP7 | The three hardcoded `3`s in `stats/` are one named constant, `MINIMUM_COMPUTABLE_OBSERVATIONS`; behaviour pinned by tests written first. `outlier_warning` and Cramer's V are proposals only. | partly; two decisions open |
 
-What is **not** proven by any of the above: the LLM path has never been run against the
-live DeepSeek API, so the real column-check refusal rate and the real agreement rate are
-unknown. Everything on that path is tested with doubles.
+**First live DeepSeek run (2026-10-18).** 9 claims on `data/demo_nhanes_small.csv` (5 correlation,
+2 group difference, 2 trend), one gateway invocation, `generator: llm`. It found two prompt defects,
+both fail-closed (no false PASS) but together a 100% refusal rate for group_difference:
+(1) the prompt never said `permutation_test_groups` calls `statistic` with one list argument, so
+the model passed `cliffs_delta` bare (`missing 1 required positional argument: 'b'`); (2) the
+model built groups with row filters `check_columns` refuses. Both were fixed in
+`falsification/prompts.py` by showing the accepted form, with tests written first
+(`tests/unit/verification/test_prompts.py`); `check_columns` was not loosened. After the fix:
+9/9 programs accepted, 0 column-check refusals, 0 template disagreements, planted shuffled decoy
+and 40-row pilot decoy both REJECT, BMI/glucose, age/glucose, age/BMI, sex-glucose and both
+trends PASS. This is one small run on one frame: it shows the path works, not what the refusal
+rate is at scale.
 
 ## Phase-by-phase
 
