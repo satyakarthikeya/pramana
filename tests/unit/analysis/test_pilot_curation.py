@@ -69,6 +69,22 @@ def test_plan_is_exactly_the_approved_balanced_pilot() -> None:
         curation.PilotPlan.model_validate(raw)
 
 
+def test_full_plan_preserves_pilot_and_adds_distinct_source_definitions() -> None:
+    pilot = curation.load_plan()
+    full = curation.load_plan(curation.ROOT / "configs/benchmark_40.yaml")
+    assert full.extracts[:10] == pilot.extracts
+    assert len(full.extracts) == 40
+    assert sum(spec.coverage == "trends" for spec in full.extracts) == 9
+    raw = full.model_dump()
+    raw["extracts"][-1] = dict(raw["extracts"][0], dataset_id="duplicate_source")
+    with pytest.raises(ValidationError, match="distinct"):
+        curation.PilotPlan.model_validate(raw)
+    raw = full.model_dump()
+    raw["phase"] = "pilot"
+    with pytest.raises(ValidationError, match="phase"):
+        curation.PilotPlan.model_validate(raw)
+
+
 def test_codebook_codes_are_per_variable_not_blanket_numbers() -> None:
     parser = curation.CodebookParser()
     parser.feed("""<h3 id="EDUC">education</h3><table>
