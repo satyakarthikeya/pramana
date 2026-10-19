@@ -23,11 +23,14 @@ Scope: scope/SCOPE_P_Rohith.md 2, components 2 and 4
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Self
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from pramana.analysis.proposer_config import ProposerSettings
 
 #: Repository root, resolved from this file: analysis -> pramana -> src -> root.
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -152,6 +155,7 @@ class HypothesesConfig(BaseModel):
         ge=1, description="Hard cap on the batch handed to the gateway, so BH-FDR stays sane."
     )
     strategies: StrategyToggles
+    proposer: ProposerSettings
     strategy_min_candidates: StrategyMinimums
     min_abs_correlation: float = Field(
         ge=0.0, le=1.0, description="Exploratory |rho| floor for a correlation candidate."
@@ -211,4 +215,6 @@ def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> AnalysisConfig:
     before a single column is classified.
     """
     raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    if engine := os.getenv("PRAMANA_ANALYSIS_ENGINE"):
+        raw["hypotheses"]["proposer"]["engine"] = engine
     return AnalysisConfig.model_validate(raw)
