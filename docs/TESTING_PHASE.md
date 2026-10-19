@@ -3,6 +3,11 @@
 Owner of this handoff: B. Karthikeya, CB.AI.U4AID23109.
 Prepared on 20 October 2026 for the tester taking over live service checks.
 
+Team-wide implementation and acceptance gaps are tracked in
+[TEAM_GOALS_CHECKLIST.md](TEAM_GOALS_CHECKLIST.md). In particular, W4's shared
+inference client and a bounded isolated-worker telemetry relay still need code;
+supplying credentials alone does not finish those goals.
+
 ## Current completion boundary
 
 The workflow implementation can be completed without API keys. The committed

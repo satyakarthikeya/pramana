@@ -6,6 +6,12 @@ explicitly deferred paid-provider and live Langfuse checks to the tester. See
 failure behavior and the tester sign-off checklist. Implementation readiness and
 live-service acceptance are tracked separately.
 
+For the audited goals of all four members, including incomplete work, see
+[TEAM_GOALS_CHECKLIST.md](TEAM_GOALS_CHECKLIST.md). Working workflow integration
+does not mean every architecture goal is closed: W4's shared inference client and
+the isolated-worker telemetry relay remain implementation work, not merely missing
+credentials.
+
 This work builds on `origin/feat/rohith/memory-backend` (memory/API/dashboard)
 and `origin/feat/rohith/llm-claim-proposer` (Gemma proposer). Both are dependencies,
 not newly authored modules. Merge those dependencies before this integration PR.
@@ -73,6 +79,9 @@ graph; Chroma's named volume now mounts at the actual `/data` database path.
 
 ## Remaining deployment/owner dependencies
 
+- W4's shared OpenAI-compatible inference client is not implemented. Existing
+  module-specific callers need a coordinated migration; the shared Langfuse
+  client alone does not satisfy W4.
 - Docker Desktop runs from the user's AppData Programs/DockerDesktop directory.
   Keyless Compose/Redis/worker-kill acceptance passed on this machine.
 - Worker Langfuse delivery needs a bounded telemetry relay. Trusted API generation
