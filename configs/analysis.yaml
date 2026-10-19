@@ -27,6 +27,7 @@ schema_inference:
 hypotheses:
   proposer:
     engine: deterministic       # explicit offline baseline; env PRAMANA_ANALYSIS_ENGINE=ollama
+    trace_backend: local        # owner-authorized local audit; langfuse remains optional
     model: gemma2:2b             # installed Q4_0; i5-11300H / 16GB RAM CPU profile
     base_url: http://localhost:11434
     timeout_seconds: 240

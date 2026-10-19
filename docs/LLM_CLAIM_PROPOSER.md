@@ -33,12 +33,15 @@ loaded model after the request. No model download or new dependency was introduc
 - Code renders hedged claims and optional exploratory statistics only for the
   selected pairs. No effect threshold or observed sign silently corrects the
   model's hypothesis; the real gateway must catch wrong directions and nulls.
-- Every actual request authenticates Langfuse and starts a generation under its
-  run UUID. Model, seed, parameters and output are traced. Langfuse receives a
-  prompt hash, not the local input summary/question. A valid client and trace
-  start are required before Ollama inference.
+- Explicit `trace_backend: local` records requests under the run UUID without
+  contacting Langfuse. Rohith relayed Satya's authorization for this local mode on
+  19 October 2026; the exception is recorded in AGENTS.md section 2. Selecting
+  `langfuse` still requires successful authentication and a run-linked generation
+  before inference, with no fallback. Langfuse receives a prompt hash, not the
+  local input summary/question.
 - Local audits under data/runs/<run_id>/analysis_proposer.json record settings,
-  prompt and exact model response. Successful identical retries replay this
+  prompt and exact model response. An audit is written before inference starts;
+  a failed audit write prevents the request. Successful identical retries replay this
   response, rather than generating another family. A file reservation prevents
   overlapping attempts. Changed inputs/settings or recorded failures require a
   fresh run UUID; there is no automatic second model request or silent repair.
@@ -48,35 +51,26 @@ loaded model after the request. No model download or new dependency was introduc
 
 ## Activate the real model
 
-The machine currently has no .env and no Langfuse credentials configured. The
-implementation and mock-based tests do not establish a successful live Gemma run.
-The preflight deliberately refuses missing credentials before any model call.
-
-The team Langfuse project owner/admin needs to provide project access and configure
-the following in the ignored local .env; never paste keys into chat or Git:
-
-```dotenv
-LANGFUSE_HOST=<your-project-region-or-self-hosted-url>
-LANGFUSE_PUBLIC_KEY=<project-public-key>
-LANGFUSE_SECRET_KEY=<project-secret-key>
-PRAMANA_ANALYSIS_ENGINE=ollama
-```
-
-Then use:
+No Langfuse credentials or .env are needed for the configured local audit mode.
+Use the installed Ollama service and these commands:
 
 ```powershell
-.venv/Scripts/python.exe scripts/check_llm_proposer.py --preflight-only
-.venv/Scripts/python.exe scripts/check_llm_proposer.py
-.venv/Scripts/python.exe scripts/check_llm_proposer.py --verify
+.venv/Scripts/python.exe scripts/check_llm_proposer.py --trace-backend local --preflight-only
+.venv/Scripts/python.exe scripts/check_llm_proposer.py --trace-backend local
+.venv/Scripts/python.exe scripts/check_llm_proposer.py --trace-backend local --verify
 ```
 
-The script loads .env without overriding an existing environment. It authenticates
-tracing and checks the installed Gemma family before inference, uses synthetic
+The script optionally loads .env without overriding an existing environment. It
+checks the installed Gemma family before inference, uses synthetic
 data, writes an ignored report, and optionally sends the one returned batch to the
 actual configured gateway. It prints no keys or unverified finding sentences.
 `--verify` honors the actual gateway generator selection; it does not silently
 change DeepSeek to templates. With current explicit template config it is offline
 verification, and no DeepSeek account is required for that check.
+
+If the team later chooses `--trace-backend langfuse`, configure LANGFUSE_HOST,
+LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY in the ignored .env. This mode still
+refuses missing/invalid credentials before inference; it does not switch to local.
 
 For production entrypoints, export the same environment or load .env explicitly
 (for Uvicorn use --env-file .env). Setting an engine only in the check script does
@@ -105,6 +99,17 @@ Official references: [Ollama structured outputs](https://docs.ollama.com/capabil
 Validation on 19 October 2026: 144 analysis tests passed; 148 combined targeted
 analysis/adapter/handler tests passed; the new real-gateway integration test passed.
 Full suite: 540 passed, five existing enum collection warnings, 182.63 seconds.
-Repository lint, analysis/adapter/script mypy and diff checks passed. Live preflight
-returned a clear missing-credentials block before any inference; no actual Gemma
-proposal quality or speed measurement is claimed by these results.
+Repository lint, analysis/adapter/script mypy and diff checks passed. The initial
+Langfuse preflight refused missing credentials. After Satya's local-mode approval,
+an actual CPU run of gemma2:2b completed with 913 prompt tokens and 211 output tokens
+in 37.60 seconds of Ollama-reported total duration (cold model run). It produced
+six structured proposals: one passed structural validation and five were rejected
+for incompatible roles. The surviving age/bmi association on synthetic data was
+tested by the real gateway and received PASS (p=q=0.00009999000099990002). No memory
+write was performed by the check. This single synthetic smoke test establishes
+working local inference/validation/verification, not broad proposal quality or
+benchmark precision. Full local artifacts remain ignored under data/runs/ and artifacts/.
+
+After the explicit local/Langfuse backend update: 146 targeted analysis/gateway
+tests passed; full suite 541 passed with five existing enum collection warnings
+in 187.45 seconds. Lint, mypy and diff checks passed again.

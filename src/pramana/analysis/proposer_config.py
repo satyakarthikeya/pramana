@@ -13,6 +13,7 @@ class ProposerSettings(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
     engine: Literal["deterministic", "ollama"]
+    trace_backend: Literal["local", "langfuse"]
     model: str
     base_url: str
     timeout_seconds: int = Field(gt=0, le=600)

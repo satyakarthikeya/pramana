@@ -225,6 +225,10 @@ def render_candidate(
 
 @contextmanager
 def _generation(client: Any, run_id: UUID, **kwargs: Any) -> Iterator[Any]:
+    if client is None:
+        # Only selected explicitly by trace_backend=local; the outer audit is durable.
+        yield None
+        return
     current = getattr(client, "start_as_current_observation", None)
     if current is not None:
         with current(
@@ -243,19 +247,25 @@ def _generation(client: Any, run_id: UUID, **kwargs: Any) -> Iterator[Any]:
 
 
 def _request(prompt: str, settings: ProposerSettings, run_id: UUID) -> dict[str, Any]:
-    """Make exactly one bounded model request inside a real run-linked generation."""
-    client = get_langfuse_client(load_runtime_config().langfuse)
-    if client is None:
-        raise ProposerUnavailable("Configure Langfuse credentials before calling the analysis LLM")
-    try:
-        if not client.auth_check():
-            raise ProposerUnavailable("Langfuse authentication failed; no model request was made")
-    except ProposerUnavailable:
-        raise
-    except Exception as error:
-        raise ProposerUnavailable(
-            "Langfuse authentication is unavailable; no model request was made"
-        ) from error
+    """Make one bounded model request with the explicitly configured audit backend."""
+    client = None
+    if settings.trace_backend == "langfuse":
+        client = get_langfuse_client(load_runtime_config().langfuse)
+        if client is None:
+            raise ProposerUnavailable(
+                "Configure Langfuse credentials before calling the analysis LLM"
+            )
+        try:
+            if not client.auth_check():
+                raise ProposerUnavailable(
+                    "Langfuse authentication failed; no model request was made"
+                )
+        except ProposerUnavailable:
+            raise
+        except Exception as error:
+            raise ProposerUnavailable(
+                "Langfuse authentication is unavailable; no model request was made"
+            ) from error
     import ollama
 
     output_schema = ClaimBatch.model_json_schema()
@@ -310,18 +320,20 @@ def _request(prompt: str, settings: ProposerSettings, run_id: UUID) -> dict[str,
             batch = ClaimBatch.model_validate_json(raw["message"]["content"])
             if len(batch.claims) > settings.max_claims:
                 raise ProposerUnavailable("Model exceeded the configured claim budget")
-            observation.update(
-                output=batch.model_dump(mode="json"),
-                metadata={
-                    "run_id": str(run_id),
-                    "prompt_eval_count": raw.get("prompt_eval_count"),
-                    "eval_count": raw.get("eval_count"),
-                    "total_duration": raw.get("total_duration"),
-                },
-            )
+            if observation is not None:
+                observation.update(
+                    output=batch.model_dump(mode="json"),
+                    metadata={
+                        "run_id": str(run_id),
+                        "prompt_eval_count": raw.get("prompt_eval_count"),
+                        "eval_count": raw.get("eval_count"),
+                        "total_duration": raw.get("total_duration"),
+                    },
+                )
             return raw
         except Exception as error:
-            observation.update(level="ERROR", status_message=type(error).__name__)
+            if observation is not None:
+                observation.update(level="ERROR", status_message=type(error).__name__)
             raise
 
 
@@ -397,6 +409,8 @@ def generate_llm_candidates(
                     "settings": settings.model_dump(mode="json"),
                     "prompt": prompt,
                 }
+                audit["status"] = "running"
+                _write_audit(target, audit)
                 try:
                     raw = _request(prompt, settings, run)
                     audit.update(status="completed", response=raw)

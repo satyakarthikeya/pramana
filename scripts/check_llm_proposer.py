@@ -25,25 +25,24 @@ from pramana.common.logging import bind_run_context, clear_log_context  # noqa: 
 
 
 def main() -> int:
-    """Refuse missing/invalid tracing credentials before any actual model inference."""
+    """Check local Ollama and the explicitly chosen local/Langfuse audit backend."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--preflight-only", action="store_true")
     parser.add_argument("--verify", action="store_true", help="Verify the returned batch once")
+    parser.add_argument("--trace-backend", choices=["local", "langfuse"])
     args = parser.parse_args()
     load_dotenv(ROOT / ".env", override=False)
     config = load_config()
     settings = config.hypotheses.proposer.model_copy(update={"engine": "ollama"})
+    if args.trace_backend:
+        settings = settings.model_copy(update={"trace_backend": args.trace_backend})
     hypotheses = config.hypotheses.model_copy(update={"proposer": settings})
-    tracing = get_langfuse_client(load_runtime_config().langfuse)
-    if tracing is None:
-        print(
-            "BLOCKED: configure LANGFUSE_HOST, LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY "
-            "in the ignored .env. No model call was made."
-        )
-        return 2
+    tracing = None
     try:
-        if not tracing.auth_check():
-            raise RuntimeError("Langfuse credentials were not accepted")
+        if settings.trace_backend == "langfuse":
+            tracing = get_langfuse_client(load_runtime_config().langfuse)
+            if tracing is None or not tracing.auth_check():
+                raise RuntimeError("Langfuse credentials were not accepted")
         import ollama
 
         info = ollama.Client(host=settings.base_url, timeout=10, trust_env=False).show(
@@ -56,7 +55,9 @@ def main() -> int:
     except Exception as error:
         print(f"BLOCKED: preflight failed ({type(error).__name__}); no model inference was made.")
         return 2
-    print(f"Preflight passed: {settings.model}; local Ollama and authenticated Langfuse.")
+    print(
+        f"Preflight passed: {settings.model}; audit backend: {settings.trace_backend}.", flush=True
+    )
     if args.preflight_only:
         return 0
     run_id = uuid4()
@@ -89,6 +90,7 @@ def main() -> int:
             "candidate_count_unverified": len(candidates),
             "elapsed_seconds": round(time.monotonic() - started, 2),
             "synthetic_data_only": True,
+            "trace_backend": settings.trace_backend,
         }
         if args.verify:
             from pramana.verification.config import load_config as gateway_config
@@ -96,10 +98,16 @@ def main() -> int:
 
             proofs = verify_batch(candidates, frame, gateway_config())
             report["proofs"] = [proof.model_dump(mode="json") for proof in proofs]
+            print(
+                f"Verification complete: {sum(p.verdict.value == 'PASS' for p in proofs)} PASS, "
+                f"{sum(p.verdict.value == 'REJECT' for p in proofs)} REJECT.",
+                flush=True,
+            )
         target = ROOT / "artifacts" / f"llm_proposer_{run_id}.json"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(report, indent=2, allow_nan=False), encoding="utf-8")
-        tracing.flush()
+        if tracing is not None:
+            tracing.flush()
         print(f"Completed: {len(candidates)} unverified proposals; report: {target}")
         return 0
     finally:

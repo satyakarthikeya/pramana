@@ -27,7 +27,11 @@ def inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple:
     monkeypatch.setattr(proposer, "DATA_DIR", tmp_path)
     config = load_config()
     hypothesis = config.hypotheses.model_copy(
-        update={"proposer": config.hypotheses.proposer.model_copy(update={"engine": "ollama"})}
+        update={
+            "proposer": config.hypotheses.proposer.model_copy(
+                update={"engine": "ollama", "trace_backend": "langfuse"}
+            )
+        }
     )
     frame = toy_frame()
     schema = infer_schema(frame, config.schema_inference)
@@ -164,6 +168,31 @@ def test_missing_tracing_refuses_before_any_ollama_request(
     with pytest.raises(proposer.ProposerUnavailable, match="Langfuse"):
         generate_candidates(frame, schema, config, dataset_ref="cleaned.pkl", run_id=uuid4())
     factory.assert_not_called()
+
+
+def test_explicit_local_backend_uses_no_langfuse_and_keeps_audit(
+    inputs: tuple,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    frame, schema, config = inputs
+    config = config.model_copy(
+        update={"proposer": config.proposer.model_copy(update={"trace_backend": "local"})}
+    )
+    _, _, _, transport = install_fake_model(monkeypatch, [claim()])
+    tracing_factory = MagicMock(side_effect=AssertionError("local mode must not request Langfuse"))
+    monkeypatch.setattr(proposer, "get_langfuse_client", tracing_factory)
+    run_id = uuid4()
+    result = generate_candidates(frame, schema, config, dataset_ref="cleaned.pkl", run_id=run_id)
+    assert len(result) == 1
+    assert transport.chat.call_count == 1
+    tracing_factory.assert_not_called()
+    audit = json.loads(
+        (tmp_path / "runs" / str(run_id) / "analysis_proposer.json").read_text("utf-8")
+    )
+    assert audit["status"] == "completed"
+    assert audit["settings"]["trace_backend"] == "local"
+    assert audit["response"]["model"] == "gemma2:2b"
 
 
 def test_model_failure_never_calls_scan_and_is_not_retried(
