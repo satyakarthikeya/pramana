@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PRAMANA · Verified analysis</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script defer src="/static/app.js"></script>
+</head>
+<body>
+  <header><a class="brand" href="/">PRAMANA<span>Evidence before insight.</span></a>
+    <nav aria-label="Main"><a href="#analysis">Analysis</a><a href="#memory">Verified memory</a>
+      <a href="/docs">API</a></nav></header>
+  <main>
+    <section id="analysis" class="intro"><p class="eyebrow">Execution-grounded analysis</p>
+      <h1>See what the evidence supports.</h1>
+      <p>Upload a dataset. Every reported finding must pass code-executed verification.</p>
+      <form id="upload" class="panel">
+        <label for="dataset">Dataset <span>CSV or XLSX</span></label>
+        <input id="dataset" name="file" type="file" accept=".csv,.xlsx" required>
+        <label for="question">Question <span>Optional</span></label>
+        <input id="question" name="user_query" type="text" maxlength="4000"
+               placeholder="What would you like to explore?">
+        <button id="start" type="submit">Run verified analysis <span aria-hidden="true">↗</span></button>
+      </form>
+    </section>
+    <p id="message" role="status" aria-live="polite"></p>
+    <section class="workspace">
+      <aside class="panel"><h2>Recent runs</h2><button class="subtle" id="refresh">Refresh</button>
+        <div id="runs"><p class="empty">No runs yet.</p></div></aside>
+      <section class="panel results"><div class="section-title"><h2>Run results</h2>
+        <span id="run-status" class="badge">Select a run</span></div>
+        <p id="run-id" class="muted"></p><p id="run-error" role="status"></p>
+        <div class="metrics"><div><strong id="passed-count">—</strong><span>Verified findings</span></div>
+          <div><strong id="rejected-count">—</strong><span>Rejected claims</span></div></div>
+        <h3>Verified findings <span class="badge pass">PASS</span></h3>
+        <p class="muted">Supported on this dataset by the verification gateway.</p>
+        <div id="passed" class="empty">Results appear after verification finishes.</div>
+        <h3>Rejected claims <span class="badge reject">REJECT</span></h3>
+        <p class="muted">These are not findings. Open the proof to inspect the rejection reason.</p>
+        <div id="rejected" class="empty">No result snapshot selected.</div>
+      </section>
+    </section>
+    <section id="memory" class="panel"><p class="eyebrow">Learn from verified history</p>
+      <h2>Verified memory</h2>
+      <p>Past lessons are hints. They must be tested again before becoming findings on a new dataset.</p>
+      <form id="search"><label for="memory-query">Search past lessons</label>
+        <div class="search-row"><input id="memory-query" maxlength="10000" required
+          placeholder="For example: age and body measurements"><button>Search</button></div></form>
+      <button id="browse" class="subtle">Browse stored lessons</button>
+      <div id="lessons"><p class="empty">Browse or search to inspect verified history.</p></div>
+    </section>
+  </main>
+  <footer>PRAMANA · Every finding carries its proof.</footer>
+  <dialog id="proof-dialog"><div class="section-title"><h2>Original proof object</h2>
+    <button id="close-proof" class="subtle">Close</button></div><pre id="proof-text"></pre></dialog>
+</body></html>
