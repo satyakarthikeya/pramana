@@ -47,6 +47,35 @@ def test_expired_run_can_still_build_its_failure_report() -> None:
     assert result["report"]["insights"] == []
 
 
+def test_gateway_execution_failure_keeps_proofs_but_degrades_and_skips_memory() -> None:
+    from dataclasses import replace
+
+    failed = proof("crashed", passed=False).model_copy(
+        update={"failure_reason": "execution exited with status 1: MemoryError"}
+    )
+    passed = proof("ok", passed=True)
+    verification_calls = []
+
+    def verify(_state: Any) -> dict[str, Any]:
+        verification_calls.append(True)
+        return {"proof_objects": [passed, failed]}
+
+    adapters = replace(
+        stub_adapters(),
+        is_stub=False,
+        analyze=lambda _state: {"candidate_insights": [candidate("ok"), candidate("crashed")]},
+        verify=verify,
+        memory_write=lambda *_args: pytest.fail("A degraded family must not write memory"),
+    )
+    final = run_graph(make_run("toy.csv"), build_graph(adapters))
+    assert final.status is RunStatus.DEGRADED
+    assert final.proof_objects == [passed, failed]
+    assert len(verification_calls) == 1  # Never repeat an already tested BH family.
+    assert final.memory_receipts == []
+    assert final.report["status"] == "degraded"
+    assert any("exhausted its retries" in error.message for error in final.errors)
+
+
 def test_production_graph_requires_explicit_stub_opt_in() -> None:
     with pytest.raises(RuntimeError, match="allow_stubs"):
         build_graph(stub_adapters())

@@ -14,10 +14,12 @@ The implementation is on `feat/b-karthikeya/workflow-completion`, with workflow
 commit `884eb4a`. Its prerequisites are the published memory/API and Gemma proposer
 branches, combined in dependency merge `ac53abd`. Those prerequisites need review
 and integration before this workflow branch merges. Main has not been changed.
+Test the branch's latest HEAD, which also contains the subsequent container-runtime
+fixes; the initial `884eb4a` checkpoint alone predates those fixes.
 
 | Check | Recorded result |
 |---|---|
-| Full automated suite | 561 passed, 10 collection/deprecation warnings, 293.27 seconds |
+| Full automated suite | 563 passed after runtime fixes; 10 existing collection/deprecation warnings |
 | Repository Ruff lint | Passed |
 | Mypy for orchestration, common and stack smoke script | Passed, 23 source files |
 | Installed dependency consistency (`pip check`) | Passed |
@@ -25,20 +27,61 @@ and integration before this workflow branch merges. Main has not been changed.
 | Real analysis, subprocess tests, BH-FDR and persistent Chroma in integration tests | Passed; explicitly injected test embeddings |
 | Two-run retrieval and fresh verification | Passed; old proofs do not become current proofs |
 | Prepared-code worker execution and model-generation failure handling | Passed with explicit test fixtures; no live provider call |
-| Live Compose upload through Redis/worker/Chroma | Pending; image downloads were still running at handoff |
-| Live Gemma proposer | Pending; configured model download was still running at handoff |
-| Live MiniLM model download/embedding/search | Not established by the test-embedding integration tests |
+| Live Compose upload through Redis/worker/Chroma | Passed; synthetic baseline produced 1 PASS |
+| Live Gemma proposer | Passed standalone (1 PASS, 3 REJECT) and through API/worker (1 PASS, 1 REJECT) |
+| Live MiniLM model download/embedding/search | Passed with real MiniLM and HTTP Chroma; records survived server recreation |
 | Live DeepSeek code generation | Deferred to tester; no API key supplied |
 | Live Langfuse authentication and trace inspection | Deferred to tester; no credentials supplied |
-| Live worker termination during execution | Pending |
+| Live worker termination during execution | Passed; degraded run, zero proofs, zero memory writes |
+| Live failed execution returned as a proof | Passed; REJECT proof retained, run degraded, memory skipped |
 
 Do not promote a pending row to passed simply because the process started.
-Background downloads and smoke-check processes were started during development;
-check their outcome rather than assuming they completed. Successful stack smoke
+Docker and Gemma downloads completed. Successful stack smoke
 results appear in ignored `artifacts/workflow_stack_smoke.json`. Successful local
 proposer checks write ignored `artifacts/llm_proposer_<run_id>.json` and a run audit
 under `data/runs/<run_id>/analysis_proposer.json`. Inspect the run/model/trace backend
 and timestamp before treating an existing artifact as evidence for this checkout.
+
+### Runtime fixes and live evidence, 20 October 2026
+
+- Worker BLAS pools initially reserved about 2.36 GB of virtual address space,
+  exceeding the sandbox's 1 GB cap before a test could run. The image-owned
+  `worker_sitecustomize.py` now caps numerical threads before imports in both the
+  worker and its sanitized Python children. Measured virtual memory fell to about
+  479 MB; a real test succeeded with the original limits. No statistical threshold,
+  resource cap, import whitelist or worker network isolation was relaxed.
+- Exhausted execution failures previously carried REJECT proofs but could leave
+  the graph marked completed. Orchestration now retains those proofs, marks the run
+  degraded and skips memory. It does not repeat the tested BH family.
+- Chroma 1.5 writes to `/data`. The original legacy mount at `/chroma/chroma` did
+  not persist its actual database. Compose now mounts `chroma-data:/data`. Existing
+  data was backed up at ignored `data/chroma-volume-migration-backup/` and copied
+  into the named volume before recreation; no records were discarded.
+- Baseline Docker run `02df9d81-426c-44ff-9341-f1627fce9c3f`: completed, 1 PASS,
+  real MiniLM embedding and guarded Chroma write.
+- Gemma Docker run `54667f3e-70ca-4418-be6a-c67ddd8dd444`: completed, 1 PASS and
+  1 REJECT. API environment selected Ollama and the run's proposer audit exists.
+  A repeat after the volume fix, `9416a260-0a7f-4ea7-b803-8fe419cdb081`, also
+  produced 1 PASS and 1 REJECT. `artifacts/workflow_stack_smoke.json` records
+  that latest run.
+- Standalone Gemma run `952803af-9ae9-46ca-8fc7-ba5a8ad49a17`: 4 proposals,
+  1 PASS and 3 REJECT, with an explicit local audit.
+- Interrupted-worker run `c7566dd2-316a-4904-bade-6d8b2e4bcf8b`, task
+  `384013fa-523e-41d8-b5e0-e3f732d18b5f`: the worker was killed after dispatch
+  while a synthetic hanging program ran. The graph ended degraded with no proofs
+  or memory writes. Evidence: ignored `artifacts/worker_loss_smoke.json`.
+- Failed-program run `034a0975-7b47-479a-baf4-29061cc4947a`: a synthetic exception
+  produced a REJECT proof, degraded status and zero memory writes. Evidence:
+  ignored `artifacts/executor_failure_smoke.json`.
+- After Chroma recreation, records `56c20d186fb24362fe257017` and
+  `d2a32ea972ae5ae52497dce7` remained present and retrievable with PASS proofs.
+  A second recreation preserved newly written record `751df57fefe8123db9c4824a`
+  from the post-fix run, confirming new writes use the persistent volume too.
+  The API, worker, Redis and Chroma were left running. The API currently uses
+  explicit Gemma analysis and template verification; reproducing that selection
+  after another Compose recreation requires the engine override below.
+
+These are keyless live acceptance results. DeepSeek and Langfuse remain deferred.
 
 ## 1. Reproduce the keyless checks
 
@@ -196,10 +239,10 @@ untrusted execution public egress to make tracing work.
 
 - [ ] Record checkout commit, dependency branch status, OS and package versions.
 - [ ] Reproduce the keyless suite and record the actual pass/fail counts.
-- [ ] Complete live Docker upload, Celery execution and Chroma persistence.
-- [ ] Confirm real MiniLM embedding and retrieval, not a test embedding.
-- [ ] Complete worker-loss, timeout and incomplete-family refusal checks.
-- [ ] Complete actual Gemma proposal and fresh-verification checks.
+- [x] Complete live Docker upload, Celery execution and Chroma persistence.
+- [x] Confirm real MiniLM embedding and retrieval, not a test embedding.
+- [x] Complete live worker-loss/timeout checks and automated incomplete-family refusal checks.
+- [x] Complete actual Gemma proposal and fresh-verification checks.
 - [ ] Complete actual DeepSeek generation and stored-source replay checks.
 - [ ] Inspect Langfuse trace/run linkage; record the worker relay limitation.
 - [ ] Record invalid-key/provider-failure outcomes and PASS-only memory evidence.

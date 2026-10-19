@@ -11,6 +11,9 @@ The API container joins separate internal queue and storage networks plus an egr
 The API image pins Chroma's client to 1.5.9 and Compose uses that same server release.
 Compose explicitly selects HTTP Chroma and Celery verification, so writes reach the
 shared storage service instead of creating an ephemeral local index in the API container.
+Chroma 1.5 stores its database under `/data`; the named volume mounts at that exact
+path. The older `/chroma/chroma` mount and `PERSIST_DIRECTORY` settings do not
+configure persistence for this server image.
 To activate the installed Gemma proposer explicitly, set `PRAMANA_ANALYSIS_ENGINE=ollama`
 before starting Compose. The API uses `host.docker.internal:11434` to reach host Ollama.
 `PRAMANA_ANALYSIS_MODEL` defaults to `gemma2:2b`; the analysis owner's validated model
@@ -18,6 +21,10 @@ settings still refuse non-Gemma tags and non-local endpoints.
 The worker joins only the queue network, so it can reach Redis but cannot reach ChromaDB or
 the public internet. It also runs as a non-root user with a read-only filesystem, dropped
 Linux capabilities, process/CPU/memory limits, and a bounded temporary directory.
+The worker image installs a Python startup hook that caps numerical thread pools
+at one thread in both the Celery process and sanitized executor children. This
+avoids large BLAS virtual-memory reservations before tests start. The configured
+1 GB execution limit and container restrictions remain enforced.
 Uploaded run data is shared from the API to the worker through a dedicated volume that is
 read-only in the worker. Both images create that mount point with the same non-root owner,
 and the orchestration dependencies include `pyarrow` so the worker can deserialize dataframe

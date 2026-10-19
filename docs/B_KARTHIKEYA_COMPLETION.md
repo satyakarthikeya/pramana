@@ -47,8 +47,8 @@ injects a small test embedding to avoid a model download. This proves storage an
 workflow behavior; it does not establish live Gemma, DeepSeek or Langfuse service
 availability. Existing API tests cover upload through the graph to guarded memory.
 
-Validated locally: full suite **561 passed**, 10 existing collection/deprecation
-warnings, 293.27 seconds. Repository lint passed. Mypy passed for orchestration,
+Validated locally: full suite **563 passed** after runtime fixes, with 10 existing
+collection/deprecation warnings. Repository lint passed. Mypy passed for orchestration,
 common and the stack smoke script (23 source files). `pip check` and Docker Compose
 configuration validation passed. No verification threshold or proof contract changed.
 
@@ -58,10 +58,23 @@ analysis integration test now uses the production graph budget instead of the
 30-second unit-test budget because five real resampling tests take about 42 seconds
 on this machine. Real timeout/fail-closed tests remain enabled and passing.
 
+## Live keyless acceptance
+
+Docker baseline and actual Gemma API runs passed through Redis, the isolated worker,
+real statistical execution, MiniLM embeddings and guarded HTTP Chroma persistence.
+The Gemma API run produced 1 PASS and 1 REJECT. Existing lessons survived Chroma
+recreation and remained searchable. Worker termination and failed-execution tests
+both produced degraded runs without memory writes. Run IDs and evidence locations
+are in [TESTING_PHASE.md](TESTING_PHASE.md).
+
+Runtime fixes: numerical thread caps in the worker image keep imports below the
+unchanged execution-memory limit; exhausted execution failures now degrade the
+graph; Chroma's named volume now mounts at the actual `/data` database path.
+
 ## Remaining deployment/owner dependencies
 
 - Docker Desktop runs from the user's AppData Programs/DockerDesktop directory.
-  Live Compose/Redis/worker-kill acceptance results must be checked separately.
+  Keyless Compose/Redis/worker-kill acceptance passed on this machine.
 - Worker Langfuse delivery needs a bounded telemetry relay. Trusted API generation
   and graph observations have network access, but worker isolation stays intact.
 - Gemma/Ollama, DeepSeek and Langfuse need their live services and local credentials

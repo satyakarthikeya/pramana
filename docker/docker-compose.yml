@@ -78,11 +78,8 @@ services:
 
   chromadb:
     image: chromadb/chroma:1.5.9
-    environment:
-      IS_PERSISTENT: "TRUE"
-      PERSIST_DIRECTORY: /chroma/chroma
     volumes:
-      - chroma-data:/chroma/chroma
+      - chroma-data:/data
     networks:
       - storage
     restart: unless-stopped
