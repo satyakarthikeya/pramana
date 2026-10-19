@@ -13,12 +13,9 @@ size, so an unbounded scan of a 60-column frame (1,770 correlation pairs alone) 
 every genuine finding harder to pass in proportion to how many junk pairs were scanned
 alongside it. Capping is how the proposer avoids poisoning its own signal.
 
-The cap keeps the LARGEST exploratory effects. That is a ranking rule, not a verdict:
-a candidate that survives the cap has not been judged, and a candidate dropped by it
-has not been refuted -- it was not proposed. `SCOPE_P_Rohith.md` 4 step 6 owns the
-richer prioritisation (per-strategy quotas, protecting planted demo signals from being
-crowded out); this is the minimum that keeps the family size sane, and
-`prioritization.py` is deliberately still empty.
+The selector reserves configured slots per strategy, then fills the remaining cap
+by exploratory magnitude. This is a ranking rule, not a verdict: a candidate that
+survives the cap has not been judged, and a dropped candidate has not been refuted.
 
 Owner: P. Rohith (built by P.P. Satya Karthikeya -- team-agreed cross-module work)
 Scope: scope/SCOPE_P_Rohith.md 2, component 4
@@ -26,11 +23,15 @@ Scope: scope/SCOPE_P_Rohith.md 2, component 4
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from uuid import UUID
+
 import pandas as pd
 
 from pramana.analysis.config import AnalysisConfig, HypothesesConfig, load_config
 from pramana.analysis.hypotheses import correlation, group_difference, trend
 from pramana.analysis.hypotheses.base import ClaimScreen
+from pramana.analysis.prioritization import prioritize_candidates
 from pramana.analysis.schema_inference import SchemaProfile, infer_schema
 from pramana.contracts.candidate_insight import CandidateInsight
 
@@ -43,21 +44,6 @@ _STRATEGIES = (
 )
 
 
-def _exploratory_magnitude(candidate: CandidateInsight) -> float:
-    """How large the exploratory statistic was, in `[0, 1]`, for ranking only.
-
-    All three strategies report a statistic already on a bounded scale (rho, tau-b,
-    eta-squared), so their magnitudes are comparable enough to rank a mixed batch. A
-    candidate with no usable number sorts last rather than raising -- it should not
-    exist, and if it does, it should not win a slot.
-    """
-    raw = candidate.analysis_evidence.get("raw_value")
-    if not isinstance(raw, int | float) or isinstance(raw, bool):
-        return 0.0
-    magnitude = abs(float(raw))
-    return magnitude if magnitude == magnitude else 0.0  # NaN sorts last
-
-
 def generate_candidates(
     frame: pd.DataFrame,
     schema: SchemaProfile,
@@ -65,6 +51,9 @@ def generate_candidates(
     *,
     dataset_ref: str,
     claim_screen: ClaimScreen | None = None,
+    run_id: str | UUID | None = None,
+    user_query: str | None = None,
+    lesson_hints: Sequence[str] = (),
 ) -> list[CandidateInsight]:
     """Run every enabled strategy over `frame` and return one capped batch.
 
@@ -84,6 +73,19 @@ def generate_candidates(
     in a fixed order, and the cap breaks ties on `insight_id` so an equal-effect pair
     cannot swap places between runs.
     """
+    if config.proposer.engine == "ollama":
+        from pramana.analysis.hypotheses.llm_proposer import generate_llm_candidates
+
+        return generate_llm_candidates(
+            frame,
+            schema,
+            config,
+            dataset_ref=dataset_ref,
+            run_id=run_id,
+            user_query=user_query,
+            lesson_hints=lesson_hints,
+            claim_screen=claim_screen,
+        )
     toggles = config.strategies
     candidates: list[CandidateInsight] = []
     seen: set[str] = set()
@@ -101,13 +103,7 @@ def generate_candidates(
             seen.add(candidate.insight_id)
             candidates.append(candidate)
 
-    if len(candidates) <= config.max_candidates_per_run:
-        return candidates
-
-    ranked = sorted(
-        candidates, key=lambda item: (-_exploratory_magnitude(item), item.insight_id)
-    )
-    return ranked[: config.max_candidates_per_run]
+    return prioritize_candidates(candidates, config=config)
 
 
 def analyse(
@@ -116,6 +112,9 @@ def analyse(
     dataset_ref: str,
     config: AnalysisConfig | None = None,
     claim_screen: ClaimScreen | None = None,
+    run_id: str | UUID | None = None,
+    user_query: str | None = None,
+    lesson_hints: Sequence[str] = (),
 ) -> tuple[SchemaProfile, list[CandidateInsight]]:
     """Infer the schema and propose candidates in one call -- the module's front door.
 
@@ -133,5 +132,8 @@ def analyse(
         resolved.hypotheses,
         dataset_ref=dataset_ref,
         claim_screen=claim_screen,
+        run_id=run_id,
+        user_query=user_query,
+        lesson_hints=lesson_hints,
     )
     return schema, candidates

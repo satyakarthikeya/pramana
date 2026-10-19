@@ -107,6 +107,8 @@ def native_analysis_adapters(*, data_dir: Path | None = None) -> AnalysisNodeAda
             schema,
             analysis_config.hypotheses,
             dataset_ref=state.dataset_ref,
+            run_id=state.run_id,
+            user_query=state.user_query,
         )
         return {"candidate_insights": candidates}
 

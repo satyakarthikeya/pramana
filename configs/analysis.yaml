@@ -25,7 +25,30 @@ schema_inference:
   datetime_parse_min_ratio: 0.90  # share of non-nulls that must parse as timestamps
 
 hypotheses:
+  proposer:
+    engine: deterministic       # explicit offline baseline; env PRAMANA_ANALYSIS_ENGINE=ollama
+    trace_backend: local        # owner-authorized local audit; langfuse remains optional
+    model: gemma2:2b             # installed Q4_0; i5-11300H / 16GB RAM CPU profile
+    base_url: http://localhost:11434
+    timeout_seconds: 240
+    seed: 20260817
+    temperature: 0.0
+    max_claims: 6
+    max_columns: 16
+    max_levels: 10
+    max_prompt_chars: 12000
+    max_question_chars: 1000
+    max_hint_chars: 2000
+    max_output_tokens: 1024
+    context_tokens: 4096
+    num_threads: 4
   max_candidates_per_run: 50   # keeps BH-FDR sane; gateway shouldn't be flooded
+  # Reserve strongest candidates from each strategy before filling by magnitude.
+  # These are minimum allocations, not separate batches or verification verdicts.
+  strategy_min_candidates:
+    correlation: 1
+    group_difference: 1
+    trend: 1
   strategies:
     correlation: true
     group_difference: true
