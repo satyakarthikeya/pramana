@@ -1,5 +1,11 @@
 # Workflow integration handoff, 20 October 2026
 
+API keys are not required to complete the workflow implementation. The user has
+explicitly deferred paid-provider and live Langfuse checks to the tester. See
+[TESTING_PHASE.md](TESTING_PHASE.md) for setup, credentials, exact commands, expected
+failure behavior and the tester sign-off checklist. Implementation readiness and
+live-service acceptance are tracked separately.
+
 This work builds on `origin/feat/rohith/memory-backend` (memory/API/dashboard)
 and `origin/feat/rohith/llm-claim-proposer` (Gemma proposer). Both are dependencies,
 not newly authored modules. Merge those dependencies before this integration PR.
