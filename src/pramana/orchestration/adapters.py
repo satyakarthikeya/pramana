@@ -69,6 +69,18 @@ def safe_report_adapter(state: PramanaState) -> NodeUpdate:
                 if proof.verdict is Verdict.PASS and proof.insight_id in candidates
             ],
             "errors": error_rows,
+            "rejected_claims": [
+                {
+                    "insight_id": proof.insight_id,
+                    "gate_outcome": proof.gate_outcome.value,
+                    "failure_reason": proof.failure_reason,
+                    "p_value": proof.p_value,
+                    "q_value": proof.q_value,
+                    "effect_size": proof.effect_size,
+                }
+                for proof in state.proof_objects
+                if proof.verdict is Verdict.REJECT
+            ],
         }
     }
 
@@ -144,8 +156,25 @@ def celery_verification_adapter(state: PramanaState) -> NodeUpdate:
     if not state.dataset_ref:
         raise ValueError("dataset_ref is required for queued verification")
     candidates = [_serializable(candidate) for candidate in state.candidate_insights]
+    from pramana.verification.config import load_config as load_verification_config
+
+    verification_config = load_verification_config()
+    generated_batch = None
+    if verification_config.llm.generator == "llm":
+        from pramana.orchestration.verification_integration import prepare_verification
+
+        if state.dataset is None:
+            raise ValueError("Trusted code generation requires the cleaned dataset")
+        generated_batch = prepare_verification(
+            state.candidate_insights, state.dataset, verification_config
+        ).model_dump(mode="json")
     try:
-        async_result = enqueue_verification(str(state.run_id), candidates, state.dataset_ref)
+        if generated_batch is None:
+            async_result = enqueue_verification(str(state.run_id), candidates, state.dataset_ref)
+        else:
+            async_result = enqueue_verification(
+                str(state.run_id), candidates, state.dataset_ref, generated_batch=generated_batch
+            )
     except OperationalError as error:
         raise RetryableWorkflowError("Verification queue is unavailable") from error
     try:

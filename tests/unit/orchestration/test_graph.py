@@ -36,6 +36,17 @@ def test_stub_graph_runs_in_declared_order() -> None:
     assert final.report["status"] == "completed"
 
 
+def test_expired_run_can_still_build_its_failure_report() -> None:
+    from pramana.orchestration.adapters import safe_report_adapter
+
+    state = make_run()
+    state.status = RunStatus.DEGRADED
+    state.deadline_at = datetime.now(UTC) - timedelta(seconds=1)
+    result = _guarded("report", safe_report_adapter)(state)
+    assert result["report"]["status"] == "degraded"
+    assert result["report"]["insights"] == []
+
+
 def test_production_graph_requires_explicit_stub_opt_in() -> None:
     with pytest.raises(RuntimeError, match="allow_stubs"):
         build_graph(stub_adapters())

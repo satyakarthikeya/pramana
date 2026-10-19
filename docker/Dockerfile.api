@@ -11,7 +11,8 @@ RUN pip install \
     -r requirements/analysis.txt \
     -r requirements/verification.txt \
     -r requirements/orchestration.txt \
-    -r requirements/memory.txt
+    -r requirements/memory.txt \
+    chromadb==1.5.9
 
 COPY pyproject.toml README.md /app/
 COPY src /app/src

@@ -24,12 +24,14 @@ def new_run(
     runtime: RuntimeConfig | None = None,
     *,
     user_query: str | None = None,
+    episode_mode: bool = False,
 ) -> PramanaState:
     """Create a pending run with a unique ID and validated runtime configuration."""
     return PramanaState(
         run_id=uuid4(),
         dataset_ref=dataset_ref,
         user_query=user_query,
+        episode_mode=episode_mode,
         runtime=runtime or load_runtime_config(),
     )
 

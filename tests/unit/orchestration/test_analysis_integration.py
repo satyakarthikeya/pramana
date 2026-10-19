@@ -99,3 +99,17 @@ def test_native_analysis_failure_degrades_before_candidate_generation(
     assert any(error.node == "ingest" for error in final.errors)
     assert "subagents" not in final.visited_nodes
     assert "analysis" not in final.visited_nodes
+
+
+def test_container_analysis_endpoint_keeps_the_owner_validation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pramana.orchestration.analysis_integration import native_analysis_adapters
+
+    monkeypatch.setenv("PRAMANA_ANALYSIS_BASE_URL", "https://unapproved.example")
+    with pytest.raises(ValueError, match="local Ollama endpoint"):
+        native_analysis_adapters()
+    monkeypatch.setenv("PRAMANA_ANALYSIS_BASE_URL", "http://host.docker.internal:11434")
+    monkeypatch.setenv("PRAMANA_ANALYSIS_MODEL", "llama3.1:latest")
+    with pytest.raises(ValueError, match="Gemma model tag"):
+        native_analysis_adapters()

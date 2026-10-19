@@ -60,9 +60,15 @@ def _guarded(
         current = state
         for attempt in range(1, max_attempts + 1):
             try:
-                if current.deadline_at and datetime.now(UTC) >= current.deadline_at:
+                if (
+                    name != "report"
+                    and current.deadline_at
+                    and datetime.now(UTC) >= current.deadline_at
+                ):
                     raise TimeoutError("Graph-level deadline exceeded")
-                update = dict(function(current))
+                client = get_langfuse_client(current.runtime.langfuse)
+                with traced_run(client, str(current.run_id), name=f"workflow-{name}"):
+                    update = dict(function(current))
                 update["errors"] = list(current.errors)
                 update["retry_counts"] = {**current.retry_counts, name: attempt - 1}
                 return update

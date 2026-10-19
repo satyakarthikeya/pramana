@@ -13,6 +13,7 @@ import pandas as pd
 from celery import Celery, signals
 
 from pramana.common.config import load_runtime_config
+from pramana.common.langfuse_client import get_langfuse_client, traced_run
 from pramana.common.logging import (
     bind_run_context,
     clear_log_context,
@@ -110,7 +111,18 @@ def native_verification_handler(
             "Verification candidates must reference the exact cleaned artifact; "
             f"mismatched insight IDs: {mismatched}"
         )
-    proofs = verify_batch(candidates, frame, load_verification_config())
+    config = load_verification_config()
+    if request.get("generated_batch") is not None:
+        from pramana.orchestration.verification_integration import PreparedBatch, prepared_generator
+
+        batch = PreparedBatch.model_validate(request["generated_batch"])
+        proofs = verify_batch(
+            candidates, frame, config, generate=prepared_generator(batch, candidates, config)
+        )
+    else:
+        if config.llm.generator == "llm":
+            raise ValueError("LLM verification requires programs from the trusted process")
+        proofs = verify_batch(candidates, frame, config)
     return {"proof_objects": proofs}
 
 
@@ -141,9 +153,25 @@ def verify_batch_task(
     run_id: str,
     candidates: Sequence[Mapping[str, Any]],
     dataset_ref: str,
+    generated_batch: Mapping[str, Any] | None = None,
 ) -> Mapping[str, Any]:
     """Dispatch one complete candidate family and propagate failures unchanged."""
     bind_run_context(run_id, task_id=self.request.id)
+    try:
+        client = get_langfuse_client(_runtime.langfuse)
+        with traced_run(client, run_id, name="verification-task"):
+            return _verify_request(run_id, candidates, dataset_ref, generated_batch)
+    finally:
+        clear_log_context()
+
+
+def _verify_request(
+    run_id: str,
+    candidates: Sequence[Mapping[str, Any]],
+    dataset_ref: str,
+    generated_batch: Mapping[str, Any] | None = None,
+) -> Mapping[str, Any]:
+    """Validate the whole family inside the task's trace and cleanup boundary."""
     validated_candidates = [
         item if isinstance(item, CandidateInsight) else CandidateInsight.model_validate(item)
         for item in candidates
@@ -158,13 +186,15 @@ def verify_batch_task(
             "Verification candidates must reference the queued cleaned dataset; "
             f"mismatched insight IDs: {mismatched}"
         )
-    request = {
+    request: dict[str, Any] = {
         "run_id": run_id,
         "candidate_insights": [
             candidate.model_dump(mode="json") for candidate in validated_candidates
         ],
         "dataset_ref": dataset_ref,
     }
+    if generated_batch is not None:
+        request["generated_batch"] = generated_batch
     get_logger(component="celery", run_id=run_id).info(
         "verification_dispatched", n_candidates=len(candidates)
     )
@@ -184,13 +214,18 @@ def verify_batch_task(
             )
         return {"proof_objects": [proof.model_dump(mode="json") for proof in proofs]}
     finally:
-        clear_log_context()
+        get_logger(component="celery", run_id=run_id).info("verification_task_finished")
 
 
 def enqueue_verification(
     run_id: str,
     candidates: Sequence[Mapping[str, Any]],
     dataset_ref: str,
+    *,
+    generated_batch: Mapping[str, Any] | None = None,
 ) -> Any:
     """Queue a complete hypothesis family as one task so BH-FDR remains batch-wide."""
-    return verify_batch_task.apply_async(args=(run_id, list(candidates), dataset_ref))
+    kwargs = {"generated_batch": dict(generated_batch)} if generated_batch is not None else {}
+    return verify_batch_task.apply_async(
+        args=(run_id, list(candidates), dataset_ref), kwargs=kwargs
+    )

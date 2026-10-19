@@ -20,6 +20,9 @@ def test_dev_compose_contains_required_services_and_worker_limits() -> None:
     assert "run-data:/data/pramana" in services["api"]["volumes"]
     assert compose["networks"]["queue"]["internal"] is True
     assert compose["networks"]["storage"]["internal"] is True
+    assert services["api"]["environment"]["PRAMANA_CHROMA_MODE"] == "http"
+    assert services["chromadb"]["image"] == "chromadb/chroma:1.5.9"
+    assert "chromadb==1.5.9" in (DOCKER_DIR / "Dockerfile.api").read_text(encoding="utf-8")
 
 
 def test_dockerfiles_use_non_root_user() -> None:

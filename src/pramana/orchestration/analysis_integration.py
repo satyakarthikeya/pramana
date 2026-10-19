@@ -9,6 +9,7 @@ handler module in another owner's package.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -71,6 +72,15 @@ def native_analysis_adapters(*, data_dir: Path | None = None) -> AnalysisNodeAda
 
     artifact_root = (data_dir or DATA_DIR).resolve()
     analysis_config = load_config()
+    proposer_values = analysis_config.hypotheses.proposer.model_dump()
+    for setting, environment in (
+        ("base_url", "PRAMANA_ANALYSIS_BASE_URL"),
+        ("model", "PRAMANA_ANALYSIS_MODEL"),
+    ):
+        if value := os.getenv(environment):
+            proposer_values[setting] = value
+    proposer = type(analysis_config.hypotheses.proposer).model_validate(proposer_values)
+    hypotheses = analysis_config.hypotheses.model_copy(update={"proposer": proposer})
 
     def ingest(state: PramanaState) -> dict[str, Any]:
         if not state.dataset_ref:
@@ -105,10 +115,11 @@ def native_analysis_adapters(*, data_dir: Path | None = None) -> AnalysisNodeAda
         candidates = generate_candidates(
             frame,
             schema,
-            analysis_config.hypotheses,
+            hypotheses,
             dataset_ref=state.dataset_ref,
             run_id=state.run_id,
             user_query=state.user_query,
+            lesson_hints=state.lesson_hints,
         )
         return {"candidate_insights": candidates}
 
