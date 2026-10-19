@@ -105,15 +105,45 @@ pytest tests/unit/analysis
 
 Full suite as of 2026-09-18: **472 passed**, `ruff` and `mypy` clean.
 
-## Still open in this module
+## Candidate selection (14 October 2026)
 
-Everything below is unbuilt; `SCOPE_P_Rohith.md` §4 gives the order.
+`hypotheses.strategy_min_candidates` reserves one slot by default for each enabled
+strategy (correlation, group difference, trend). Selection takes the strongest
+candidate per strategy in rounds, then fills the remaining shared batch limit by
+absolute exploratory effect. Unused reservations return to the shared pool; if the
+cap is too small for a round, the strongest strategy heads win. Ties break by
+`insight_id`, so changing input order does not change the selected batch.
+
+Set all three reservations to zero for magnitude-only selection. No candidate is
+promoted using expected demo verdicts or ground-truth labels. Reservations protect
+the strongest available signal of each strategy, not every possible signal or
+every demo pair. Effect magnitudes across rho, tau and eta-squared are a ranking
+heuristic, not interchangeable statistical evidence. Verification still owns all
+verdicts and applies correction to the single batch it receives.
+
+Duplicate identical candidates consume one slot; conflicting candidates with the
+same id are refused. Missing or non-finite exploratory evidence ranks last.
+Coverage is in `tests/unit/analysis/test_prioritization.py` and the real strategy
+generation test for a tight three-candidate cap.
+
+### Branch reconciliation
+
+This work starts at `origin/main` (8b833d1) on
+`feat/rohith/candidate-selection`. The old `feat/rohith/analysis-pipeline` branch
+is preserved, including its five commits not merged into main. Its alternative
+schema, strategy and public-handler interfaces overlap the newer merged pipeline;
+they were not copied over it. Its benchmark manifest and diabetes demo remain on
+that old branch for separate work, outside this candidate-selection change.
+
+## Remaining module work
+
+The table records component status; `SCOPE_P_Rohith.md` §4 gives the build order.
 
 | Step | Component | State |
 |---|---|---|
-| 6 | `prioritization.py` — per-strategy quotas, protecting planted demo signals | **not started.** `generation.py` applies only the blunt `max_candidates_per_run` cap |
+| 6 | `prioritization.py` — strategy reservations and shared magnitude ranking | **implemented.** `generation.py` delegates selection to this module |
 | 7 | `benchmark/curation.py`, `benchmark/contamination.py` — the 40-dataset benchmark | not started |
-| 8 | `benchmark/demo_dataset.py` — demo subset + seeded false-correlation injection | not started |
+| 8 | `benchmark/demo_dataset.py` — NHANES subset + seeded false-correlation injection | implemented in PR #12; source references and calibration follow-up remain |
 | — | A Gemma client behind `SemanticRefiner` | not started; ambiguous columns stay `UNKNOWN` until one exists |
 
 ## Cross-module note
