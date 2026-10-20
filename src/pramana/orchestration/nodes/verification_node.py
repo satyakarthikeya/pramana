@@ -37,5 +37,11 @@ def verification_node(state: PramanaState, adapter: StateAdapter) -> dict[str, A
     if sorted(normalized_candidates) != sorted(normalized_proofs):
         raise ValueError("Verification must emit exactly one proof object per candidate")
     update["proof_objects"] = proofs
+    if update.get("verification_summary") is not None:
+        from pramana.orchestration.verification_integration import validate_summary
+
+        update["verification_summary"] = validate_summary(
+            update["verification_summary"], state.candidate_insights, proofs
+        )
     update["visited_nodes"] = [*state.visited_nodes, "verification"]
     return update

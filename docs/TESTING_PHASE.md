@@ -4,29 +4,28 @@ Owner of this handoff: B. Karthikeya, CB.AI.U4AID23109.
 Prepared on 20 October 2026 for the tester taking over live service checks.
 
 Team-wide implementation and acceptance gaps are tracked in
-[TEAM_GOALS_CHECKLIST.md](TEAM_GOALS_CHECKLIST.md). In particular, W4's shared
-inference client and a bounded isolated-worker telemetry relay still need code;
-supplying credentials alone does not finish those goals.
+[TEAM_GOALS_CHECKLIST.md](TEAM_GOALS_CHECKLIST.md). The follow-up from `2707af0`
+implements W4's additive shared inference interface and bounded completion relay;
+module-owner migration and live remote acceptance remain separate.
 
 ## Current completion boundary
 
 The workflow implementation can be completed without API keys. The committed
-default explicitly selects deterministic analysis and template verification.
-This mode executes actual statistical tests and guards memory writes without
-calling a paid model. It must not be described as a successful live LLM test.
+default now selects LLM verification after gateway PR #21. For keyless acceptance,
+explicitly set `PRAMANA_VERIFICATION_GENERATOR=template` in the shell that starts
+Compose; the API and worker must match. This mode executes actual statistical tests
+and guards memory writes without a paid model. It is not live DeepSeek acceptance.
 
-The implementation is on `feat/b-karthikeya/workflow-completion`, with workflow
-commit `884eb4a`. Its prerequisites are the published memory/API and Gemma proposer
-branches, combined in dependency merge `ac53abd`. Those prerequisites need review
-and integration before this workflow branch merges. Main has not been changed.
-Test the branch's latest HEAD, which also contains the subsequent container-runtime
-fixes; the initial `884eb4a` checkpoint alone predates those fixes.
+The follow-up implementation is on `feat/b-karthikeya/workflow-followup`, based on
+`origin/main` `2707af0`. Prior workflow PR #20 and prerequisites #18/#19 are merged;
+gateway PR #21 and benchmark PRs #16/#17 are now included. Test the latest follow-up
+HEAD, not the old initial workflow checkpoint `884eb4a`.
 
 | Check | Recorded result |
 |---|---|
-| Full automated suite | 563 passed after runtime fixes; 10 existing collection/deprecation warnings |
+| Full automated suite | 747 passed in 387.80 seconds after updated-main follow-up; 10 existing warnings |
 | Repository Ruff lint | Passed |
-| Mypy for orchestration, common and stack smoke script | Passed, 23 source files |
+| Mypy for orchestration, common and stack smoke script | Passed, 25 source files |
 | Installed dependency consistency (`pip check`) | Passed |
 | Docker Compose configuration validation | Passed |
 | Real analysis, subprocess tests, BH-FDR and persistent Chroma in integration tests | Passed; explicitly injected test embeddings |
@@ -100,7 +99,8 @@ Run these PowerShell commands from the repository root, using Python 3.11+:
 .venv/Scripts/python.exe -m pip check
 ```
 
-Leave `configs/verification.yaml` with `llm.generator: template` for this phase.
+Do not edit shared verification YAML to run offline. The pytest suite pins templates;
+for standalone keyless commands set `$env:PRAMANA_VERIFICATION_GENERATOR = "template"`.
 Leave `PRAMANA_ANALYSIS_ENGINE` unset, or explicitly select `deterministic`.
 The normal suite uses fixtures for model responses. Model/provider availability
 and provider quality remain separate from this result.
@@ -176,6 +176,7 @@ the API service:
 
 ```powershell
 $env:PRAMANA_ANALYSIS_ENGINE = "ollama"
+$env:PRAMANA_VERIFICATION_GENERATOR = "template"
 docker compose -f docker/docker-compose.yml up --build -d
 .venv/Scripts/python.exe scripts/check_workflow_stack.py --startup-timeout 600 --run-timeout 600
 ```
@@ -202,8 +203,9 @@ modules that read environment configuration. The proposer smoke script already
 loads the root `.env`.
 
 The provider endpoint and model identifier must agree. The checked-in model value
-`deepseek-v4` has NOT been validated against a funded account. Before live testing,
-confirm an available verification model with the provider and verification owner.
+`deepseek-chat` is the upstream verification owner's current selection. This session
+has not validated it against a funded account; confirm the endpoint/model pairing
+and approved model with the provider and verification owner before live testing.
 Do not assume an OpenRouter model identifier works with a direct DeepSeek endpoint.
 For direct DeepSeek, the configured base URL is `https://api.deepseek.com`; for an
 OpenRouter key use its compatible endpoint, `https://openrouter.ai/api/v1`.
@@ -235,10 +237,12 @@ No additional OpenAI-issued key is needed to use the OpenAI SDK against that end
 8. Record evidence in the checklist below. Restore explicit template mode when
    returning to offline tests; never report a template result as a model result.
 
-Worker-side Langfuse export still needs a bounded telemetry relay because the
-worker lacks public egress. Its local logs carry the run/task IDs. Treat full remote
-worker tracing as pending until that relay is implemented and tested; never give
-untrusted execution public egress to make tracing work.
+Worker-side Langfuse export is disabled in Compose. A bounded completion relay now
+uses validated Redis task results to export counts and up to 50 insight ID/outcome
+rows from the trusted graph, under the run trace. It omits prompts, source, raw rows
+and exception text. Local executor logs still carry detail; a killed task has no
+completion result and is represented by the caller's failure observation. Accept
+remote relay delivery with credentials; never enable public worker egress.
 
 ## Tester sign-off
 
@@ -255,7 +259,20 @@ untrusted execution public egress to make tracing work.
 
 For every live check record date, commit, mode, model, run/task IDs, expected and
 actual behavior, artifact/log locations and pass/fail/deferred. Exclude credentials
-and raw participant records. Verification threshold calibration, claim-column
-enforcement, benchmark conclusions, the dashboard episode control and cloud
-deployment remain their respective owners' work; these workflow tests do not
-establish their completion.
+and raw participant records. Upstream W1/W8 and the V1 floor decision are now
+implemented; see the team checklist. Benchmark conclusions, full B/C evaluation,
+dashboard episode controls and cloud acceptance remain owner work. Test realistic
+Celery family sizes before deployment: the current 90-second task limit does not
+establish readiness for 50 sequential tests and shadow comparisons.
+
+## Follow-up live acceptance after pulling `2707af0`
+
+- Rebuilt API and worker with explicit local Gemma analysis and template verification.
+  Run `e1705647-c5c9-4748-80b3-2cfe6101ad61`: completed, 1 PASS, 1 REJECT,
+  complete proofs and PASS-only memory, recorded in `artifacts/workflow_stack_smoke.json`.
+- Real Redis/worker round trip using an explicit **synthetic** generator-outage fixture:
+  run `2035d0d0-a6a5-4a79-b0f8-0e82631cc336` degraded, one retained REJECT proof
+  with null p-value, generator-unavailable count 1 and zero memory writes.
+  This tests outage transport, not a live paid-provider call.
+- Shared client and bounded relay have fixture-based coverage. Actual inference,
+  remote Langfuse export and replay acceptance remain with the credentialed tester.

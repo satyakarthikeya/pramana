@@ -13,6 +13,20 @@ from pramana.contracts import (
 )
 from pramana.orchestration.run_lifecycle import new_run
 from pramana.orchestration.state import PramanaState
+from pramana.verification.gateway import BatchSummary
+
+
+def batch_summary(n_candidates: int, *, unavailable: int = 0) -> BatchSummary:
+    """Build diagnostics for orchestration fixtures, without statistical inference."""
+    return BatchSummary(
+        bh_family_id="bh-orchestration-test",
+        generator="llm" if unavailable else "template",
+        n_candidates=n_candidates,
+        n_screened_out=unavailable,
+        n_tested=n_candidates - unavailable,
+        generator_unavailable_count=unavailable,
+        column_check_by_claim_type={},
+    )
 
 
 def runtime_config() -> RuntimeConfig:

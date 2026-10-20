@@ -81,6 +81,44 @@ def test_production_graph_requires_explicit_stub_opt_in() -> None:
         build_graph(stub_adapters())
 
 
+def test_provider_outage_retains_proofs_degrades_and_does_not_retry() -> None:
+    from dataclasses import replace
+
+    from pramana.contracts import GateOutcome, ProofObject, Verdict
+    from tests.unit.orchestration.helpers import batch_summary
+
+    rejected = ProofObject(
+        insight_id="unavailable",
+        verdict=Verdict.REJECT,
+        gate_outcome=GateOutcome.NOT_TESTABLE,
+        bh_family_id="bh-orchestration-test",
+        seed=1,
+        failure_reason="generator unavailable: missing credentials",
+    )
+    calls: list[bool] = []
+
+    def verify(_state: Any) -> dict[str, Any]:
+        calls.append(True)
+        return {
+            "proof_objects": [rejected],
+            "verification_summary": batch_summary(1, unavailable=1),
+        }
+
+    adapters = replace(
+        stub_adapters(),
+        is_stub=False,
+        analyze=lambda _state: {"candidate_insights": [candidate("unavailable")]},
+        verify=verify,
+        memory_write=lambda *_args: pytest.fail("Provider outage must skip memory"),
+    )
+    final = run_graph(make_run("toy.csv"), build_graph(adapters))
+    assert final.status is RunStatus.DEGRADED
+    assert final.proof_objects == [rejected]
+    assert calls == [True]
+    assert final.report["verification_summary"]["generator_unavailable_count"] == 1
+    assert any("generator unavailable" in error.message for error in final.errors)
+
+
 def test_verification_failure_degrades_and_never_reaches_memory() -> None:
     memory_calls: list[Any] = []
     attempts = 0

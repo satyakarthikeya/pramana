@@ -45,12 +45,18 @@ The handler receives one mapping containing `run_id`, `dataset_ref`, and the com
 `candidate_insights` family. It must return a mapping containing `proof_objects`.
 
 The worker deliberately has no public egress because it executes untrusted generated code.
-The default `llm.generator: template` works offline. With `generator: llm`, the Celery
+The shipped default is now `llm.generator: llm`. For explicit keyless acceptance,
+set `$env:PRAMANA_VERIFICATION_GENERATOR = "template"` before starting Compose;
+that override is passed to both API and worker. With `generator: llm`, the Celery
 adapter calls the verification owner's generator in the trusted API process. It queues
 the checked source (or explicit generation failure) with the entire candidate family.
 The worker uses the gateway's existing `generate=` hook to execute that exact source,
 then applies BH-FDR once. Candidate payloads and a configuration digest must match.
 The worker refuses an LLM batch without trusted prepared programs. It never calls
-DeepSeek or silently switches to templates. Worker-side Langfuse delivery remains
-unavailable without a bounded telemetry relay; the trusted generation spans and graph
-stages share the run trace. Do not add public egress to the execution worker.
+DeepSeek or silently switches to templates. The worker's Langfuse export is disabled:
+its validated batch summary returns with proofs through Redis. The trusted graph
+relays bounded completion metadata under the run trace (up to 50 insight IDs/outcomes;
+no source, prompts, raw rows or exception text). This is not replay of every executor
+log, and real remote delivery still needs tester credentials. Do not add public
+egress to the worker. Large families may exceed the current 90-second Celery task
+limit; size and measure production runtime budgets before benchmark-scale deployment.

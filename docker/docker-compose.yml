@@ -14,6 +14,7 @@ services:
       CHROMA_PORT: "8000"
       PRAMANA_CHROMA_MODE: http
       PRAMANA_API_VERIFICATION_MODE: celery
+      PRAMANA_VERIFICATION_GENERATOR: ${PRAMANA_VERIFICATION_GENERATOR:-llm}
       PRAMANA_ANALYSIS_ENGINE: ${PRAMANA_ANALYSIS_ENGINE:-deterministic}
       PRAMANA_ANALYSIS_BASE_URL: http://host.docker.internal:11434
       PRAMANA_ANALYSIS_MODEL: ${PRAMANA_ANALYSIS_MODEL:-gemma2:2b}
@@ -44,6 +45,9 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       PRAMANA_DATA_DIR: /data/pramana
+      PRAMANA_VERIFICATION_GENERATOR: ${PRAMANA_VERIFICATION_GENERATOR:-llm}
+      # Completion metadata returns through Redis; only the trusted API exports it.
+      PRAMANA_LANGFUSE_ENABLED: "false"
     depends_on:
       redis:
         condition: service_healthy

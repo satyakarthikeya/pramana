@@ -80,7 +80,7 @@ def native_verification_handler(
 ) -> Mapping[str, Any]:
     """Call the verification gateway on the exact cleaned artifact for this run."""
     from pramana.verification.config import load_config as load_verification_config
-    from pramana.verification.gateway import verify_batch
+    from pramana.verification.gateway import verify_batch_with_summary
 
     run_id = UUID(str(request.get("run_id", "")))
     artifact_root = (data_dir or DATA_DIR).resolve()
@@ -116,14 +116,14 @@ def native_verification_handler(
         from pramana.orchestration.verification_integration import PreparedBatch, prepared_generator
 
         batch = PreparedBatch.model_validate(request["generated_batch"])
-        proofs = verify_batch(
+        proofs, summary = verify_batch_with_summary(
             candidates, frame, config, generate=prepared_generator(batch, candidates, config)
         )
     else:
         if config.llm.generator == "llm":
             raise ValueError("LLM verification requires programs from the trusted process")
-        proofs = verify_batch(candidates, frame, config)
-    return {"proof_objects": proofs}
+        proofs, summary = verify_batch_with_summary(candidates, frame, config)
+    return {"proof_objects": proofs, "verification_summary": summary}
 
 
 def _load_configured_handler() -> VerificationHandler:
@@ -212,7 +212,15 @@ def _verify_request(
             raise ValueError(
                 "Verification must return exactly one proof per candidate in input order"
             )
-        return {"proof_objects": [proof.model_dump(mode="json") for proof in proofs]}
+        response: dict[str, Any] = {
+            "proof_objects": [proof.model_dump(mode="json") for proof in proofs]
+        }
+        if result.get("verification_summary") is not None:
+            from pramana.orchestration.verification_integration import validate_summary
+
+            summary = validate_summary(result["verification_summary"], validated_candidates, proofs)
+            response["verification_summary"] = summary.model_dump(mode="json")
+        return response
     finally:
         get_logger(component="celery", run_id=run_id).info("verification_task_finished")
 

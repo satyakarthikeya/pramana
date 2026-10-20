@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from pramana.orchestration import tasks
-from tests.unit.orchestration.helpers import candidate, proof
+from tests.unit.orchestration.helpers import batch_summary, candidate, proof
 
 
 def test_native_handler_refuses_a_dataset_outside_the_run_artifact_path(
@@ -37,8 +37,7 @@ def test_task_passes_whole_family_to_handler(monkeypatch: pytest.MonkeyPatch) ->
         seen.update(request)
         return {
             "proof_objects": [
-                proof(item["insight_id"], passed=False)
-                for item in request["candidate_insights"]
+                proof(item["insight_id"], passed=False) for item in request["candidate_insights"]
             ]
         }
 
@@ -92,12 +91,12 @@ def test_native_handler_loads_the_exact_cleaned_frame(
     item = candidate("finding").model_copy(update={"dataset_ref": str(cleaned_path)})
     captured: dict[str, Any] = {}
 
-    def fake_verify(candidates: list[Any], frame: pd.DataFrame, _config: Any) -> list[Any]:
+    def fake_verify(candidates: list[Any], frame: pd.DataFrame, _config: Any) -> Any:
         captured["candidates"] = candidates
         captured["frame"] = frame
-        return [proof("finding", passed=False)]
+        return [proof("finding", passed=False)], batch_summary(1)
 
-    monkeypatch.setattr("pramana.verification.gateway.verify_batch", fake_verify)
+    monkeypatch.setattr("pramana.verification.gateway.verify_batch_with_summary", fake_verify)
     result = tasks.native_verification_handler(
         {
             "run_id": str(run_id),
@@ -110,10 +109,27 @@ def test_native_handler_loads_the_exact_cleaned_frame(
     assert [candidate.insight_id for candidate in captured["candidates"]] == ["finding"]
     pd.testing.assert_frame_equal(captured["frame"], expected_frame)
     assert result["proof_objects"][0].insight_id == "finding"
+    assert result["verification_summary"].n_tested == 1
 
 
 def test_task_relies_on_graph_retry_instead_of_late_acknowledgement() -> None:
     assert tasks.verify_batch_task.acks_late is False
+
+
+def test_task_preserves_typed_gateway_diagnostics(monkeypatch: pytest.MonkeyPatch) -> None:
+    summary = batch_summary(1)
+    monkeypatch.setattr(
+        tasks,
+        "_handler",
+        lambda _request: {
+            "proof_objects": [proof("a", passed=False)],
+            "verification_summary": summary,
+        },
+    )
+    result = tasks.verify_batch_task.run(
+        "run-1", [candidate("a").model_dump(mode="json")], "toy.csv"
+    )
+    assert result["verification_summary"] == summary.model_dump(mode="json")
 
 
 def test_worker_timeout_covers_executor_timeout() -> None:
