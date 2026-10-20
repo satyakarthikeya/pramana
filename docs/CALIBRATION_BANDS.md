@@ -64,3 +64,28 @@ targeted decoy, LBXGLU ~ BIRTH_MOON_PHASE_PCT, is proposed and REJECTed in all s
 (p 0.21 to 0.22, q 0.22 to 0.33). One caveat: in seed 5 an unrelated pair, BMI ~ moon
 phase, PASSes by chance (p 0.0069, q 0.011, rho +0.42 on n=40), a forking-paths hit on
 the nonsense column rather than the planted decoy. Seed 42, the script's own, is clean.
+
+## Known-answer simulation of the unanchored floors (2026-10-20)
+
+`scripts/calibration/simulate_bands.py` (seed 20261020, 400 reps) plants relationships of
+known strength and reads the floors from the config. No band value was changed. This is a
+consistency check, not a fit: it does not use the demo's PASS/REJECT outcome.
+
+| metric (floor) | null 99th pct of abs(effect), n=40 / 200 / 1500 | planted truth at the floor (n=1500) |
+|---|---|---|
+| spearman_rho (0.10) | 0.396 / 0.195 / 0.066 | planted r 0.10 gives rho 0.096 |
+| kendall_tau_b (0.07) | 0.290 / 0.127 / 0.044 | planted r 0.10 gives tau 0.064, so tau 0.07 matches rho 0.10 |
+| cliffs_delta (0.15) | 0.485 / 0.193 / 0.071 | mean shift d 0.2 gives 0.113, d 0.5 gives 0.277; the floor sits near d 0.27 |
+| epsilon_squared (0.10 on sqrt, eps^2 0.01) | sqrt null 99th pct 0.169 at n=300 | k=3 shift 0.2 gives eps^2 0.026 |
+
+Findings:
+* **tau and rho are mutually consistent**: the tau floor is the rho floor for the same
+  planted relationship. This anchors tau to the measured rho.
+* **Every floor is below chance noise at n <= 200 and above it at n = 1500.** That is the
+  intended role (AGENTS.md 3.5): small samples are gated by q < alpha, the floor only
+  removes large-n trivial effects. It is not a separator of truth from chance.
+* **cliffs_delta is slightly stricter than rho** (about d 0.27 versus r 0.10). It is the
+  Romano convention and is left alone; the gap is disclosed, not tuned away.
+* **No metric was found mis-set**, so the remaining open item is only the policy choice of
+  a stricter 0.20 tier above. Cramer's V stays uncalibrated because it is out of scope
+  (SCOPE.md section 7 row 2).
