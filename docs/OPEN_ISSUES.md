@@ -437,3 +437,10 @@ suite 632 passed with `DEEPSEEK_API_KEY` unset. Details per item are in
 the `AGENTS.md` §4 whitelist wording (issue 9); notes to B. Karthikeya and P. Rohith
 (drafted separately).
 
+---
+
+## Decision log (20 October 2026)
+
+- **Issue 10 (Cramer's V): DECIDED, option (b).** Declared out of scope in `SCOPE.md` §7 row 2. The band and tests stay; no claim type was added. Reverse by adding a `categorical_association` claim type (contract change, announce first).
+- **Bootstrap proof intervals:** retained, deliberately deferred (`SCOPE.md` §7 row 3).
+- **Sen-slope O(n^2) row ceiling:** disclosed (`SCOPE.md` §7 row 4); goes in the report's limitations.
