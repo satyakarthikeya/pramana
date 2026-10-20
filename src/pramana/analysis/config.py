@@ -217,4 +217,10 @@ def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> AnalysisConfig:
     raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     if engine := os.getenv("PRAMANA_ANALYSIS_ENGINE"):
         raw["hypotheses"]["proposer"]["engine"] = engine
+    for key, variable in (
+        ("api_base_url", "PRAMANA_ANALYSIS_API_BASE_URL"),
+        ("api_model", "PRAMANA_ANALYSIS_API_MODEL"),
+    ):
+        if value := os.getenv(variable):
+            raw["hypotheses"]["proposer"][key] = value
     return AnalysisConfig.model_validate(raw)

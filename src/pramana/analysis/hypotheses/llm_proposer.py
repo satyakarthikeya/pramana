@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
@@ -246,6 +247,85 @@ def _generation(client: Any, run_id: UUID, **kwargs: Any) -> Iterator[Any]:
             span.end()
 
 
+def _call_ollama(
+    prompt: str, settings: ProposerSettings, output_schema: dict[str, Any]
+) -> dict[str, Any]:
+    """One local Ollama chat call; returns the raw response as a plain dict."""
+    import ollama
+
+    response = ollama.Client(
+        host=settings.base_url,
+        timeout=settings.timeout_seconds,
+        trust_env=False,
+        follow_redirects=False,
+    ).chat(
+        model=settings.active_model,
+        messages=[{"role": "user", "content": prompt}],
+        format=output_schema,
+        stream=False,
+        keep_alive=0,
+        options={
+            "temperature": settings.temperature,
+            "seed": settings.seed,
+            "num_ctx": settings.context_tokens,
+            "num_predict": settings.max_output_tokens,
+            "num_thread": settings.num_threads,
+        },
+    )
+    return response.model_dump(mode="json") if hasattr(response, "model_dump") else dict(response)
+
+
+def _call_api(prompt: str, settings: ProposerSettings) -> dict[str, Any]:
+    """One hosted-Gemma call over an OpenAI-compatible endpoint.
+
+    Guarantees: the key comes only from the environment variable `api_key_env` (absent
+    key fails closed before any request); the result is normalised to the same shape
+    the Ollama path returns, with `done` true only when the provider reports
+    `finish_reason == "stop"`, so a truncated answer is refused downstream.
+    """
+    api_key = os.getenv(settings.api_key_env)
+    if not api_key:
+        raise ProposerUnavailable(
+            f"{settings.api_key_env} is not set; no model request was made"
+        )
+    from openai import OpenAI
+
+    schema_text = json.dumps(ClaimBatch.model_json_schema(), sort_keys=True)
+    client = OpenAI(
+        api_key=api_key,
+        base_url=settings.api_base_url,
+        timeout=settings.timeout_seconds,
+        max_retries=0,
+    )
+    response = client.chat.completions.create(
+        model=settings.api_model,
+        messages=[
+            {
+                "role": "user",
+                "content": prompt
+                + "\n\nReturn only one JSON object matching this JSON schema:\n"
+                + schema_text,
+            }
+        ],
+        temperature=settings.temperature,
+        seed=settings.seed,
+        max_tokens=settings.max_output_tokens,
+        response_format={"type": "json_object"},
+    )
+    choice = response.choices[0]
+    usage = getattr(response, "usage", None)
+    return {
+        # Echo the configured name: providers often return their own alias for it.
+        "model": settings.api_model,
+        "provider_model": getattr(response, "model", None),
+        "done": True,
+        "done_reason": "stop" if choice.finish_reason == "stop" else choice.finish_reason,
+        "message": {"content": choice.message.content or ""},
+        "prompt_eval_count": getattr(usage, "prompt_tokens", None),
+        "eval_count": getattr(usage, "completion_tokens", None),
+    }
+
+
 def _request(prompt: str, settings: ProposerSettings, run_id: UUID) -> dict[str, Any]:
     """Make one bounded model request with the explicitly configured audit backend."""
     client = None
@@ -266,17 +346,15 @@ def _request(prompt: str, settings: ProposerSettings, run_id: UUID) -> dict[str,
             raise ProposerUnavailable(
                 "Langfuse authentication is unavailable; no model request was made"
             ) from error
-    import ollama
-
     output_schema = ClaimBatch.model_json_schema()
     output_schema["properties"]["claims"]["maxItems"] = settings.max_claims
     with _generation(
         client,
         run_id,
         name="analysis-structured-claims",
-        model=settings.model,
+        model=settings.active_model,
         input={"prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest()},
-        metadata={"run_id": str(run_id), "seed": settings.seed, "engine": "ollama"},
+        metadata={"run_id": str(run_id), "seed": settings.seed, "engine": settings.engine},
         model_parameters={
             "temperature": settings.temperature,
             "seed": settings.seed,
@@ -285,37 +363,17 @@ def _request(prompt: str, settings: ProposerSettings, run_id: UUID) -> dict[str,
         },
     ) as observation:
         try:
-            response = ollama.Client(
-                host=settings.base_url,
-                timeout=settings.timeout_seconds,
-                trust_env=False,
-                follow_redirects=False,
-            ).chat(
-                model=settings.model,
-                messages=[{"role": "user", "content": prompt}],
-                format=output_schema,
-                stream=False,
-                keep_alive=0,
-                options={
-                    "temperature": settings.temperature,
-                    "seed": settings.seed,
-                    "num_ctx": settings.context_tokens,
-                    "num_predict": settings.max_output_tokens,
-                    "num_thread": settings.num_threads,
-                },
-            )
-            raw = (
-                response.model_dump(mode="json")
-                if hasattr(response, "model_dump")
-                else dict(response)
-            )
+            if settings.engine == "api":
+                raw = _call_api(prompt, settings)
+            else:
+                raw = _call_ollama(prompt, settings, output_schema)
             if (
-                raw.get("model") != settings.model
+                raw.get("model") != settings.active_model
                 or not raw.get("done")
                 or raw.get("done_reason") != "stop"
             ):
                 raise ProposerUnavailable(
-                    "Ollama returned a different model or an incomplete response"
+                    f"{settings.engine} returned a different model or an incomplete response"
                 )
             batch = ClaimBatch.model_validate_json(raw["message"]["content"])
             if len(batch.claims) > settings.max_claims:
@@ -405,7 +463,7 @@ def generate_llm_candidates(
                 audit = {
                     "input_key": key,
                     "run_id": str(run),
-                    "model": settings.model,
+                    "model": settings.active_model,
                     "settings": settings.model_dump(mode="json"),
                     "prompt": prompt,
                 }
@@ -424,7 +482,7 @@ def generate_llm_candidates(
                     ) from error
                 _write_audit(target, audit)
             if (
-                raw.get("model") != settings.model
+                raw.get("model") != settings.active_model
                 or not raw.get("done")
                 or raw.get("done_reason") != "stop"
             ):
@@ -451,7 +509,7 @@ def generate_llm_candidates(
                     candidates.append(candidate)
             get_logger(component="llm_proposer", run_id=str(run)).info(
                 "analysis_claim_batch_validated",
-                model=settings.model,
+                model=settings.active_model,
                 proposed=len(batch.claims),
                 accepted=len(candidates),
             )
