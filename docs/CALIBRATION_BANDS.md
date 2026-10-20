@@ -89,3 +89,11 @@ Findings:
 * **No metric was found mis-set**, so the remaining open item is only the policy choice of
   a stricter 0.20 tier above. Cramer's V stays uncalibrated because it is out of scope
   (SCOPE.md section 7 row 2).
+
+## Decision (2026-10-20): stricter 0.20 tier NOT adopted for V1
+
+Current floors stay (rho 0.10, tau 0.07, delta 0.15, sqrt(eps^2) 0.10). The data does not
+favour either choice, so this is a policy call: the stricter tier would cut the demo's
+PASSes from 29 to 23, discard real small effects, and put epsilon-squared (capped at
+0.141 by `test_evidence.py`) on a different footing from rho and delta. Revisit after the
+first full NHANES / NFHS-5 run if reviewers want fewer small-effect PASSes.
