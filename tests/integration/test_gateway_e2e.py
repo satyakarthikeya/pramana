@@ -17,10 +17,11 @@ import pandas as pd
 import pytest
 
 from pramana.contracts.enums import GateOutcome, Verdict
-from pramana.verification.config import VerificationConfig, load_config
+from pramana.verification.config import VerificationConfig
 from pramana.verification.gateway import verify_batch
 from pramana.verification.memory_guard import writable
 from tests.fixtures import demo_batch, toy_frame
+from tests.fixtures.config import load_pinned_config
 
 pytestmark = pytest.mark.slow
 
@@ -32,7 +33,7 @@ def config() -> VerificationConfig:
     1000 permutations puts the p-value floor at 1/1001, comfortably below alpha, so
     the planted effects can still clear BH with room to spare.
     """
-    shipped = load_config()
+    shipped = load_pinned_config()
     return shipped.model_copy(
         update={"statistics": shipped.statistics.model_copy(update={"n_permutations": 1000})}
     )

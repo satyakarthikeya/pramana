@@ -37,6 +37,8 @@ from __future__ import annotations
 import ast
 from collections.abc import Sequence
 
+from pramana.contracts.enums import ClaimType
+
 #: Builtins that would let generated code reach outside the policy: import machinery,
 #: arbitrary code execution, and the filesystem. Referencing one at all is a violation,
 #: not just calling one -- `f = open` followed by `f(path)` would slip past a
@@ -263,3 +265,380 @@ def _check_imported_name(name: str, node: ast.AST) -> None:
 def _is_dunder(name: str) -> bool:
     """Whether `name` is a `__dunder__`, the usual door out of a restricted scope."""
     return len(name) > 4 and name.startswith("__") and name.endswith("__")
+
+
+# ---------------------------------------------------------------------------
+# W1: the column check
+# ---------------------------------------------------------------------------
+#
+# The HMAC stamp proves a number came out of our library. It cannot prove the library
+# was handed the claim's own data: generated code could pass a different column, or a
+# silently filtered subset, and the stamp would still verify. This check closes that
+# gap statically, before anything runs.
+#
+# Stated honestly, because it is a static AST check and not a proof: it refuses every
+# form of column access and row selection it cannot resolve to the claim's own
+# columns, so it errs toward NOT_TESTABLE. It does not execute anything, and it cannot
+# see data-dependent filtering hidden inside arithmetic (for example multiplying by a
+# 0/1 weight). It closes the common, accidental ways an LLM drifts off the claim; it
+# is not a defence against code written to evade it.
+
+#: Methods that select, drop or reorder rows or columns of pandas data. Referencing
+#: one anywhere is refused, as with the builtin blacklist, so `f = df.head` followed by
+#: `f(10)` cannot slip past a call-only check. Dropping missing values (`dropna`) is
+#: deliberately NOT here: pairwise deletion is the stated, documented treatment.
+ROW_OR_COLUMN_SELECTING_ATTRIBUTES: frozenset[str] = frozenset(
+    {
+        "query", "where", "mask", "filter", "head", "tail", "sample", "iloc", "iat",
+        "at", "nlargest", "nsmallest", "drop_duplicates", "drop", "isin", "between",
+        "truncate", "take", "pipe", "eval", "xs", "pop", "select_dtypes", "reindex",
+    }
+)  # fmt: skip
+
+_COMPARISON_OPS = (ast.Eq, ast.NotEq)
+
+
+class ColumnPolicyViolation(Exception):
+    """Generated code reads a column or selects rows the claim does not state.
+
+    Raised before execution, always, and never recoverable by retrying: the source is
+    deterministic. The gateway records it as a failed test, never a PASS.
+    """
+
+
+def _module_constants(tree: ast.Module) -> dict[str, str]:
+    """Module-level `NAME = 'literal'` bindings that are never rebound anywhere else.
+
+    A name that is also assigned inside any function, or assigned twice at module level,
+    is dropped: its value could differ at the point of use, so it cannot be resolved
+    statically and every use of it is refused.
+    """
+    counts: dict[str, int] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+            counts[node.id] = counts.get(node.id, 0) + 1
+        elif isinstance(node, ast.arg):
+            counts[node.arg] = counts.get(node.arg, 0) + 1
+    constants: dict[str, str] = {}
+    for node in tree.body:
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and isinstance(node.value, ast.Constant)
+            and isinstance(node.value.value, str)
+            and counts.get(node.targets[0].id, 0) == 1
+        ):
+            constants[node.targets[0].id] = node.value.value
+    return constants
+
+
+def _labels(node: ast.AST, constants: dict[str, str]) -> list[str] | None:
+    """The column labels an expression names, or None if it cannot be resolved."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return [node.value]
+    if isinstance(node, ast.Name) and node.id in constants:
+        return [constants[node.id]]
+    if isinstance(node, (ast.List, ast.Tuple)):
+        resolved: list[str] = []
+        for element in node.elts:
+            labels = _labels(element, constants)
+            if labels is None:
+                return None
+            resolved.extend(labels)
+        return resolved
+    return None
+
+
+def _loads(node: ast.AST) -> set[str]:
+    return {n.id for n in ast.walk(node) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
+
+
+def _assigned_names(target: ast.AST) -> list[str]:
+    return [n.id for n in ast.walk(target) if isinstance(n, ast.Name)]
+
+
+def _tainted_names(tree: ast.Module, raw: set[str]) -> set[str]:
+    """Names that (transitively) hold data derived from the frame.
+
+    Dict displays do not propagate: a returned result dict that happens to contain a
+    data-derived value is not itself a table, and treating it as one would refuse the
+    ordinary `out['p_value']` idiom.
+    """
+    tainted = set(raw)
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(tree):
+            pairs: list[tuple[ast.AST, ast.AST | None]] = []
+            if isinstance(node, ast.Assign):
+                pairs = [(target, node.value) for target in node.targets]
+            elif isinstance(node, (ast.AnnAssign, ast.AugAssign)):
+                pairs = [(node.target, node.value)]
+            elif isinstance(node, (ast.For, ast.comprehension)):
+                pairs = [(node.target, node.iter)]
+            elif isinstance(node, ast.NamedExpr):
+                pairs = [(node.target, node.value)]
+            for target, value in pairs:
+                if value is None or isinstance(value, ast.Dict):
+                    continue
+                if _loads(value) & tainted:
+                    for name in _assigned_names(target):
+                        if name not in tainted:
+                            tainted.add(name)
+                            changed = True
+    return tainted
+
+
+def _raw_frame_names(tree: ast.Module, functions: dict[str, ast.FunctionDef]) -> set[str]:
+    """Names bound to the WHOLE frame: falsify's first parameter and any helper
+    parameter that receives it, positionally, from a call in this module."""
+    entry = functions["falsify"]
+    if not entry.args.args:
+        raise ColumnPolicyViolation("falsify must take the frame as its first parameter")
+    raw = {entry.args.args[0].arg}
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)):
+                continue
+            callee = functions.get(node.func.id)
+            if callee is None:
+                continue
+            for index, argument in enumerate(node.args):
+                if (
+                    isinstance(argument, ast.Name)
+                    and argument.id in raw
+                    and index < len(callee.args.args)
+                ):
+                    name = callee.args.args[index].arg
+                    if name not in raw:
+                        raw.add(name)
+                        changed = True
+    return raw
+
+
+def _is_full_slice(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Slice)
+        and node.lower is None
+        and node.upper is None
+        and node.step is None
+    )
+
+
+def _is_int_index(node: ast.AST) -> bool:
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+        node = node.operand
+    return (
+        isinstance(node, ast.Constant)
+        and isinstance(node.value, int)
+        and not isinstance(node.value, bool)
+    )
+
+
+def _is_int_only_index(node: ast.AST) -> bool:
+    """`0`, `-1`, or a tuple of them: a position, which cannot express a filter."""
+    if isinstance(node, ast.Tuple):
+        return bool(node.elts) and all(_is_int_index(element) for element in node.elts)
+    return _is_int_index(node)
+
+
+_POSITIONAL_ACCESSORS = frozenset({"iloc", "iat"})
+
+
+class _ColumnChecker:
+    """Walks one module and raises `ColumnPolicyViolation` at the first problem."""
+
+    def __init__(self, tree: ast.Module, variables: Sequence[str], claim_type: ClaimType) -> None:
+        self.tree = tree
+        self.allowed = set(variables)
+        self.group_column = variables[0] if variables else None
+        self.group_claim = claim_type is ClaimType.GROUP_DIFFERENCE
+        self.constants = _module_constants(tree)
+        functions = {n.name: n for n in tree.body if isinstance(n, ast.FunctionDef)}
+        if "falsify" not in functions:
+            raise ColumnPolicyViolation("the module does not define falsify(frame)")
+        self.functions = functions
+        self.raw = _raw_frame_names(tree, functions)
+        self.tainted = _tainted_names(tree, self.raw)
+        self.parents: dict[ast.AST, ast.AST] = {}
+        for parent in ast.walk(tree):
+            for child in ast.iter_child_nodes(parent):
+                self.parents[child] = parent
+
+    # -- helpers -----------------------------------------------------------
+
+    def _fail(self, node: ast.AST, message: str) -> ColumnPolicyViolation:
+        return ColumnPolicyViolation(f"line {getattr(node, 'lineno', '?')}: {message}")
+
+    def _is_data(self, node: ast.AST) -> bool:
+        return bool(_loads(node) & self.tainted)
+
+    def _require_claim_labels(self, node: ast.AST, slice_node: ast.AST) -> None:
+        labels = _labels(slice_node, self.constants)
+        if labels is None:
+            raise self._fail(
+                node,
+                "a column is selected by an expression that cannot be resolved to the "
+                "claim's own columns; name them as string literals or module constants",
+            )
+        extra = sorted(set(labels) - self.allowed)
+        if extra:
+            raise self._fail(
+                node,
+                f"generated code reads column(s) {extra}, which the claim does not "
+                f"name; the claim's columns are {sorted(self.allowed)}",
+            )
+
+    def _is_group_mask(self, mask: ast.AST) -> bool:
+        """`<column of the grouping variable> ==/!= <anything that is not a column>`."""
+        if not (
+            self.group_claim
+            and isinstance(mask, ast.Compare)
+            and len(mask.ops) == 1
+            and isinstance(mask.ops[0], _COMPARISON_OPS)
+        ):
+            return False
+        left, right = mask.left, mask.comparators[0]
+        for column_side, other in ((left, right), (right, left)):
+            root = column_side
+            while isinstance(root, (ast.Call, ast.Attribute)):
+                root = root.func if isinstance(root, ast.Call) else root.value
+            if not (isinstance(root, ast.Subscript) and self._is_data(root.value)):
+                continue
+            if _labels(root.slice, self.constants) != [self.group_column]:
+                continue
+            reads_a_column = any(
+                isinstance(n, ast.Subscript) and _labels(n.slice, self.constants) is not None
+                for n in ast.walk(other)
+            )
+            return not reads_a_column
+        return False
+
+    # -- the three kinds of access ----------------------------------------
+
+    def _check_loc(self, subscript: ast.Subscript, on_raw: bool) -> None:
+        index = subscript.slice
+        if not (isinstance(index, ast.Tuple) and len(index.elts) == 2):
+            raise self._fail(subscript, ".loc must be written as .loc[rows, columns]")
+        rows, columns = index.elts
+        if not _is_full_slice(rows) and not self._is_group_mask(rows):
+            raise self._fail(
+                subscript,
+                "generated code filters rows in a way the claim does not state; only "
+                "all rows, or one level of a group_difference claim's own grouping "
+                "column, may be selected",
+            )
+        if _is_full_slice(columns):
+            if on_raw:
+                raise self._fail(subscript, "selecting every column of the frame is refused")
+        else:
+            self._require_claim_labels(subscript, columns)
+
+    def _check_raw_use(self, name: ast.Name) -> None:
+        parent = self.parents.get(name)
+        if isinstance(name.ctx, ast.Store):
+            raise self._fail(name, f"the frame name {name.id!r} is re-bound; refused")
+        if isinstance(parent, ast.Subscript) and parent.value is name:
+            self._require_claim_labels(parent, parent.slice)
+            return
+        if isinstance(parent, ast.Attribute) and parent.value is name and parent.attr == "loc":
+            grand = self.parents.get(parent)
+            if isinstance(grand, ast.Subscript) and grand.value is parent:
+                self._check_loc(grand, on_raw=True)
+                return
+        if (
+            isinstance(parent, ast.Call)
+            and name in parent.args
+            and isinstance(parent.func, ast.Name)
+            and (parent.func.id in self.functions or parent.func.id == "len")
+        ):
+            return
+        raise self._fail(
+            name,
+            f"the whole frame {name.id!r} is used outside a column selection "
+            f"(attribute access, copy, alias or a call); select the claim's columns "
+            f"first, for example frame[[VAR_X, VAR_Y]]",
+        )
+
+    def _is_int_positional(self, attribute: ast.Attribute) -> bool:
+        """`x.iloc[0, 1]` / `x.iat[0, 1]`: integer positions only, never a slice or mask."""
+        parent = self.parents.get(attribute)
+        return (
+            isinstance(parent, ast.Subscript)
+            and parent.value is attribute
+            and _is_int_only_index(parent.slice)
+        )
+
+    def _check_other_node(self, node: ast.AST) -> None:
+        if isinstance(node, ast.Attribute):
+            if node.attr in _POSITIONAL_ACCESSORS and self._is_int_positional(node):
+                return
+            if node.attr in ROW_OR_COLUMN_SELECTING_ATTRIBUTES:
+                raise self._fail(
+                    node,
+                    f"`.{node.attr}` selects or drops rows/columns the claim does not "
+                    f"state; refused",
+                )
+            if node.attr == "loc":
+                grand = self.parents.get(node)
+                if not (isinstance(grand, ast.Subscript) and grand.value is node):
+                    raise self._fail(node, "`.loc` used other than as .loc[rows, columns]")
+            return
+        if not isinstance(node, ast.Subscript):
+            return
+        base = node.value
+        if (
+            isinstance(base, ast.Attribute)
+            and base.attr in _POSITIONAL_ACCESSORS
+            and _is_int_only_index(node.slice)
+        ):
+            return
+        if isinstance(base, ast.Attribute) and base.attr == "loc":
+            if not (isinstance(base.value, ast.Name) and base.value.id in self.raw):
+                self._check_loc(node, on_raw=False)
+            return
+        if isinstance(base, ast.Name) and base.id in self.raw:
+            return  # handled by _check_raw_use
+        if not self._is_data(base):
+            return  # indexing a list of labels or a result dict is not reading the data
+        index = node.slice
+        if _is_int_index(index):
+            return
+        if _labels(index, self.constants) is not None:
+            self._require_claim_labels(node, index)
+            return
+        raise self._fail(
+            node,
+            "data is indexed by a slice, mask or expression the claim does not state "
+            "(a row filter); only the claim's own columns may be selected",
+        )
+
+    def run(self) -> None:
+        for node in ast.walk(self.tree):
+            if isinstance(node, ast.Name) and node.id in self.raw:
+                self._check_raw_use(node)
+            self._check_other_node(node)
+
+
+def check_columns(source: str, variables: Sequence[str], claim_type: ClaimType) -> None:
+    """Refuse `source` unless it reads only the claim's columns and filters only as stated.
+
+    Guarantees: returns None only when the source parses, defines `falsify`, and every
+    column access resolves statically to a member of `variables`; the whole frame is
+    never aliased, copied or handed to anything but a helper defined in the same
+    module; and no row is selected except all of them, or -- for a group_difference
+    claim only -- by equality on the grouping column (`variables[0]`), which is how
+    such a claim defines its groups. Anything it cannot resolve is refused, so a
+    failure to understand the code is never a pass (AGENTS.md 4).
+
+    Raises `ColumnPolicyViolation` otherwise. This is a static check: see the note at
+    the top of this section for what it does not see.
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as error:
+        raise ColumnPolicyViolation(f"the module does not parse: {error}") from error
+    _ColumnChecker(tree, variables, claim_type).run()

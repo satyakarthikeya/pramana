@@ -12,7 +12,7 @@ from __future__ import annotations
 import pytest
 
 from pramana.contracts.enums import ClaimType, TestType
-from pramana.verification.config import VerificationConfig, load_config
+from pramana.verification.config import VerificationConfig
 from pramana.verification.executor.policy import check_imports
 from pramana.verification.falsification import generator, templates
 from pramana.verification.falsification.generator import (
@@ -28,11 +28,12 @@ from tests.fixtures.candidates import (
     TRUE_GROUP_DIFFERENCE,
     TRUE_TREND,
 )
+from tests.fixtures.config import load_pinned_config
 
 
 @pytest.fixture(scope="module")
 def config() -> VerificationConfig:
-    return load_config()
+    return load_pinned_config()
 
 
 # --- LLM path doubles -----------------------------------------------------

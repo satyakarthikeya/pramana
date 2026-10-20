@@ -9,20 +9,21 @@ from __future__ import annotations
 import pytest
 
 from pramana.contracts.enums import Direction, EffectMetric, GateOutcome, Verdict
-from pramana.verification.config import VerificationConfig, load_config
+from pramana.verification.config import VerificationConfig
 from pramana.verification.evidence import (
     effect_leg,
     evaluate_gate,
     evidence_score,
     significance_leg,
 )
+from tests.fixtures.config import load_pinned_config
 
 ALPHA = 0.05
 
 
 @pytest.fixture(scope="module")
 def config() -> VerificationConfig:
-    return load_config()
+    return load_pinned_config()
 
 
 def _gate(config: VerificationConfig, **overrides: object) -> object:

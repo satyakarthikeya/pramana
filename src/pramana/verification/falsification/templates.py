@@ -1,7 +1,8 @@
 """Deterministic falsification templates -- one per claim type, no LLM involved.
 
-This is the DEFAULT generator (PROJECT.md 3): no API key, no network, no model. The
-LLM generator sits behind the same interface and is measured against these.
+This is the REFERENCE generator and the explicit offline mode (PROJECT.md 3): no API
+key, no network, no model. The shipped default is the LLM generator (D1), which sits
+behind the same interface and is measured against these.
 
 What the generated code is
 --------------------------

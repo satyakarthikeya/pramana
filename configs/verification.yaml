@@ -21,12 +21,20 @@ evidence:
   # The metrics are not on a common scale, so a single global cutoff would change how
   # hard it is to pass depending on which test ran.
   #
-  # PROVISIONAL: every band below is a structural placeholder, NOT calibrated against
-  # demo data. Each was chosen to be defensible (published convention where one exists)
-  # and to satisfy the test suite's structural constraints -- not by measuring what the
-  # real NHANES / NFHS-5 subset produces. These numbers decide what PASSes, so they must
-  # be calibrated before the gateway is wired end to end.
-  # See SCOPE.md 7 (open items) and docs/OPEN_ISSUES.md 11.
+  # CALIBRATION STATUS (2026-10-14; table and reasoning in docs/CALIBRATION_BANDS.md,
+  # reproducible with scripts/calibration/measure_effects.py):
+  #  * spearman_rho: MEASURED against data/demo/nhanes_demo.csv (NHANES 2017-18, 1,500
+  #    adults). The planted true pairs sit at |rho| 0.483 (age~systolic BP) and 0.328
+  #    (BMI~HDL); the 0.10 floor clears the weaker by 0.23 (~8 SE at n=1500). The floor
+  #    does NOT separate truth from chance nulls (decoy 0.298, chance pair 0.278 are close
+  #    to 0.328): q < alpha does that. The floor only stops large-n trivial effects.
+  #  * kendall_tau_b, cliffs_delta, epsilon_squared: NO planted anchor in this frame (no
+  #    trend candidate, no planted group difference), so these remain CONVENTION-based
+  #    (Cohen / Romano "small" edge) and PROVISIONAL, not calibrated.
+  #  * cramers_v: unreachable (OPEN_ISSUES 10) and still uncalibrated.
+  # Floors may not be raised casually: test_evidence pins epsilon_squared min <= 0.141
+  # (sqrt(0.02) must PASS) and cramers_v min to (0.09, 0.18]. A stricter tier
+  # (rho/delta 0.20) is a policy decision recorded in docs/CALIBRATION_BANDS.md.
   effect_thresholds:
     spearman_rho:            # rank correlation, signed
       min: 0.10
@@ -58,8 +66,8 @@ executor:
     - pramana.verification.stats
 
 llm:
-  generator: template        # deterministic default: no API key, no network, reproducible
+  generator: llm             # D1: DeepSeek writes each test. `template` stays as the reference and the offline mode; select it here or with PRAMANA_VERIFICATION_GENERATOR=template
   provider: deepseek         # DeepSeek V4 — verification only, never a local model
-  model: deepseek-v4
+  model: deepseek-chat
   temperature: 0.0           # falsification code generation should be near-deterministic
   # API key comes from the DEEPSEEK_API_KEY env var. Never put it in this file.

@@ -51,6 +51,7 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 import pandas as pd
+from pydantic import BaseModel, ConfigDict, Field
 
 from pramana.contracts.candidate_insight import CandidateInsight
 from pramana.contracts.enums import ClaimType, EffectMetric, GateOutcome, Verdict
@@ -58,10 +59,13 @@ from pramana.contracts.proof_object import ProofObject
 from pramana.verification.admissibility import screen
 from pramana.verification.config import VerificationConfig
 from pramana.verification.evidence import evaluate_gate
-from pramana.verification.executor.runner import execute
+from pramana.verification.executor.runner import COLUMN_POLICY_REASON_PREFIX, execute
+from pramana.verification.falsification import templates
 from pramana.verification.falsification.generator import (
     FalsificationProgram,
     GeneratorError,
+    GeneratorUnavailable,
+    generate_from_template,
     get_generator,
 )
 from pramana.verification.fdr import apply_bh
@@ -189,11 +193,132 @@ class _Tested:
         return _FAILED_P_VALUE if self.payload is None else float(self.payload["p_value"])
 
 
+def _incomplete_payload_reason(payload: dict[str, Any] | None) -> str | None:
+    """Why a verified payload still cannot become a complete proof object, or None.
+
+    Guarantees: a reported effect always travels with a non-empty metric name. A number
+    without its unit is not a reportable effect (AGENTS.md 3.5, 3.6), and a program that
+    omits the label has not followed the contract, however genuine its stamp.
+    """
+    if payload is None:
+        return None
+    metric = payload.get("reported_effect_metric")
+    if not isinstance(metric, str) or not metric.strip():
+        return (
+            "the program returned a reported_effect without a non-empty "
+            "reported_effect_metric, so the record is incomplete; the claim is "
+            "recorded as inconclusive rather than gated (AGENTS.md 3.6)"
+        )
+    return None
+
+
+#: Starts the failure reason of a claim whose generator could not be reached at all
+#: (no key, refused provider, failed request). Per-claim verdicts are unchanged by it;
+#: it lets a reader of one proof object, and the batch summary, tell "the verifier never
+#: ran" apart from "the claim could not be tested".
+GENERATOR_UNAVAILABLE_REASON_PREFIX = "generator unavailable"
+
+
+#: What a claim's template outcome is recorded as when the template run did not complete.
+TEMPLATE_UNAVAILABLE = "template_unavailable"
+
+
+class TemplateDisagreement(BaseModel):
+    """One claim whose gate outcome differs between the LLM path and the template path.
+
+    Diagnostic only (docs/DECISIONS_LLM_ROLES.md W8): the LLM-path outcome is the one in
+    the proof object; this records that the reference test would have said otherwise.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    insight_id: str
+    claim_type: str
+    llm_outcome: str
+    template_outcome: str
+
+
+class BatchSummary(BaseModel):
+    """Run-level facts a list of proof objects cannot carry on its own.
+
+    A batch in which the generator was unreachable returns the same verdicts as a batch
+    of untestable claims: REJECT / NOT_TESTABLE for every one. Only this summary says the
+    difference, so a caller that reports "no insights" can check `generator_unavailable`
+    first and report an error instead.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    bh_family_id: str
+    generator: str = Field(description="Which generator the config selected for the run.")
+    n_candidates: int = Field(ge=0)
+    n_screened_out: int = Field(ge=0, description="Refused or ungenerated: not in the family.")
+    n_tested: int = Field(ge=0, description="Claims whose code reached the executor.")
+    generator_unavailable_count: int = Field(ge=0)
+    column_check_by_claim_type: dict[str, dict[str, int]]
+    n_template_comparisons: int = Field(
+        default=0, ge=0, description="Claims whose template outcome was obtained (W8)."
+    )
+    n_template_unavailable: int = Field(
+        default=0, ge=0, description="Claims whose template run did not complete (W8)."
+    )
+    template_unavailable_ids: list[str] = Field(default_factory=list)
+    template_disagreements: list[TemplateDisagreement] = Field(default_factory=list)
+
+    @property
+    def generator_unavailable(self) -> bool:
+        """True when at least one claim could not be tested because no generator ran."""
+        return self.generator_unavailable_count > 0
+
+
+class _ColumnCheckTally:
+    """How often the column check refuses LLM-written programs, per claim type.
+
+    The check errs toward refusing, so its cost is NOT_TESTABLE-shaped claims the LLM
+    path could not test. That cost has to be measured, not guessed, before the check is
+    ever loosened, and the template path is excluded because its programs are the
+    reference and are not expected to be refused. Counts are logged, never gated on.
+    """
+
+    def __init__(self) -> None:
+        self._programs: dict[str, int] = {}
+        self._refused: dict[str, int] = {}
+        self.unavailable = 0
+
+    def record(
+        self, candidate: CandidateInsight, generator: str, ok: bool, reason: str | None
+    ) -> None:
+        if generator != "llm":
+            return
+        key = candidate.claim_type.value
+        self._programs[key] = self._programs.get(key, 0) + 1
+        refused = not ok and (reason or "").startswith(COLUMN_POLICY_REASON_PREFIX)
+        self._refused.setdefault(key, 0)
+        if refused:
+            self._refused[key] += 1
+            _emit(
+                "column_check_refused",
+                candidate.insight_id,
+                claim_type=key,
+                reason=reason,
+            )
+
+    def summary(self) -> dict[str, dict[str, int]]:
+        return {
+            key: {
+                "llm_programs": self._programs[key],
+                "column_check_refused": self._refused.get(key, 0),
+            }
+            for key in sorted(self._programs)
+        }
+
+
 def _run_one(
     candidate: CandidateInsight,
     frame: pd.DataFrame,
     config: VerificationConfig,
     generate: Generator,
+    tally: _ColumnCheckTally,
 ) -> _Tested | str:
     """Generate and execute one claim's falsification test.
 
@@ -203,6 +328,14 @@ def _run_one(
     """
     try:
         program = generate(candidate, config)
+    except GeneratorUnavailable as error:
+        tally.unavailable += 1
+        _emit("generator_unavailable_for_claim", candidate.insight_id, error=str(error))
+        return (
+            f"{GENERATOR_UNAVAILABLE_REASON_PREFIX}: {error} The verifier did not run "
+            f"for this claim, so it has not been tested; this says nothing about the "
+            f"claim itself."
+        )
     except (GeneratorError, ValueError) as error:
         _emit("generation_failed", candidate.insight_id, error=str(error))
         return (
@@ -211,6 +344,7 @@ def _run_one(
         )
 
     result = execute(program, frame, config)
+    tally.record(candidate, program.generator, result.ok, result.failure_reason)
     if not result.ok:
         _emit(
             "execution_failed",
@@ -219,6 +353,15 @@ def _run_one(
             reason=result.failure_reason,
         )
         return _Tested(candidate, program, None, result.failure_reason)
+
+    incomplete = _incomplete_payload_reason(result.payload)
+    if incomplete is not None:
+        # The executor's required keys are the floor for "a stamped result"; the proof
+        # object needs one more thing it cannot be handed without -- the unit of the
+        # reported effect. Treated like any other failed execution: kept in the family
+        # at p = 1.0, so it can never become SUPPORTED.
+        _emit("payload_incomplete", candidate.insight_id, reason=incomplete)
+        return _Tested(candidate, program, None, incomplete)
 
     _emit("execution_verified", candidate.insight_id, attempts=result.attempts)
     return _Tested(candidate, program, result.payload, None)
@@ -306,6 +449,97 @@ def _proof_for_result(
     )
 
 
+def _shadow_template_outcomes(
+    tested: Sequence[_Tested],
+    frame: pd.DataFrame,
+    config: VerificationConfig,
+    family_id: str,
+) -> dict[str, GateOutcome | None]:
+    """Gate outcome the template test would give each tested claim; None if it crashed.
+
+    DIAGNOSTIC ONLY (W8). Guarantees: touches no proof, q-value, p-value or the real BH
+    family. Each tested claim's template program is run on the same frame, config and
+    seed; the template p-values then go through their OWN BH correction over a family
+    of the same size as the real one (a claim with no template or a failed template run
+    keeps its LLM-path p-value as a placeholder, so the size and the correction stay
+    comparable), and the same gate decides each outcome. The result is discarded after
+    the comparison. Never raises: any failure of a template run becomes None.
+    """
+    template_results: dict[str, dict[str, Any] | None] = {}
+    for item in tested:
+        candidate = item.candidate
+        if (
+            item.program.generator == "template"
+            or candidate.claim_type not in templates.SUPPORTED_CLAIM_TYPES
+        ):
+            continue
+        try:
+            result = execute(generate_from_template(candidate, config), frame, config)
+            payload = result.payload if result.ok else None
+            if payload is not None and _incomplete_payload_reason(payload) is not None:
+                payload = None
+            if payload is not None:
+                EffectMetric(payload["effect_metric"])
+                float(payload["p_value"])
+                float(payload["effect_size"])
+        except Exception as error:  # diagnostic: must never take the batch down
+            _log.warning(
+                json.dumps(
+                    {
+                        "event": "template_unavailable",
+                        "insight_id": candidate.insight_id,
+                        "bh_family_id": family_id,
+                        "error": f"{type(error).__name__}: {error}",
+                    }
+                )
+            )
+            payload = None
+        else:
+            if payload is None:
+                _log.warning(
+                    json.dumps(
+                        {
+                            "event": "template_unavailable",
+                            "insight_id": candidate.insight_id,
+                            "bh_family_id": family_id,
+                            "error": result.failure_reason or "no verified result",
+                        }
+                    )
+                )
+        template_results[candidate.insight_id] = payload
+
+    if not template_results:
+        return {}
+
+    shadow_p = [
+        float(template_results[item.candidate.insight_id]["p_value"])  # type: ignore[index]
+        if template_results.get(item.candidate.insight_id) is not None
+        else item.p_value
+        for item in tested
+    ]
+    shadow_q = apply_bh(shadow_p, config.statistics.alpha)
+    outcomes: dict[str, GateOutcome | None] = {}
+    for item, q_value in zip(tested, shadow_q, strict=True):
+        insight_id = item.candidate.insight_id
+        if insight_id not in template_results:
+            continue
+        payload = template_results[insight_id]
+        if payload is None:
+            outcomes[insight_id] = None
+            continue
+        decision = evaluate_gate(
+            q_value=q_value,
+            effect_size=float(payload["effect_size"]),
+            effect_metric=EffectMetric(payload["effect_metric"]),
+            alpha=config.statistics.alpha,
+            p_value_floor=config.p_value_floor,
+            config=config.evidence,
+            asserted_direction=item.candidate.asserted_direction,
+        )
+        outcomes[insight_id] = decision.outcome
+    return outcomes
+
+
 def verify_batch(
     candidates: Sequence[CandidateInsight],
     frame: pd.DataFrame,
@@ -313,7 +547,23 @@ def verify_batch(
     *,
     generate: Generator | None = None,
 ) -> list[ProofObject]:
-    """Verify a whole batch of candidate insights and return one proof object each.
+    """Verify a batch and return one proof object per candidate.
+
+    The proofs-only entry point existing callers use. Callers that must tell "the
+    generator was unreachable" from "the claims were untestable" call
+    `verify_batch_with_summary` instead; the per-claim result is identical.
+    """
+    return verify_batch_with_summary(candidates, frame, config, generate=generate)[0]
+
+
+def verify_batch_with_summary(
+    candidates: Sequence[CandidateInsight],
+    frame: pd.DataFrame,
+    config: VerificationConfig,
+    *,
+    generate: Generator | None = None,
+) -> tuple[list[ProofObject], BatchSummary]:
+    """Verify a whole batch of candidate insights: one proof object each, plus a summary.
 
     Guarantees:
 
@@ -337,12 +587,21 @@ def verify_batch(
     """
     _require_unique_ids(candidates)
     if not candidates:
-        return []
+        return [], BatchSummary(
+            bh_family_id=_family_id(candidates),
+            generator=config.llm.generator,
+            n_candidates=0,
+            n_screened_out=0,
+            n_tested=0,
+            generator_unavailable_count=0,
+            column_check_by_claim_type={},
+        )
 
     family_id = _family_id(candidates)
     seed = config.statistics.seed
     generator = generate or get_generator(config)
     columns = list(frame.columns)
+    tally = _ColumnCheckTally()
 
     # --- screen, generate, execute ------------------------------------------
     # Nothing is corrected or gated yet: BH needs every p-value in hand first.
@@ -355,11 +614,21 @@ def verify_batch(
             outcomes.append(_not_testable(candidate, family_id, seed, reason))
             continue
 
-        outcome = _run_one(candidate, frame, config, generator)
+        outcome = _run_one(candidate, frame, config, generator, tally)
         if isinstance(outcome, str):
             outcomes.append(_not_testable(candidate, family_id, seed, outcome))
         else:
             outcomes.append(outcome)
+
+    _log.info(
+        json.dumps(
+            {
+                "event": "column_check_summary",
+                "bh_family_id": family_id,
+                "by_claim_type": tally.summary(),
+            }
+        )
+    )
 
     # --- correct once, across the whole family -------------------------------
     tested = [item for item in outcomes if isinstance(item, _Tested)]
@@ -395,4 +664,88 @@ def verify_batch(
             )
         else:
             proofs.append(_proof_for_result(item, family_id, q_value, family_size, config))
-    return proofs
+
+    # --- agreement check (W8): diagnostic, after every verdict is final ------
+    # Runs only on the LLM path. Reads the proofs, never writes them.
+    disagreements: list[TemplateDisagreement] = []
+    unavailable_ids: list[str] = []
+    n_compared = 0
+    if config.llm.generator == "llm" and tested:
+        try:
+            shadow = _shadow_template_outcomes(tested, frame, config, family_id)
+        except Exception as error:  # diagnostic only: never fail the batch over it
+            _log.warning(
+                json.dumps(
+                    {
+                        "event": "template_comparison_failed",
+                        "bh_family_id": family_id,
+                        "error": f"{type(error).__name__}: {error}",
+                    }
+                )
+            )
+            shadow = {}
+        proof_by_id = {proof.insight_id: proof for proof in proofs}
+        for item in tested:
+            insight_id = item.candidate.insight_id
+            if insight_id not in shadow:
+                continue
+            template_outcome = shadow[insight_id]
+            if template_outcome is None:
+                unavailable_ids.append(insight_id)
+                continue
+            n_compared += 1
+            llm_outcome = proof_by_id[insight_id].gate_outcome
+            if template_outcome is not llm_outcome:
+                flagged = TemplateDisagreement(
+                    insight_id=insight_id,
+                    claim_type=item.candidate.claim_type.value,
+                    llm_outcome=llm_outcome.value,
+                    template_outcome=template_outcome.value,
+                )
+                disagreements.append(flagged)
+                _log.warning(
+                    json.dumps(
+                        {
+                            "event": "template_disagreement",
+                            "bh_family_id": family_id,
+                            **flagged.model_dump(),
+                            "message": (
+                                "the template reference test reaches a different gate "
+                                "outcome than the LLM-written program; the LLM-path "
+                                "verdict stands and this is flagged for review only."
+                            ),
+                        }
+                    )
+                )
+
+    summary = BatchSummary(
+        bh_family_id=family_id,
+        generator=config.llm.generator,
+        n_candidates=len(candidates),
+        n_screened_out=len(candidates) - family_size,
+        n_tested=family_size,
+        generator_unavailable_count=tally.unavailable,
+        column_check_by_claim_type=tally.summary(),
+        n_template_comparisons=n_compared,
+        n_template_unavailable=len(unavailable_ids),
+        template_unavailable_ids=unavailable_ids,
+        template_disagreements=disagreements,
+    )
+    if summary.generator_unavailable:
+        _log.warning(
+            json.dumps(
+                {
+                    "event": "generator_unavailable",
+                    "bh_family_id": family_id,
+                    "generator": summary.generator,
+                    "generator_unavailable_count": summary.generator_unavailable_count,
+                    "n_candidates": summary.n_candidates,
+                    "message": (
+                        "the falsification generator could not be reached for some or all "
+                        "claims; those claims were NOT tested. Zero insights from this run "
+                        "means the verifier did not run, not that nothing was found."
+                    ),
+                }
+            )
+        )
+    return proofs, summary

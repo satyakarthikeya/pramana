@@ -2,7 +2,7 @@
 
 > Scope: `src/pramana/verification/`, `src/pramana/contracts/`, `tests/`, and
 > `configs/verification.yaml` (Satya Karthikeya's module). Other members' folders are
-> not tracked here. Last updated 2026-09-17, after Phase 9 (final verification).
+> not tracked here. Last updated 2026-10-14, after the finishing pass (WP1-WP7, below).
 
 ## Headline
 
@@ -14,6 +14,38 @@ real evidence gate, real memory guard, and no mocks anywhere in the statistical 
 
 The product claim is demonstrated by two assertions in that test: the planted true
 relationship survives verification, and the planted false correlation does not.
+
+## Finishing pass (2026-10-14, branch `feat/gateway-finish`)
+
+Built after Phase 9. Each item is committed separately; the full suite is **632
+passed, 0 failed** with `DEEPSEEK_API_KEY` unset (about 12 minutes), and `ruff check .`
+passes. The suite still has no ignores and no skips.
+
+| Item | What changed | State |
+|---|---|---|
+| WP1 | The LLM prompt's return contract is now derived from the executor's `REQUIRED_KEYS`; a required key with no prompt wording raises at build time. Before this, every LLM-written program was refused (`reported_effect` was missing from the prompt). | done |
+| Gateway fix | A program returning `reported_effect` without `reported_effect_metric` used to reach PASS. It is now INCONCLUSIVE / REJECT and stays in the BH family at p = 1.0. | done |
+| WP2 (W1) | `check_columns` in `executor/policy.py`: static refusal of generated code that reads columns outside the claim's `variables` or filters rows the claim does not state. Runs before any subprocess. It is a static AST check, not a proof; its limits are written at the top of the section. | done |
+| WP3 (W2, W3) | Verification tests are pinned to `generator: template` (`tests/fixtures/config.py`). `llm.generator` in `configs/verification.yaml` is now `llm` (D1); `template` stays as the reference and offline mode. `PRAMANA_VERIFICATION_GENERATOR` overrides that one value (`template` or `llm`, anything else raises). | done |
+| Logging | LLM-path column-check refusals are counted per claim type (`column_check_refused` events, `column_check_summary` per batch). `check_columns` was not loosened. | done; first live measurement 2026-10-18 (below) |
+| Generator unavailable | `GeneratorUnavailable` separates "the generator could not be reached" from "the claim is untestable". `verify_batch_with_summary` returns `(proofs, BatchSummary)` with `generator_unavailable_count`; one WARNING per batch. Per-claim verdicts are unchanged. `verify_batch` still returns the proofs only. | done |
+| WP4 (W8) | On the LLM path each tested claim's template program is also run; a separate shadow BH family and the same gate give the template outcome. Differences are flagged in `BatchSummary.template_disagreements` and as WARNING events. Diagnostic only: it cannot change a verdict, p, q or the real family. Costs roughly 2x sandbox time per LLM-path run. | done |
+| WP5 | Effect-size bands: `spearman_rho` measured on the demo frame; `kendall_tau_b`, `cliffs_delta` and `epsilon_squared` checked by known-answer simulation (2026-10-20, `scripts/calibration/simulate_bands.py`); no band value changed. `cramers_v` out of scope. Open: the stricter-tier policy choice. See `docs/CALIBRATION_BANDS.md`. | done except policy choice |
+| WP6 | `src/pramana/evaluation/`: planted-dataset builder, conditions A and D as flags on one pipeline (B and C raise `NotImplementedError`), precision / recall / empirical FDR, per-condition table, SPEC section 5 run log, `configs/evaluation.yaml`. | done for A and D |
+| WP7 | The three hardcoded `3`s in `stats/` are one named constant, `MINIMUM_COMPUTABLE_OBSERVATIONS`; behaviour pinned by tests written first. `outlier_warning` and Cramer's V are proposals only. | partly; two decisions open |
+
+**First live DeepSeek run (2026-10-18).** 9 claims on `data/demo_nhanes_small.csv` (5 correlation,
+2 group difference, 2 trend), one gateway invocation, `generator: llm`. It found two prompt defects,
+both fail-closed (no false PASS) but together a 100% refusal rate for group_difference:
+(1) the prompt never said `permutation_test_groups` calls `statistic` with one list argument, so
+the model passed `cliffs_delta` bare (`missing 1 required positional argument: 'b'`); (2) the
+model built groups with row filters `check_columns` refuses. Both were fixed in
+`falsification/prompts.py` by showing the accepted form, with tests written first
+(`tests/unit/verification/test_prompts.py`); `check_columns` was not loosened. After the fix:
+9/9 programs accepted, 0 column-check refusals, 0 template disagreements, planted shuffled decoy
+and 40-row pilot decoy both REJECT, BMI/glucose, age/glucose, age/BMI, sex-glucose and both
+trends PASS. This is one small run on one frame: it shows the path works, not what the refusal
+rate is at scale.
 
 ## Phase-by-phase
 
@@ -31,7 +63,7 @@ relationship survives verification, and the planted false correlation does not.
 | 8 | Memory guard | `verification/memory_guard.py` | **done** — `assert_writable` / `writable`; the single choke point for `memory_write ⟹ verdict == PASS` |
 | 9 | Tracing + structured logging | across the module | **done** — JSON logs carrying `insight_id` in executor, gateway and memory guard; Langfuse tracing on the LLM generation call (the module's only LLM call). See the note under *Known gaps*. |
 
-## Suite status (2026-09-17)
+## Suite status (2026-09-17; superseded by the finishing-pass count above)
 
 ```
 pytest -q          # no ignores, no skips
@@ -107,7 +139,11 @@ All were closed in a single commit, with tests:
 
 ## Known gaps carried deliberately
 
-- **Effect-size bands are still PROVISIONAL and are now OVERDUE for calibration**
+- **Effect-size bands: PARTLY CALIBRATED (2026-10-14).** Only `spearman_rho` is
+  measured, against the demo frame; the other four metrics have no planted anchor.
+  `docs/CALIBRATION_BANDS.md` has the table and the open stricter-floor decision. The
+  paragraph below is the original note, kept for history.
+- **(original note) Effect-size bands are still PROVISIONAL and are now OVERDUE for calibration**
   (`docs/OPEN_ISSUES.md` §11). The note there said they must be calibrated against the
   real NHANES / NFHS-5 subset *before the gateway is wired end to end*. The gateway is
   now wired end to end, so that deadline has passed. They pass the toy frame, which is
@@ -132,27 +168,25 @@ All were closed in a single commit, with tests:
   `pramana.common.logging` are B. Karthikeya's files and are still stubs on `main`, so
   the generator builds its own client and the JSON log records are formatted here. Both
   should delegate to the shared helpers once the orchestration spine merges.
-- **`outlier_warning` is never set.** The templates report `outlier_divergence`, but
-  `configs/verification.yaml` has no band for it and inventing a cutoff in code would
-  violate `AGENTS.md` §3.3. Needs a configured threshold before the field means
-  anything.
+- **`outlier_warning` is never set.** A proposal (config key
+  `evidence.outlier_divergence_warn`, value 0.30, reporting only) is written in
+  `docs/WP7_PROPOSALS.md` and awaits approval. No code was changed.
 - **`RLIMIT_AS` under Docker on Linux — needs verification inside the Docker image.**
   The runner caps address space at `max_memory_mb` on POSIX. OpenBLAS reserves large
   virtual ranges at import, and a 1 GB address-space cap is known to break
   `import numpy` in some builds. This cannot be exercised on the Windows dev machine
   (the cap is advisory there; the container is the real enforcement). Run one
   template through the executor inside the image before relying on the cap.
-- **`MIN_OBSERVATIONS` is both hardcoded (3, in `stats/`) and configured (20, in
-  `verification.yaml`).** The stats floor is a "can this be computed at all" guard;
-  the configured one is the gate's "is this worth concluding from" floor. Every
-  template caller uses the configured value; the two are not in conflict, but the
-  duplication is worth removing.
+- **`MIN_OBSERVATIONS` duplication: RESOLVED (2026-10-14).** The hardcoded 3s are one
+  constant, `MINIMUM_COMPUTABLE_OBSERVATIONS`, documented as not a conclusion threshold;
+  the gate's configured 20 is unchanged. Behaviour is pinned by characterization tests.
 
 ## Not started, and deliberately out of this scope
 
-The evaluation / ablation harness (conditions A–D over the 40-dataset benchmark) is a
-separate later work item per `SCOPE.md` §3. Only `src/pramana/evaluation/SPEC.md`
-exists, as a proposal. Issues 2 and 3 in `docs/OPEN_ISSUES.md` stay open until the team
+The evaluation / ablation harness is a separate later work item per `SCOPE.md` §3.
+Conditions A and D are now built (see WP6 above); B and C are `NotImplementedError`
+stubs, and the 40 pre-shuffle benchmark extracts do not exist yet (P. Rohith).
+`synthetic_extract` stands in for them and is not benchmark data. Issues 2 and 3 in `docs/OPEN_ISSUES.md` stay open until the team
 agrees the planted-truth design is what gets reported.
 
 ## Running it
@@ -160,7 +194,7 @@ agrees the planted-truth design is what gets reported.
 ```
 cd pramana
 .venv\Scripts\activate
-pytest -q                  # 322 passed
+pytest -q                  # 632 passed (about 12 minutes)
 ruff check .
 pytest tests/integration/test_gateway_e2e.py -v    # the acceptance test alone
 ```

@@ -82,8 +82,8 @@
     {
       "id": "qjf5xqa116ogefol",
       "type": "rectangle",
-      "x": 1104.9056390019164,
-      "y": -73.16635669306947,
+      "x": 1063.0695019671393,
+      "y": -108.88013221056207,
       "width": 330,
       "height": 190,
       "angle": 0,
@@ -100,8 +100,8 @@
         "type": 3
       },
       "seed": 47223,
-      "version": 55,
-      "versionNonce": 1159439191,
+      "version": 119,
+      "versionNonce": 1946224759,
       "isDeleted": false,
       "boundElements": [
         {
@@ -109,7 +109,7 @@
           "type": "text"
         }
       ],
-      "updated": 1789730444492,
+      "updated": 1789731120426,
       "link": null,
       "locked": false,
       "index": "a2"
@@ -117,8 +117,8 @@
     {
       "id": "ol940l9d8tll2cmh",
       "type": "text",
-      "x": 1112.9056390019164,
-      "y": -43.166356693069474,
+      "x": 1071.0695019671393,
+      "y": -78.88013221056207,
       "width": 314,
       "height": 130,
       "angle": 0,
@@ -133,11 +133,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 85906,
-      "version": 55,
-      "versionNonce": 983244919,
+      "version": 119,
+      "versionNonce": 1842798999,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1789730444492,
+      "updated": 1789731120426,
       "link": null,
       "locked": false,
       "text": "LEGEND\nfill = owner:\n  blue    P. Rohith (analysis)\n  violet  Satya (verification)\n  yellow  Karthik Reddy (memory)\n  grey    B. Karthikeya (spine)\norange badge = an AI model\nsolid = built   dashed = not built",

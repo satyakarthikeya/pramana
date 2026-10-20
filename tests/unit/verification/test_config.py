@@ -21,6 +21,7 @@ from pydantic import ValidationError
 from pramana.contracts.enums import EffectMetric
 from pramana.verification.config import (
     FORBIDDEN_SANDBOX_IMPORTS,
+    GENERATOR_ENV_VAR,
     ExecutorConfig,
     load_config,
 )
@@ -102,9 +103,67 @@ def test_shipped_config_loads_and_forbids_statistics_libraries() -> None:
     assert "pramana.verification.stats" in config.executor.allowed_imports
 
 
-def test_shipped_config_defaults_to_the_deterministic_generator() -> None:
-    """`template` needs no API key and no network, so the gateway runs offline."""
-    assert load_config(SHIPPED_CONFIG).llm.generator == "template"
+def test_shipped_config_defaults_to_the_llm_generator(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Follows D1 (docs/DECISIONS_LLM_ROLES.md): DeepSeek writes the tests by default.
+
+    Replaces the earlier assertion that the shipped default was `template`. The template
+    generator is not removed: it stays the reference and the explicit offline mode, and
+    the next test pins that it is still selectable.
+    """
+    monkeypatch.delenv(GENERATOR_ENV_VAR, raising=False)
+    assert load_config(SHIPPED_CONFIG).llm.generator == "llm"
+
+
+def test_template_generator_is_still_selectable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`template` needs no API key and no network: the reference and the offline mode."""
+    monkeypatch.delenv(GENERATOR_ENV_VAR, raising=False)
+    raw = yaml.safe_load(SHIPPED_CONFIG.read_text(encoding="utf-8"))
+    raw["llm"]["generator"] = "template"
+    target = tmp_path / "template.yaml"
+    target.write_text(yaml.safe_dump(raw), encoding="utf-8")
+    assert load_config(target).llm.generator == "template"
+
+
+# --- PRAMANA_VERIFICATION_GENERATOR override ----------------------------------
+
+
+def test_generator_override_unset_uses_the_yaml_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(GENERATOR_ENV_VAR, raising=False)
+    raw = yaml.safe_load(SHIPPED_CONFIG.read_text(encoding="utf-8"))
+    assert load_config(SHIPPED_CONFIG).llm.generator == raw["llm"]["generator"]
+
+
+@pytest.mark.parametrize("value", ["template", "llm"])
+def test_generator_override_selects_either_generator(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.setenv(GENERATOR_ENV_VAR, value)
+    config = load_config(SHIPPED_CONFIG)
+    assert config.llm.generator == value
+
+
+def test_generator_override_changes_only_the_generator(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Thresholds and seeds must still come from the YAML, never from the environment."""
+    monkeypatch.delenv(GENERATOR_ENV_VAR, raising=False)
+    baseline = load_config(SHIPPED_CONFIG)
+    monkeypatch.setenv(GENERATOR_ENV_VAR, "template")
+    overridden = load_config(SHIPPED_CONFIG)
+    assert overridden.statistics == baseline.statistics
+    assert overridden.evidence == baseline.evidence
+    assert overridden.executor == baseline.executor
+    assert overridden.llm.model == baseline.llm.model
+
+
+@pytest.mark.parametrize("value", ["deepseek", "TEMPLATE", "Llm", "", " template", "none"])
+def test_generator_override_rejects_anything_else(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    """Exactly `template` or `llm`. A typo must not quietly select a generator."""
+    monkeypatch.setenv(GENERATOR_ENV_VAR, value)
+    with pytest.raises(ValueError, match=GENERATOR_ENV_VAR):
+        load_config(SHIPPED_CONFIG)
 
 
 def test_p_value_floor_is_below_alpha() -> None:

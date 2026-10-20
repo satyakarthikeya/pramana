@@ -35,6 +35,7 @@ from __future__ import annotations
 
 from pramana.contracts.candidate_insight import CandidateInsight
 from pramana.contracts.enums import ClaimType
+from pramana.verification.executor import runner
 
 #: The claim types the LLM generator will write code for. Deliberately identical to
 #: `templates.SUPPORTED_CLAIM_TYPES`: the LLM path is measured against the template
@@ -67,6 +68,16 @@ WHAT YOU MAY IMPORT
 refused by the sandbox and your output is discarded.
 - Never import or reference `provenance`, and never touch any name starting with an \
 underscore from the stats package.
+
+WHICH DATA YOU MAY READ
+- Read ONLY the two columns named in VAR_X and VAR_Y, selected first and by name, for \
+example `frame[[VAR_X, VAR_Y]]`. Write column names as string literals or as the \
+module-level constants; a name built at runtime is refused.
+- Never alias, copy or pass the whole frame anywhere, and never read another column.
+- Do not filter rows. No boolean masks, `.query`, `.head`, `.sample`, `.iloc` or \
+slicing. The only permitted exclusion is dropping rows with missing values in those two \
+columns. The one exception is a group_difference claim, which may select the rows of one \
+level of VAR_X with `==`.
 
 WHERE THE NUMBERS COME FROM
 - You MUST obtain the p-value by calling `permutation_test` or \
@@ -105,26 +116,91 @@ _NULL_FRAMING: dict[ClaimType, str] = {
         "HOW TO DESTROY IT: reshuffle group membership with `permutation_test_groups`, "
         "preserving group SIZES and moving only the labels. For exactly two groups use "
         "`cliffs_delta` as the statistic; for more than two use `epsilon_squared`, "
-        "which is unsigned because 'these groups differ' has no direction."
+        "which is unsigned because 'these groups differ' has no direction.\n"
+        "`permutation_test_groups` calls `statistic` with ONE argument, the list of "
+        "groups, so wrap the metric: `lambda parts: cliffs_delta(parts[0], parts[1])` "
+        "for two groups, `lambda parts: epsilon_squared(list(parts))` for more. Passing "
+        "`cliffs_delta` itself fails with a missing-argument error.\n"
+        "Build each group in exactly this form, and no other (groupby, boolean masks and "
+        "`.query` are refused): `columns = frame[[VAR_X, VAR_Y]].dropna()`, then "
+        "`columns.loc[columns[VAR_X].astype(str) == level, VAR_Y].to_numpy(dtype=float)` "
+        "for each `level` in `sorted(columns[VAR_X].astype(str).unique())`."
     ),
 }
 
-#: The per-type contract for the returned dict. The executor refuses a payload missing
-#: any required key, so the shape is dictated rather than described.
-_RETURN_CONTRACT = """\
-The returned dict must contain exactly these keys:
-  "p_value"          -- result.p_value, unmodified
-  "effect_size"      -- result.statistic, unmodified
-  "effect_metric"    -- the string {metric!r}
-  "n_observations"   -- int, the usable row count after dropping missing values
-  "seed"             -- result.seed, unmodified
-  "n_permutations"   -- result.n_permutations, unmodified
-  "statistic"        -- result.statistic, unmodified
-  "provenance"       -- result.provenance, unmodified
+#: What each key of the returned dict is. The set of keys the prompt DEMANDS is not
+#: written here: it is `executor.runner.REQUIRED_KEYS`, read at build time, so the prompt
+#: and the executor cannot drift apart again (they did once: `reported_effect` was
+#: required by the executor and missing from the prompt, so every LLM-written program
+#: was refused). This table only supplies the wording, in the order they are listed.
+#: A required key with no entry here makes `build_prompt` raise, so adding a key to the
+#: executor without telling the model is a loud failure, not a silent refusal rate.
+_KEY_DESCRIPTIONS: dict[str, str] = {
+    "p_value": "result.p_value, unmodified",
+    "effect_size": "result.statistic, unmodified",
+    "effect_metric": "the string {metric!r}",
+    "reported_effect": "{reported}",
+    "reported_effect_metric": "the string {reported_metric!r}",
+    "n_observations": "int, the usable row count after dropping missing values",
+    "seed": "result.seed, unmodified",
+    "n_permutations": "result.n_permutations, unmodified",
+    "statistic": "result.statistic, unmodified",
+    "provenance": "result.provenance, unmodified",
+}
 
-"effect_size" and "statistic" must be the SAME value. The verifier rejects a payload \
-where they differ.\
-"""
+#: Keys the gateway reads from the payload but the executor does not insist on. They are
+#: requested anyway: `reported_effect_metric` labels `reported_effect` in the proof
+#: object, and a number without its unit is not a reportable effect.
+_REQUESTED_BUT_NOT_REQUIRED: frozenset[str] = frozenset(
+    {"reported_effect_metric", "n_observations"}
+)
+
+#: The second, reader-facing effect each claim type reports, and the vetted function
+#: that computes it. It is a description of a CALL, never a number: the model does not
+#: get to supply a statistic.
+_REPORTED_EFFECT: dict[ClaimType, tuple[str, str]] = {
+    ClaimType.CORRELATION: ("pearson_r(x, y), called on the same two arrays", "pearson_r"),
+    ClaimType.TREND: ("sens_slope(x, y), called on the same two arrays", "sens_slope"),
+    ClaimType.GROUP_DIFFERENCE: (
+        "hedges_g(group_a, group_b) for exactly two groups, or eta_squared(groups) "
+        "for more than two, called on the same groups the test used",
+        "hedges_g' for two groups or 'eta_squared",
+    ),
+}
+
+
+def _return_contract(claim_type: ClaimType, metric: str) -> str:
+    """The returned-dict contract, derived from the executor's `REQUIRED_KEYS`.
+
+    Guarantees: every key in `REQUIRED_KEYS` appears, quoted, with a description, and a
+    key the executor requires but this module cannot describe raises `ValueError`. The
+    set is read from the runner module at call time (not import time) so a change to the
+    executor reaches the prompt without a second edit.
+    """
+    required = set(runner.REQUIRED_KEYS)
+    wanted = required | _REQUESTED_BUT_NOT_REQUIRED
+    undocumented = sorted(required - _KEY_DESCRIPTIONS.keys())
+    if undocumented:
+        raise ValueError(
+            f"executor requires keys {undocumented} that the prompt contract has no "
+            f"wording for; add them to _KEY_DESCRIPTIONS so the model is told to return "
+            f"them (otherwise every generated program is refused)"
+        )
+    reported, reported_metric = _REPORTED_EFFECT[claim_type]
+    lines = [
+        f'  "{key}"'.ljust(26) + "-- " + _KEY_DESCRIPTIONS[key].format(
+            metric=metric, reported=reported, reported_metric=reported_metric
+        )
+        for key in _KEY_DESCRIPTIONS
+        if key in wanted
+    ]
+    return (
+        "The returned dict must contain exactly these keys:\n"
+        + "\n".join(lines)
+        + '\n\n"effect_size" and "statistic" must be the SAME value. The verifier '
+        "rejects a payload where they differ."
+    )
+
 
 #: Which gating metric each claim type reports. Two-group versus k-group is decided
 #: inside the generated code, so group_difference carries both.
@@ -159,7 +235,7 @@ def build_prompt(
         )
 
     framing = _NULL_FRAMING[candidate.claim_type].format(var_x=var_x, var_y=var_y)
-    contract = _RETURN_CONTRACT.format(metric=_METRIC_FOR[candidate.claim_type])
+    contract = _return_contract(candidate.claim_type, _METRIC_FOR[candidate.claim_type])
 
     direction = (
         f"The claim asserts a {candidate.asserted_direction.value} direction. Do NOT "

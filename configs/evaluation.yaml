@@ -1,0 +1,47 @@
+# configs/evaluation.yaml
+# Owner: P.P. Satya Karthikeya -- the ONE place the evaluation harness's schedule, seeds
+# and grids live (AGENTS.md 3.3). Nothing in src/pramana/evaluation/ may hardcode them.
+# The loader (src/pramana/evaluation/config.py) has no defaults: a missing or misspelled
+# key fails at load time.
+#
+# Effect sizes are NOT written here as numbers in the gate's units. They are written as
+# MULTIPLES OF THE GATE'S OWN FLOOR for the metric concerned, and resolved against
+# configs/verification.yaml when a dataset is built. The effect-size bands there are being
+# recalibrated (docs/OPEN_ISSUES.md 11); a schedule that copied today's floors would stop
+# straddling the boundary the day they change. The resolved floor and target are copied
+# into every dataset's truth table so the log carries the values it was built against.
+
+planted:
+  base_seed: 20261001        # dataset i is built from a seed derived from (base_seed, i); logged
+  # k (injected relationships) per dataset, indexed by dataset number and cycled. A 0 is a
+  # fully null dataset: any report from it is a false positive by construction.
+  k_per_dataset: [3, 3, 2, 0]
+  # Relationship type and direction of the j-th injection, cycled and offset by dataset index.
+  relationship_cycle: [monotonic, shift, trend]
+  direction_cycle: [positive, negative]
+  # Effect levels, cycled the same way. `multiplier_of_floor` scales the metric's `min`
+  # band from verification.yaml: above 1 the effect should clear the gate, below 1 it sits
+  # in the NEGLIGIBLE band and a correct system should NOT pass it.
+  effect_levels:
+    - {name: clear, multiplier_of_floor: 2.5}
+    - {name: just_above, multiplier_of_floor: 1.25}
+    - {name: just_below, multiplier_of_floor: 0.7}
+    - {name: moderate, multiplier_of_floor: 1.8}
+  calibration_tolerance: 0.005   # |realised - target| allowed after calibration, in metric units
+
+extract_shape:               # benchmark-like extract used by the measurement script and tests
+  n_rows: 1500
+  n_numeric: 8
+  n_binary_categorical: 2
+  n_multilevel_categorical: 1
+  n_ordinal: 1               # the time/ordinal column the trend injection runs against
+
+conditions:
+  # The model a run is configured for. A proposer reporting any other model is refused
+  # (AGENTS.md 2: no silent model substitution).
+  analysis_model: deepseek-chat
+
+measurement:                 # scripts/measure_permutation_cost.py (docs/OPEN_ISSUES.md item 5)
+  benchmark_datasets: 40
+  datasets_timed: 1
+  candidates_timed_per_claim_type: 3

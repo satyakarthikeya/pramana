@@ -32,9 +32,7 @@ from numpy.typing import ArrayLike, NDArray
 from pydantic import BaseModel, ConfigDict, Field
 
 from pramana.verification.stats import provenance
-
-#: Below this there is nothing to resample from.
-MIN_OBSERVATIONS = 3
+from pramana.verification.stats.effect_size import MINIMUM_COMPUTABLE_OBSERVATIONS
 
 
 class BootstrapResult(BaseModel):
@@ -117,9 +115,10 @@ def bootstrap_ci(
     _validate(n_bootstrap, confidence_level)
     columns = _columns(data, paired=paired)
     n_rows = columns[0].size
-    if n_rows < MIN_OBSERVATIONS:
+    if n_rows < MINIMUM_COMPUTABLE_OBSERVATIONS:
         raise ValueError(
-            f"{n_rows} observations is below the minimum of at least {MIN_OBSERVATIONS}; "
+            f"{n_rows} observations is below the minimum of at least "
+            f"{MINIMUM_COMPUTABLE_OBSERVATIONS}; "
             f"a bootstrap interval from this many points is not meaningful"
         )
 
