@@ -5,14 +5,16 @@ from uuid import uuid4
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from pramana.analysis import handlers
-from pramana.contracts import CandidateInsight
+from pramana.contracts import CandidateInsight, ProofObject
 from pramana.orchestration.integration import (
     AnalysisResult,
     IngestResult,
     PreparationResult,
 )
+from pramana.orchestration.tasks import native_verification_handler
 
 
 def _write_csv(tmp_path: Path) -> Path:
@@ -31,7 +33,10 @@ def _write_csv(tmp_path: Path) -> Path:
     return path
 
 
-def test_handlers_chain_into_contract_valid_candidates(tmp_path: Path) -> None:
+def test_handlers_chain_into_contract_valid_candidates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("pramana.analysis.dataset_artifacts.DATA_DIR", tmp_path)
     run_id = uuid4()
     source = str(_write_csv(tmp_path))
 
@@ -55,7 +60,9 @@ def test_handlers_chain_into_contract_valid_candidates(tmp_path: Path) -> None:
         )
     )
 
-    assert prepared.dataset_ref.startswith(f"{source}#cleaned-sha256:")
+    assert Path(prepared.dataset_ref) == tmp_path / "runs" / str(run_id) / "cleaned.pkl"
+    pd.testing.assert_frame_equal(pd.read_pickle(prepared.dataset_ref), prepared.dataset)
+    assert prepared.schema_profile["cleaned_fingerprint"].startswith(f"{source}#cleaned-sha256:")
     assert "constant" not in prepared.dataset.columns
     assert "cleaning_report" in prepared.schema_profile
     assert analysed.candidate_insights
@@ -71,3 +78,45 @@ def test_the_cleaned_reference_tracks_the_values() -> None:
     changed = frame.copy()
     changed.loc[0, "a"] = 9.0
     assert handlers.cleaned_dataset_ref("f.csv", changed) != same
+
+
+def test_preparation_artifact_is_accepted_by_the_existing_worker_handler(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("pramana.analysis.dataset_artifacts.DATA_DIR", tmp_path)
+    run_id = uuid4()
+    source = str(_write_csv(tmp_path))
+    loaded = handlers.ingest({"run_id": run_id, "dataset_ref": source})
+    prepared = handlers.prepare({"run_id": run_id, **loaded})
+    candidates = handlers.analyze({"run_id": run_id, **prepared})["candidate_insights"]
+    seen: dict[str, object] = {}
+
+    def capture_gateway(
+        batch: list[CandidateInsight], frame: pd.DataFrame, _config: object
+    ) -> list[ProofObject]:
+        seen["batch"] = batch
+        pd.testing.assert_frame_equal(frame, prepared["dataset"])
+        return []
+
+    # This test covers transport into the worker; real statistical tests remain separate.
+    monkeypatch.setattr("pramana.verification.gateway.verify_batch", capture_gateway)
+    result = native_verification_handler(
+        {
+            "run_id": str(run_id),
+            "dataset_ref": prepared["dataset_ref"],
+            "candidate_insights": [item.model_dump(mode="json") for item in candidates],
+        },
+        data_dir=tmp_path,
+    )
+    assert seen["batch"] == candidates
+    assert result == {"proof_objects": []}
+    missing_run = uuid4()
+    with pytest.raises(FileNotFoundError):
+        native_verification_handler(
+            {
+                "run_id": str(missing_run),
+                "dataset_ref": str(tmp_path / "runs" / str(missing_run) / "cleaned.pkl"),
+                "candidate_insights": [],
+            },
+            data_dir=tmp_path,
+        )

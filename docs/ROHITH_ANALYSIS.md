@@ -156,6 +156,38 @@ listed in the PR description; the substantive ones are the `min_abs_correlation`
 pre-filter's interaction with the demo's injected false correlation, and the
 `use_llm_for_ambiguous_only: false` branch, which is currently unimplemented.
 
+## Worker-readable cleaned datasets (14 October 2026)
+
+The optional `pramana.analysis.handlers:prepare` entrypoint now saves its cleaned
+frame to `DATA_DIR/runs/<run_id>/cleaned.pkl`, matching the layout already required
+by `orchestration.tasks.native_verification_handler`. It returns that absolute path
+as `dataset_ref`, so candidates and workers name the same artifact. The previous
+source-plus-hash reference remains audit metadata in
+`schema_profile.cleaned_fingerprint`; it is no longer the worker reference.
+
+`analysis/dataset_artifacts.py` publishes the complete pickle atomically using a
+hard link within the run directory. Identical preparation retries reuse the file;
+different values, dtypes or index for an already published run are refused rather
+than overwriting data referenced by earlier candidates. Temporary files are removed
+on success and failure. Publication failures propagate, with no raw-data fallback.
+
+The native graph path already had persistence and a native verification handler;
+this change closes the optional handler path's mismatch. It does not modify the
+orchestration, verification, sandbox, or memory modules. Run IDs are required UUIDs,
+as in the existing `PreparationRequest` contract.
+
+Producer and worker must share `PRAMANA_DATA_DIR` at the same absolute path.
+The existing Docker compose stack already mounts its run-data volume at
+`/data/pramana` in both services (worker read-only). The producer's filesystem must
+support hard links; unsupported publication fails rather than writing a partial
+artifact. Pickles are trusted internal artifacts, not accepted uploads. Raw CSV
+and XLSX uploads still go through the existing ingestion limits.
+
+Tests cover an independent Python process loading the exact frame, including
+nullable integers, categorical/string dtypes, timezone-aware datetimes, missing
+values and index; retry conflicts, concurrent publication, cleanup on failure,
+and the optional handler's compatibility with the existing worker loader.
+
 ## Data policy
 
 Raw datasets and generated local artifacts are not copied into this repository.
