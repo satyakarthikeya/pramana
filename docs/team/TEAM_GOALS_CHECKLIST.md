@@ -74,7 +74,7 @@ Scope: system architecture, workflow, common utilities and local Docker.
 
 Evidence: `tests/unit/orchestration/`, `tests/integration/test_episode_workflow.py`,
 `tests/integration/test_native_analysis_workflow.py`,
-[workflow handoff](B_KARTHIKEYA_COMPLETION.md), [testing phase](TESTING_PHASE.md).
+[workflow handoff](../handoffs/B_KARTHIKEYA_COMPLETION.md), [testing phase](TESTING_PHASE.md).
 Your local functional workflow works; your complete tracing/model-client
 acceptance boundary is not yet closed.
 
@@ -181,7 +181,7 @@ and required review remain as recorded in `OWNERSHIP.md`.
 - [x] Memory/API PR #18 is merged; cloud deployment sign-off is still outstanding.
 
 Evidence: `tests/unit/memory/`, `tests/unit/api/test_api.py`,
-`src/pramana/dashboard/static/`, [memory/API handoff](KARTHIK_LOCAL_HANDOFF.md).
+`src/pramana/dashboard/static/`, [memory/API handoff](../handoffs/KARTHIK_LOCAL_HANDOFF.md).
 
 ## Team integration, testing and publication
 

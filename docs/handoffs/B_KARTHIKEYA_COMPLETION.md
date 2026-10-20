@@ -2,12 +2,12 @@
 
 API keys are not required to complete the workflow implementation. The user has
 explicitly deferred paid-provider and live Langfuse checks to the tester. See
-[TESTING_PHASE.md](TESTING_PHASE.md) for setup, credentials, exact commands, expected
+[TESTING_PHASE.md](../team/TESTING_PHASE.md) for setup, credentials, exact commands, expected
 failure behavior and the tester sign-off checklist. Implementation readiness and
 live-service acceptance are tracked separately.
 
 For the current goals of all four members, see
-[TEAM_GOALS_CHECKLIST.md](TEAM_GOALS_CHECKLIST.md). The follow-up branch from
+[TEAM_GOALS_CHECKLIST.md](../team/TEAM_GOALS_CHECKLIST.md). The follow-up branch from
 `origin/main` `2707af0` adds W4's shared inference interface and bounded completion
 telemetry relay. Existing module callers still need owner-reviewed migration;
 remote Langfuse delivery and realistic batch timeout budgets need acceptance.
@@ -71,7 +71,7 @@ real statistical execution, MiniLM embeddings and guarded HTTP Chroma persistenc
 The Gemma API run produced 1 PASS and 1 REJECT. Existing lessons survived Chroma
 recreation and remained searchable. Worker termination and failed-execution tests
 both produced degraded runs without memory writes. Run IDs and evidence locations
-are in [TESTING_PHASE.md](TESTING_PHASE.md).
+are in [TESTING_PHASE.md](../team/TESTING_PHASE.md).
 
 Runtime fixes: numerical thread caps in the worker image keep imports below the
 unchanged execution-memory limit; exhausted execution failures now degrade the
@@ -80,7 +80,7 @@ graph; Chroma's named volume now mounts at the actual `/data` database path.
 ## Remaining deployment/owner dependencies
 
 - W4's additive interface is implemented in `common/llm_client.py`. Consumer
-  consolidation remains a coordinated owner task; see [client handoff](SHARED_LLM_CLIENT.md).
+  consolidation remains a coordinated owner task; see [client handoff](../SHARED_LLM_CLIENT.md).
 - Docker Desktop runs from the user's AppData Programs/DockerDesktop directory.
   Keyless Compose/Redis/worker-kill acceptance passed on this machine.
 - A bounded completion relay now exports validated result metadata from the trusted
