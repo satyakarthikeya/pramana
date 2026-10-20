@@ -2,12 +2,12 @@
 
 API keys are not required to complete the workflow implementation. The user has
 explicitly deferred paid-provider and live Langfuse checks to the tester. See
-[TESTING_PHASE.md](TESTING_PHASE.md) for setup, credentials, exact commands, expected
+[TESTING_PHASE.md](../team/TESTING_PHASE.md) for setup, credentials, exact commands, expected
 failure behavior and the tester sign-off checklist. Implementation readiness and
 live-service acceptance are tracked separately.
 
 For the audited goals of all four members, including incomplete work, see
-[TEAM_GOALS_CHECKLIST.md](TEAM_GOALS_CHECKLIST.md). Working workflow integration
+[TEAM_GOALS_CHECKLIST.md](../team/TEAM_GOALS_CHECKLIST.md). Working workflow integration
 does not mean every architecture goal is closed: W4's shared inference client and
 the isolated-worker telemetry relay remain implementation work, not merely missing
 credentials.
@@ -71,7 +71,7 @@ real statistical execution, MiniLM embeddings and guarded HTTP Chroma persistenc
 The Gemma API run produced 1 PASS and 1 REJECT. Existing lessons survived Chroma
 recreation and remained searchable. Worker termination and failed-execution tests
 both produced degraded runs without memory writes. Run IDs and evidence locations
-are in [TESTING_PHASE.md](TESTING_PHASE.md).
+are in [TESTING_PHASE.md](../team/TESTING_PHASE.md).
 
 Runtime fixes: numerical thread caps in the worker image keep imports below the
 unchanged execution-memory limit; exhausted execution failures now degrade the
