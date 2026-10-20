@@ -1,5 +1,12 @@
 # PRAMANA team goals and acceptance checklist
 
+V1 follow-up: the local application/software tasks are implemented and tested on
+`feat/b-karthikeya/v1-product`: **771 tests passed**; two actual headless browser
+journeys, exports, hints and PASS-only real memory passed. See
+[V1 task status](../V1.md) and [V1 evidence/remaining release gates](V1_TEST_LOG.md).
+The broader goals below include work explicitly outside V1. Review/second-machine,
+paid-provider and human report/freeze gates are not implied complete.
+
 Audited: 20 October 2026. Checkout: `feat/b-karthikeya/workflow-followup`,
 based on refreshed `origin/main` at `2707af0` (gateway PR #21 merged).
 Earlier workflow PR #20 is merged. Ownership follows `PROJECT.md` section 4,
@@ -101,7 +108,7 @@ Scope: dataset preparation, schema, proposals, prioritization and curation.
   are not implemented in this checkout; keep optional scope explicit.
 - [x] Benchmark pilot and 40-extract curation, provenance and per-dataset
   contamination screening are merged (PRs #16/#17). See
-  [40-extract evidence](BENCHMARK_40_HANDOFF.md); raw data remains ignored.
+  [40-extract evidence](../handoffs/BENCHMARK_40_HANDOFF.md); raw data remains ignored.
 - [ ] W11: demonstrate that the actual LLM proposes the NHANES demo's intended
   decoy and the gateway rejects it while real relationships survive. Synthetic
   Gemma smoke acceptance is not evidence for this specific NHANES demonstration.

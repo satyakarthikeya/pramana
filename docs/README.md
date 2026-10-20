@@ -19,6 +19,8 @@ Start with **[V1.md](V1.md)**: the MVP plan and the do-list. Everything else is 
 |---|---|
 | [TEAM_GOALS_CHECKLIST.md](team/TEAM_GOALS_CHECKLIST.md) | Whole-project goals checklist (includes work past V1) |
 | [TESTING_PHASE.md](team/TESTING_PHASE.md) | How to test the stack, including live services |
+| [V1_TEST_LOG.md](team/V1_TEST_LOG.md) | Actual local V1/browser evidence, defects fixed and remaining release gates |
+| [V1_REVIEW_NOTICES.md](team/V1_REVIEW_NOTICES.md) | Contract/whitelist notices and required cross-module review |
 | [LLM_CLAIM_PROPOSER.md](team/LLM_CLAIM_PROPOSER.md) | How the LLM claim proposer works and its limits |
 
 ## [handoffs/](handoffs/) — history
