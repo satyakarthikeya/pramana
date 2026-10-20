@@ -11,12 +11,17 @@ import numpy as np
 import yaml
 
 from pramana.verification.stats.effect_size import (
-    cliffs_delta, epsilon_squared, kendall_tau_b, spearman_rho)
+    cliffs_delta,
+    epsilon_squared,
+    kendall_tau_b,
+    spearman_rho,
+)
 
 SEED, REPS = 20261020, 400
 SIZES = (40, 200, 1500)
 rng = np.random.default_rng(SEED)
-bands = yaml.safe_load(open("configs/verification.yaml"))["evidence"]["effect_thresholds"]
+with open("configs/verification.yaml", encoding="utf-8") as fh:
+    bands = yaml.safe_load(fh)["evidence"]["effect_thresholds"]
 
 
 def null_q99(fn, make, n):
@@ -46,7 +51,8 @@ for name, fn, make in (("spearman_rho", spearman_rho, biv), ("kendall_tau_b", ke
     print(f"{name:14s} floor {bands[name]['min']:.2f} | " +
           "  ".join(f"n={n}: {null_q99(fn, make, n):.3f}" for n in SIZES))
 sq = [np.sqrt(max(epsilon_squared(*kgrp(n, 0.0)), 0)) for n in (300,) for _ in range(REPS)]
-print(f"epsilon_squared floor {bands['epsilon_squared']['min']:.2f} on sqrt(eps^2), i.e. eps^2 {bands['epsilon_squared']['min']**2:.3f} "
+eps_min = bands["epsilon_squared"]["min"]
+print(f"epsilon_squared floor {eps_min:.2f} on sqrt(eps^2), i.e. eps^2 {eps_min**2:.3f} "
       f"| null sqrt q99 n=300: {np.quantile(sq, .99):.3f}")
 
 print("\nTrue effect each floor corresponds to (planted, n=1500)")
