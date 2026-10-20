@@ -6,6 +6,7 @@ import json
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 from uuid import UUID
 
 from pramana.api.models import RunResults, RunView
@@ -57,6 +58,18 @@ class RunRepository:
             ).fetchall()
         return [RunView.model_validate_json(row[0]) for row in rows]
 
+    def progress(self, run_id: UUID, stage: str, **details: Any) -> None:
+        """Persist bounded product progress without exposing unverified candidate claims."""
+        view = self.get(run_id)
+        if view.status not in {RunStatus.PENDING, RunStatus.RUNNING}:
+            return
+        view = RunView.model_validate({**view.model_dump(), **details, "progress": stage})
+        with self._connect() as connection:
+            connection.execute(
+                "UPDATE runs SET view_json = ? WHERE run_id = ?",
+                (view.model_dump_json(), str(run_id)),
+            )
+
     def update(
         self,
         run_id: UUID,
@@ -74,6 +87,7 @@ class RunRepository:
                 "status": status,
                 "error": error,
                 "finished_at": datetime.now(UTC) if terminal else None,
+                "progress": "Finished" if terminal else view.progress,
             }
         )
         payload = None

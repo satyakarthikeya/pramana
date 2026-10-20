@@ -122,7 +122,9 @@ def _serializable(value: Any) -> Any:
     return value
 
 
-def inprocess_verification_adapter(state: PramanaState) -> NodeUpdate:
+def inprocess_verification_adapter(
+    state: PramanaState, *, progress: Callable[[int, int], None] | None = None
+) -> NodeUpdate:
     """Verify the complete candidate family in this process, with no queue involved.
 
     For local and demo runs without Redis or a Celery worker. The gateway still runs
@@ -137,8 +139,21 @@ def inprocess_verification_adapter(state: PramanaState) -> NodeUpdate:
         return {"proof_objects": []}
     if state.dataset is None:
         raise ValueError("In-process verification requires the cleaned dataset in state")
+    config = load_verification_config()
+    options: dict[str, Any] = {}
+    if progress is not None:
+        from pramana.verification.falsification.generator import get_generator
+
+        generator = get_generator(config)
+        positions = {item.insight_id: i + 1 for i, item in enumerate(state.candidate_insights)}
+
+        def generate(candidate: Any, current: Any) -> Any:
+            progress(positions[candidate.insight_id], len(state.candidate_insights))
+            return generator(candidate, current)
+
+        options["generate"] = generate
     proofs, summary = verify_batch_with_summary(
-        state.candidate_insights, state.dataset, load_verification_config()
+        state.candidate_insights, state.dataset, config, **options
     )
     return {"proof_objects": proofs, "verification_summary": summary}
 

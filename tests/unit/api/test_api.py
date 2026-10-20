@@ -133,7 +133,9 @@ def test_real_graph_gateway_memory_and_results(
         update={"statistics": config.statistics.model_copy(update={"n_permutations": 1000})}
     )
 
-    def real_gateway(state: PramanaState) -> dict:
+    def real_gateway(state: PramanaState, *, progress=None) -> dict:
+        if progress:
+            progress(1, len(state.candidate_insights))
         return {"proof_objects": verify_batch(state.candidate_insights, state.dataset, config)}
 
     monkeypatch.setattr(service_module, "inprocess_verification_adapter", real_gateway)

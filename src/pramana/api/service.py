@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from dataclasses import replace
 from pathlib import Path
 from threading import BoundedSemaphore
 from typing import Any
 from uuid import UUID
 
 from pramana.analysis.schema_inference import SchemaProfile
-from pramana.api.models import ResultRow, RunResults
+from pramana.api.models import ColumnPreview, DataPreview, ResultRow, RunResults
 from pramana.api.repository import RunRepository
+from pramana.api.v1 import effect_strength, permutation_count, rejection_reason, v1_settings
 from pramana.common.logging import get_logger
 from pramana.contracts import ProofObject, Verdict
 from pramana.memory.config import MemorySettings
@@ -20,10 +22,47 @@ from pramana.orchestration.adapters import (
     celery_verification_adapter,
     inprocess_verification_adapter,
 )
+from pramana.orchestration.analysis_integration import native_analysis_adapters
 from pramana.orchestration.graph import build_graph, run_graph
 from pramana.orchestration.integration import configured_adapters
+from pramana.orchestration.memory_integration import MemoryIntegration
 from pramana.orchestration.run_lifecycle import new_run
 from pramana.orchestration.state import PramanaState, RunStatus
+
+
+class DataInputError(ValueError):
+    """A fixed, safe-to-display V1 data-quality message, not raw exception text."""
+
+
+def data_preview(state: PramanaState) -> DataPreview:
+    """Expose a bounded cleaned-data preview, not proposed or verified insights."""
+    schema = SchemaProfile.model_validate(state.schema_profile)
+    columns = [
+        ColumnPreview(
+            name=name,
+            role=column.role.value,
+            usable=column.usable_for_hypotheses,
+            reasons=column.reasons,
+        )
+        for name, column in schema.columns.items()
+    ]
+    columns.extend(
+        ColumnPreview(name=item["column"], role="excluded", usable=False, reasons=[item["reason"]])
+        for item in state.cleaning_report.get("columns_removed", [])
+    )
+    source = state.dataset.iloc[: v1_settings().preview_rows, :40].astype(object)
+    frame = source.where(source.notna(), "").astype(str)
+    rows = [
+        {str(key): str(value)[:160] for key, value in row.items()}
+        for row in frame.to_dict(orient="records")
+    ]
+    return DataPreview(
+        rows=len(state.dataset),
+        columns=len(state.dataset.columns),
+        detected_columns=columns[:100],
+        sample_rows=rows,
+        omitted_columns=max(0, len(columns) - 100),
+    )
 
 
 class RunService:
@@ -55,6 +94,7 @@ class RunService:
     def _run_workflow(self, run_id: UUID, path: Path, query: str | None) -> PramanaState:
         state = new_run(str(path), user_query=query)
         state.run_id = run_id
+        state.episode_mode = True  # Automatic hints; there is no episode-selection UI in V1.
 
         def memory_write(current: PramanaState, proofs: Sequence[ProofObject]) -> dict[str, Any]:
             if not proofs:
@@ -78,13 +118,71 @@ class RunService:
                 ]
             }
 
-        verify = (
-            inprocess_verification_adapter
-            if self.settings.api.verification_mode == "inprocess"
-            else celery_verification_adapter
+        def verify(current: PramanaState) -> Any:
+            self.repository.progress(run_id, f"Testing {len(current.candidate_insights)} claims")
+            if self.settings.api.verification_mode == "inprocess":
+                return inprocess_verification_adapter(
+                    current,
+                    progress=lambda i, total: self.repository.progress(
+                        run_id, f"Checking claim {i} of {total}"
+                    ),
+                )
+            return celery_verification_adapter(current)
+
+        adapters = configured_adapters(
+            verify=verify,
+            memory_write=memory_write,
+            data_dir=self.root,
+            analysis=native_analysis_adapters(
+                data_dir=self.root, candidate_limit=v1_settings().max_candidates
+            ),
+            memory=MemoryIntegration(self.store),
         )
-        adapters = configured_adapters(verify=verify, memory_write=memory_write, data_dir=self.root)
-        return run_graph(state, build_graph(adapters))
+
+        def ingest(current: PramanaState) -> Any:
+            self.repository.progress(run_id, "Reading data")
+            result = dict(adapters.ingest(current))
+            if result["dataset"].empty:
+                raise DataInputError("The file has no data rows. Upload a table with measurements.")
+            return result
+
+        def prepare(current: PramanaState) -> Any:
+            self.repository.progress(run_id, "Cleaning data and detecting column types")
+            result = dict(adapters.subagents(current))
+            prepared = PramanaState.model_validate({**current.model_dump(), **result})
+            schema = SchemaProfile.model_validate(prepared.schema_profile)
+            preview = data_preview(prepared)
+            self.repository.progress(
+                run_id,
+                "Data preview ready",
+                preview=preview,
+                past_lessons=prepared.retrieved_lessons,
+            )
+            if not schema.usable():
+                raise DataInputError("No usable measurement columns remain after cleaning.")
+            from pramana.verification.stats.effect_size import MAX_SENS_SLOPE_OBSERVATIONS
+
+            if len(prepared.dataset) > MAX_SENS_SLOPE_OBSERVATIONS and any(
+                item.is_time_like and item.usable_for_hypotheses for item in schema.columns.values()
+            ):
+                raise DataInputError(
+                    f"Trend analysis supports at most {MAX_SENS_SLOPE_OBSERVATIONS} rows. "
+                    "Upload a smaller, deliberately selected table; no rows were silently sampled."
+                )
+            return result
+
+        def analyze(current: PramanaState) -> Any:
+            self.repository.progress(run_id, "Proposing candidate claims")
+            return adapters.analyze(current)
+
+        def write(current: PramanaState, proofs: Sequence[ProofObject]) -> Any:
+            self.repository.progress(run_id, "Writing verified memory")
+            return memory_write(current, proofs)
+
+        selected = replace(
+            adapters, ingest=ingest, subagents=prepare, analyze=analyze, memory_write=write
+        )
+        return run_graph(state, build_graph(selected))
 
     def execute(self, run_id: UUID, path: Path, query: str | None) -> None:
         """Record failures as failures; never publish candidates that lack a proof."""
@@ -107,7 +205,19 @@ class RunService:
                     raise ValueError("proof does not match the run's unique verified candidates")
                 seen.add(proof.insight_id)
                 rows.append(
-                    ResultRow(insight_id=proof.insight_id, claim=candidate.claim, proof=proof)
+                    ResultRow(
+                        insight_id=proof.insight_id,
+                        claim=candidate.claim,
+                        proof=proof,
+                        explanation=rejection_reason(proof),
+                        effect_strength=effect_strength(proof),
+                        n_permutations=permutation_count(proof),
+                        complete_rows=(
+                            int(state.dataset.dropna(subset=candidate.variables).shape[0])
+                            if hasattr(state.dataset, "dropna")
+                            else None
+                        ),
+                    )
                 )
             if state.status not in {RunStatus.COMPLETED, RunStatus.DEGRADED, RunStatus.FAILED}:
                 raise ValueError("runner did not finish")
@@ -123,6 +233,19 @@ class RunService:
             error = (
                 "Some workflow steps failed; inspect the local run logs." if state.errors else None
             )
+            if state.verification_summary and state.verification_summary.generator_unavailable:
+                error = (
+                    "Verification generator unavailable. Check the configured provider credentials."
+                )
+            elif state.errors:
+                for failure in state.errors:
+                    if failure.error_type == "DataInputError":
+                        error = failure.message
+                    elif failure.node == "ingest":
+                        error = (
+                            "The file could not be read as a table. "
+                            "Check its format, encoding and row limit."
+                        )
             self.repository.update(run_id, state.status, error=error, results=results)
         except Exception as error:
             get_logger(component="api", run_id=str(run_id)).error(

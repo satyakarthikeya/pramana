@@ -8,11 +8,27 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from pramana.contracts import ProofObject, Verdict
+from pramana.memory.retrieval import RetrievedLesson
 from pramana.orchestration.state import RunStatus
 
 
 class Payload(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+class ColumnPreview(Payload):
+    name: str
+    role: str
+    usable: bool
+    reasons: list[str]
+
+
+class DataPreview(Payload):
+    rows: int
+    columns: int
+    detected_columns: list[ColumnPreview]
+    sample_rows: list[dict[str, str]]
+    omitted_columns: int = 0
 
 
 class RunView(Payload):
@@ -22,12 +38,19 @@ class RunView(Payload):
     created_at: datetime
     finished_at: datetime | None = None
     error: str | None = None
+    progress: str = "Queued"
+    preview: DataPreview | None = None
+    past_lessons: list[RetrievedLesson] = Field(default_factory=list)
 
 
 class ResultRow(Payload):
     insight_id: str
     claim: str
     proof: ProofObject
+    explanation: str | None = None
+    effect_strength: str | None = None
+    complete_rows: int | None = Field(default=None, ge=0)
+    n_permutations: int | None = Field(default=None, ge=1)
 
 
 class RunResults(Payload):

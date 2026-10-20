@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from pramana.api.routes import memory, results, runs
@@ -49,6 +49,17 @@ def create_app(*, service: RunService | None = None) -> FastAPI:
     def dashboard() -> FileResponse:
         """Serve the dashboard that consumes only public, read-only result interfaces."""
         return FileResponse(DASHBOARD_DIR / "index.html")
+
+    @application.get("/api/sample", include_in_schema=False)
+    def sample() -> Response:
+        """Download generated synthetic data; never ship restricted or participant data."""
+        from pramana.api.v1 import sample_frame
+
+        return Response(
+            sample_frame().to_csv(index=False),
+            media_type="text/csv",
+            headers={"Content-Disposition": 'attachment; filename="synthetic-sample.csv"'},
+        )
 
     return application
 
