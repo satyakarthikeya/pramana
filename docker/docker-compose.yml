@@ -12,6 +12,11 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       CHROMA_HOST: chromadb
       CHROMA_PORT: "8000"
+      PRAMANA_CHROMA_MODE: http
+      PRAMANA_API_VERIFICATION_MODE: celery
+      PRAMANA_ANALYSIS_ENGINE: ${PRAMANA_ANALYSIS_ENGINE:-deterministic}
+      PRAMANA_ANALYSIS_BASE_URL: http://host.docker.internal:11434
+      PRAMANA_ANALYSIS_MODEL: ${PRAMANA_ANALYSIS_MODEL:-gemma2:2b}
       PRAMANA_DATA_DIR: /data/pramana
     ports:
       - "8080:8080"
@@ -72,12 +77,9 @@ services:
     restart: unless-stopped
 
   chromadb:
-    image: chromadb/chroma:0.5.23
-    environment:
-      IS_PERSISTENT: "TRUE"
-      PERSIST_DIRECTORY: /chroma/chroma
+    image: chromadb/chroma:1.5.9
     volumes:
-      - chroma-data:/chroma/chroma
+      - chroma-data:/data
     networks:
       - storage
     restart: unless-stopped

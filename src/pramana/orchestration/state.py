@@ -48,6 +48,9 @@ class PramanaState(BaseModel):
     deadline_at: datetime | None = None
     dataset_ref: str | None = None
     user_query: str | None = None
+    episode_mode: bool = False
+    lesson_hints: list[str] = Field(default_factory=list)
+    retrieved_lessons: list[dict[str, Any]] = Field(default_factory=list)
     dataset: Any = None
     dataset_metadata: dict[str, Any] = Field(default_factory=dict)
     cleaning_report: dict[str, Any] = Field(default_factory=dict)

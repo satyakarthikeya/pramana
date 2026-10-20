@@ -57,7 +57,13 @@ def test_real_analysis_family_runs_through_gateway_and_pass_only_memory_boundary
         memory_write=memory_write,
         data_dir=tmp_path,
     )
-    final = run_graph(make_run(str(source)), build_graph(adapters))
+    state = make_run(str(source))
+    # Real subprocess tests use the production budget, not the 30-second unit budget.
+    # Five 10,000-resample tests exceed that unit budget on a CPU-only machine.
+    from pramana.common.config import load_runtime_config
+
+    state.runtime = state.runtime.model_copy(update={"run": load_runtime_config().run})
+    final = run_graph(state, build_graph(adapters))
 
     assert final.status is RunStatus.COMPLETED
     assert final.candidate_insights

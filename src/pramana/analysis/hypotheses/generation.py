@@ -23,6 +23,9 @@ Scope: scope/SCOPE_P_Rohith.md 2, component 4
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from uuid import UUID
+
 import pandas as pd
 
 from pramana.analysis.config import AnalysisConfig, HypothesesConfig, load_config
@@ -48,6 +51,9 @@ def generate_candidates(
     *,
     dataset_ref: str,
     claim_screen: ClaimScreen | None = None,
+    run_id: str | UUID | None = None,
+    user_query: str | None = None,
+    lesson_hints: Sequence[str] = (),
 ) -> list[CandidateInsight]:
     """Run every enabled strategy over `frame` and return one capped batch.
 
@@ -67,6 +73,19 @@ def generate_candidates(
     in a fixed order, and the cap breaks ties on `insight_id` so an equal-effect pair
     cannot swap places between runs.
     """
+    if config.proposer.engine == "ollama":
+        from pramana.analysis.hypotheses.llm_proposer import generate_llm_candidates
+
+        return generate_llm_candidates(
+            frame,
+            schema,
+            config,
+            dataset_ref=dataset_ref,
+            run_id=run_id,
+            user_query=user_query,
+            lesson_hints=lesson_hints,
+            claim_screen=claim_screen,
+        )
     toggles = config.strategies
     candidates: list[CandidateInsight] = []
     seen: set[str] = set()
@@ -93,6 +112,9 @@ def analyse(
     dataset_ref: str,
     config: AnalysisConfig | None = None,
     claim_screen: ClaimScreen | None = None,
+    run_id: str | UUID | None = None,
+    user_query: str | None = None,
+    lesson_hints: Sequence[str] = (),
 ) -> tuple[SchemaProfile, list[CandidateInsight]]:
     """Infer the schema and propose candidates in one call -- the module's front door.
 
@@ -110,5 +132,8 @@ def analyse(
         resolved.hypotheses,
         dataset_ref=dataset_ref,
         claim_screen=claim_screen,
+        run_id=run_id,
+        user_query=user_query,
+        lesson_hints=lesson_hints,
     )
     return schema, candidates

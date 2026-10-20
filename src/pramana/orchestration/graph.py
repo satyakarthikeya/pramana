@@ -13,7 +13,7 @@ from pramana.common.logging import (
     configure_logging,
     get_logger,
 )
-from pramana.contracts import Verdict
+from pramana.contracts import GateOutcome, Verdict
 from pramana.orchestration.adapters import (
     RetryableWorkflowError,
     WorkflowAdapters,
@@ -60,9 +60,34 @@ def _guarded(
         current = state
         for attempt in range(1, max_attempts + 1):
             try:
-                if current.deadline_at and datetime.now(UTC) >= current.deadline_at:
+                if (
+                    name != "report"
+                    and current.deadline_at
+                    and datetime.now(UTC) >= current.deadline_at
+                ):
                     raise TimeoutError("Graph-level deadline exceeded")
-                update = dict(function(current))
+                client = get_langfuse_client(current.runtime.langfuse)
+                with traced_run(client, str(current.run_id), name=f"workflow-{name}"):
+                    update = dict(function(current))
+                if name == "verification":
+                    failed_ids = [
+                        proof.insight_id
+                        for proof in update.get("proof_objects", [])
+                        if proof.gate_outcome is GateOutcome.INCONCLUSIVE
+                        and proof.failure_reason
+                    ]
+                    if failed_ids:
+                        current = record_failure(
+                            current,
+                            name,
+                            RuntimeError(
+                                "Verification execution exhausted its retries for: "
+                                + ", ".join(failed_ids)
+                            ),
+                            attempt,
+                            exhausted=True,
+                        )
+                        update["status"] = current.status
                 update["errors"] = list(current.errors)
                 update["retry_counts"] = {**current.retry_counts, name: attempt - 1}
                 return update

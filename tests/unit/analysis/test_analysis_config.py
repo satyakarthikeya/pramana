@@ -132,6 +132,7 @@ def test_ordinal_cap_above_categorical_cap_is_refused() -> None:
 def test_group_level_bounds_must_be_ordered() -> None:
     with pytest.raises(ValidationError, match="must not exceed"):
         HypothesesConfig(
+            proposer=load_config().hypotheses.proposer,
             max_candidates_per_run=50,
             strategy_min_candidates={"correlation": 1, "group_difference": 1, "trend": 1},
             strategies={"correlation": True, "group_difference": True, "trend": True},

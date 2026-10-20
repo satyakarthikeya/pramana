@@ -24,6 +24,14 @@ because the gateway downstream filters them. It must never self-certify an insig
 
 ## 3. Out of scope (do NOT touch)
 
+**19 October 2026 owner direction:** Rohith authorized the D2/W6 local LLM proposer
+in `docs/DECISIONS_LLM_ROLES.md`. The deterministic strategies above remain the
+explicit offline baseline. In Ollama mode the model chooses structured claims from
+univariate summaries; code renders and validates them. No silent fallback, raw-row
+prompts, model statistics, verdicts or verification changes are permitted.
+Rohith subsequently relayed Satya's approval for local claim-generation audits
+without Langfuse; explicit local/Langfuse selection is recorded in AGENTS.md section 2.
+
 - Any verification logic: falsification tests, p-values as VERDICTS, BH-FDR, evidence scoring (Satya Karthikeya's module). The exploratory stats this module computes are hints, never verdicts.
 - LangGraph graph structure, Celery/Redis plumbing, Docker (B. Karthikeya's module)
 - ChromaDB memory framework, deployment, dashboard (Karthik Reddy's module)

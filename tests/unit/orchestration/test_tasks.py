@@ -143,3 +143,29 @@ def test_worker_logging_uses_runtime_level(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setattr(tasks, "configure_logging", levels.append)
     tasks.configure_worker_logging()
     assert levels == [tasks._runtime.logging.level]
+
+
+def test_invalid_task_input_still_clears_run_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    from structlog.contextvars import get_contextvars
+
+    monkeypatch.setattr(tasks, "get_langfuse_client", lambda _settings: None)
+    with pytest.raises(ValueError):
+        tasks.verify_batch_task.run("bad-input-run", [{"insight_id": "incomplete"}], "toy.csv")
+    assert "run_id" not in get_contextvars()
+
+
+def test_task_trace_uses_the_graph_run_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    from contextlib import contextmanager
+
+    seen: list[tuple[str, str]] = []
+
+    @contextmanager
+    def traced(_client: Any, run_id: str, name: str) -> Any:
+        seen.append((run_id, name))
+        yield None
+
+    monkeypatch.setattr(tasks, "get_langfuse_client", lambda _settings: object())
+    monkeypatch.setattr(tasks, "traced_run", traced)
+    monkeypatch.setattr(tasks, "_handler", lambda _request: {"proof_objects": []})
+    tasks.verify_batch_task.run("same-graph-run", [], "toy.csv")
+    assert seen == [("same-graph-run", "verification-task")]

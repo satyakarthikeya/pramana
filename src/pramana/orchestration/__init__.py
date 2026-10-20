@@ -11,11 +11,13 @@ from pramana.orchestration.analysis_integration import (
 )
 from pramana.orchestration.graph import build_graph, run_graph, run_stub_graph, stream_graph
 from pramana.orchestration.integration import configured_adapters, run_configured_workflow
+from pramana.orchestration.memory_integration import MemoryIntegration
 from pramana.orchestration.run_lifecycle import new_run
 from pramana.orchestration.state import PramanaState, RunStatus
 
 __all__ = [
     "AnalysisNodeAdapters",
+    "MemoryIntegration",
     "PramanaState",
     "RunStatus",
     "WorkflowAdapters",

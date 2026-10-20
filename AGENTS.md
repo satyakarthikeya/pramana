@@ -33,6 +33,12 @@ Where each model sits in the flow, and what is built, is in `PROJECT.md` §2.
 - **Gemma (local)** = schema inference and cleaning help (label a column, suggest a step that code applies and logs), lesson abstraction, other cheap sub-agent tasks. It never edits data directly. Do not use it for verification.
 - **No silent model substitution.** A run configured for a model either gets that model's output or fails closed (NOT_TESTABLE / a recorded error). The template generator is chosen explicitly in config, never used as a quiet fallback.
 - All LLM calls must be traced through **Langfuse**, under the run's `run_id`.
+  **Local analysis-proposer exception:** Rohith relayed Satya's authorization on
+  19 October 2026 to run claim generation locally without Langfuse. Explicit
+  `hypotheses.proposer.trace_backend: local` must record each attempt, model,
+  parameters and exact response under its run ID in ignored local storage.
+  Choosing `langfuse` still requires valid credentials and never silently falls
+  back to local logging. Other model roles and the verification rules are unchanged.
 
 ## 3. Statistics correctness rules (non-negotiable)
 

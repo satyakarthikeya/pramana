@@ -20,6 +20,10 @@ def test_dev_compose_contains_required_services_and_worker_limits() -> None:
     assert "run-data:/data/pramana" in services["api"]["volumes"]
     assert compose["networks"]["queue"]["internal"] is True
     assert compose["networks"]["storage"]["internal"] is True
+    assert services["api"]["environment"]["PRAMANA_CHROMA_MODE"] == "http"
+    assert services["chromadb"]["image"] == "chromadb/chroma:1.5.9"
+    assert services["chromadb"]["volumes"] == ["chroma-data:/data"]
+    assert "chromadb==1.5.9" in (DOCKER_DIR / "Dockerfile.api").read_text(encoding="utf-8")
 
 
 def test_dockerfiles_use_non_root_user() -> None:
@@ -33,10 +37,40 @@ def test_dockerfiles_use_non_root_user() -> None:
 
 
 def test_worker_can_read_api_dataframe_artifacts() -> None:
-    requirements = (PROJECT_ROOT / "requirements" / "orchestration.txt").read_text(
-        encoding="utf-8"
-    )
+    requirements = (PROJECT_ROOT / "requirements" / "orchestration.txt").read_text(encoding="utf-8")
     assert "pyarrow>=16.0" in requirements
+
+
+def test_worker_startup_caps_numerical_threads_in_sanitized_children() -> None:
+    import os
+    import subprocess
+    import sys
+
+    worker_file = (DOCKER_DIR / "Dockerfile.worker").read_text(encoding="utf-8")
+    assert "COPY docker/worker_sitecustomize.py" in worker_file
+    # A fresh interpreter with only PATH/PYTHONPATH models the executor's clean env.
+    # It must load the hook before a numerical import, without relying on parent vars.
+    clean_environment = {
+        name: os.environ[name] for name in ("PATH", "SYSTEMROOT") if name in os.environ
+    }
+    # Load the exact image hook as sitecustomize through a temporary module path.
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as directory:
+        Path(directory, "sitecustomize.py").write_text(
+            (DOCKER_DIR / "worker_sitecustomize.py").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        clean_environment["PYTHONPATH"] = directory
+        result = subprocess.run(
+            [sys.executable, "-c", "import os; print(os.environ['OPENBLAS_NUM_THREADS'])"],
+            env=clean_environment,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    assert result.stdout.strip() == "1"
 
 
 def test_docker_build_context_excludes_secrets_and_local_data() -> None:

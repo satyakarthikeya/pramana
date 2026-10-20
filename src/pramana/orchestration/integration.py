@@ -30,6 +30,8 @@ from pramana.orchestration.analysis_integration import (
     AnalysisNodeAdapters,
     native_analysis_adapters,
 )
+from pramana.orchestration.memory_integration import MemoryIntegration
+from pramana.orchestration.run_lifecycle import state_copy
 from pramana.orchestration.state import PramanaState
 
 Handler = Callable[[Mapping[str, Any]], Mapping[str, Any]]
@@ -104,6 +106,7 @@ class AnalysisRequest(_IntegrationModel):
     dataset_ref: str = Field(min_length=1)
     schema_profile: dict[str, Any]
     user_query: str | None = None
+    lesson_hints: list[str] = Field(default_factory=list)
 
     @field_validator("dataset")
     @classmethod
@@ -132,6 +135,8 @@ class MemoryWriteRequest(_IntegrationModel):
     run_id: UUID
     dataset_ref: str | None
     proof_objects: list[ProofObject]
+    candidate_insights: list[CandidateInsight] = Field(default_factory=list)
+    schema_profile: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def only_pass_proofs(self) -> MemoryWriteRequest:
@@ -227,6 +232,7 @@ def _handler_analysis_adapters() -> AnalysisNodeAdapters:
                 dataset_ref=state.dataset_ref,
                 schema_profile=state.schema_profile,
                 user_query=state.user_query,
+                lesson_hints=state.lesson_hints,
             ),
             AnalysisResult,
         )
@@ -269,32 +275,45 @@ def configured_adapters(
     memory_write: MemoryAdapter | None = None,
     analysis: AnalysisNodeAdapters | None = None,
     data_dir: Path | None = None,
+    memory: MemoryIntegration | None = None,
 ) -> WorkflowAdapters:
     """Build production adapters, using Rohith's native analysis API by default."""
     selected_analysis = analysis or _analysis_adapters(data_dir)
+    selected_memory = memory or MemoryIntegration()
     memory_handler = None
-    if memory_write is None:
+    if memory_write is None and os.getenv(MEMORY_HANDLER_ENV, "").strip():
         memory_handler = load_handler(MEMORY_HANDLER_ENV, "pramana.memory")
 
     def configured_memory_write(
         state: PramanaState, proofs: Sequence[ProofObject]
     ) -> Mapping[str, Any]:
         if memory_handler is None:
-            raise AssertionError("configured memory handler was not loaded")
+            return selected_memory.write(state, proofs)
         result = _response(
             memory_handler,
             MemoryWriteRequest(
                 run_id=state.run_id,
                 dataset_ref=state.dataset_ref,
                 proof_objects=list(proofs),
+                candidate_insights=state.candidate_insights,
+                schema_profile=state.schema_profile,
             ),
             MemoryWriteResult,
         )
         return result.model_dump(mode="python")
 
+    def prepare_with_memory(state: PramanaState) -> Mapping[str, Any]:
+        update = dict(selected_analysis.prepare(state))
+        if state.episode_mode:
+            prepared = state_copy(state, update)
+            update.update(selected_memory.retrieve(prepared))
+        else:
+            update.update(lesson_hints=[], retrieved_lessons=[])
+        return update
+
     return WorkflowAdapters(
         ingest=selected_analysis.ingest,
-        subagents=selected_analysis.prepare,
+        subagents=prepare_with_memory,
         analyze=selected_analysis.analyze,
         verify=verify,
         memory_write=memory_write or configured_memory_write,
@@ -307,10 +326,13 @@ def run_configured_workflow(
     *,
     user_query: str | None = None,
     runtime: RuntimeConfig | None = None,
+    episode_mode: bool = False,
 ) -> PramanaState:
     """Run the production graph through configured teammate entrypoints."""
     from pramana.orchestration.graph import build_graph, run_graph
     from pramana.orchestration.run_lifecycle import new_run
 
-    state = new_run(dataset_ref, runtime=runtime, user_query=user_query)
+    state = new_run(
+        dataset_ref, runtime=runtime, user_query=user_query, episode_mode=episode_mode
+    )
     return run_graph(state, build_graph(configured_adapters()))

@@ -25,9 +25,9 @@ import pandas as pd
 from pramana.analysis.cleaning import clean_dataset
 from pramana.analysis.config import load_config
 from pramana.analysis.dataset_artifacts import persist_cleaned_dataset
-from pramana.analysis.hypotheses.generation import analyse
+from pramana.analysis.hypotheses.generation import generate_candidates
 from pramana.analysis.ingestion import load_dataset
-from pramana.analysis.schema_inference import describe_unusable, infer_schema
+from pramana.analysis.schema_inference import SchemaProfile, describe_unusable, infer_schema
 
 
 def cleaned_dataset_ref(source_ref: str, frame: pd.DataFrame) -> str:
@@ -74,5 +74,23 @@ def prepare(request: Mapping[str, Any]) -> dict[str, Any]:
 
 def analyze(request: Mapping[str, Any]) -> dict[str, Any]:
     """`AnalysisRequest` -> `AnalysisResult`: propose one capped candidate batch."""
-    _, candidates = analyse(request["dataset"], dataset_ref=str(request["dataset_ref"]))
+    frame = request["dataset"]
+    config = load_config()
+    # The mapping boundary may include cleaning audit fields alongside the schema.
+    raw_schema = request.get("schema_profile")
+    schema = (
+        SchemaProfile.model_validate(
+            {name: raw_schema[name] for name in SchemaProfile.model_fields}
+        )
+        if isinstance(raw_schema, Mapping)
+        else infer_schema(frame, config.schema_inference)
+    )
+    candidates = generate_candidates(
+        frame,
+        schema,
+        config.hypotheses,
+        dataset_ref=str(request["dataset_ref"]),
+        run_id=str(request["run_id"]),
+        user_query=request.get("user_query"),
+    )
     return {"candidate_insights": candidates}

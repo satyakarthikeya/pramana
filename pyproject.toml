@@ -15,6 +15,9 @@ Documentation = "PROJECT.md"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"pramana.dashboard" = ["static/*.html", "static/*.css", "static/*.js"]
+
 # Dependencies are managed in requirements/ (one file per module).
 # See requirements/OWNERSHIP.md for why they are split that way.
 
