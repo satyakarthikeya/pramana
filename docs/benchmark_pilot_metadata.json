@@ -1,0 +1,2133 @@
+{
+  "phase": "approved_pilot_10",
+  "datasets": [
+    {
+      "dataset_id": "nhanes_2017_bmx_01",
+      "source": "NHANES",
+      "cycle": [
+        "2017-2018"
+      ],
+      "filters_applied": [
+        "RIDAGEYR >= 20",
+        "Primary module: BMX; left join remaining modules on SEQN",
+        "Whole-row sample: 1000 per cycle, seed + cycle year"
+      ],
+      "extraction_date": "2026-10-18T11:03:14.155640+00:00",
+      "row_count": 1000,
+      "column_count": 15,
+      "columns": {
+        "SEQN": {
+          "dtype": "id",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDDSRVYR": {
+          "dtype": "ordinal",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIDAGEYR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIAGENDR": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIDRETH3": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "DMDEDUC2": {
+          "dtype": "ordinal",
+          "missing_pct": 0.2,
+          "missing_count": 2,
+          "nonresponse_codes": [
+            7.0,
+            9.0
+          ],
+          "nonresponse_replaced": 2
+        },
+        "INDFMPIR": {
+          "dtype": "numeric",
+          "missing_pct": 12.1,
+          "missing_count": 121,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "WTINT2YR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "WTMEC2YR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDMVSTRA": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDMVPSU": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BMXWT": {
+          "dtype": "numeric",
+          "missing_pct": 1.9,
+          "missing_count": 19,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BMXHT": {
+          "dtype": "numeric",
+          "missing_pct": 2.0,
+          "missing_count": 20,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BMXBMI": {
+          "dtype": "numeric",
+          "missing_pct": 2.1,
+          "missing_count": 21,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BMXWAIST": {
+          "dtype": "numeric",
+          "missing_pct": 6.4,
+          "missing_count": 64,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        }
+      },
+      "time_column": null,
+      "weight_columns": [
+        "WTINT2YR",
+        "WTMEC2YR"
+      ],
+      "id_columns": [
+        "SEQN"
+      ],
+      "design_columns": [
+        "SDMVSTRA",
+        "SDMVPSU"
+      ],
+      "sampling_seed": 20261018,
+      "coverage": "numeric_pairs",
+      "duplicates_removed": 0,
+      "sources": [
+        {
+          "component": "DEMO_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DEMO_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DEMO_J.htm",
+          "data_sha256": "c0b46e0345ea19404928656277c8b0d10b0cca348a9b2fe4fc3c67e8b7ee73ec",
+          "codebook_sha256": "07f8f1e7f884fab180ccf53c705652de9d663833fdad85b0d759919c8464cde0"
+        },
+        {
+          "component": "BMX_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/BMX_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/BMX_J.htm",
+          "data_sha256": "8d675e42d8826ac98714b2c3dd4c5138a5e353fb4424f7eff5e6db4a01ce838a",
+          "codebook_sha256": "557b2ad6946237b7a169819006e7126e48e25cdb45926605cb368342c6773689"
+        }
+      ],
+      "contamination_screen": {
+        "accepted": true,
+        "notes": [
+          "Direct public-use NHANES component extracts; not Iris, Titanic, Wine, Boston, mtcars or the packaged diabetes ML benchmark.",
+          "No Kaggle/repackaged ML benchmark, MIMIC or PhysioNet source accepted.",
+          "NHANES may occur in model training; source screening cannot prove otherwise.",
+          "Pilot extracts share participants and are not independent population samples."
+        ]
+      },
+      "license": {
+        "access": "Public-use NHANES; CDC-produced materials generally public domain",
+        "policy_url": "https://www.cdc.gov/other/agencymaterials.html",
+        "restrictions": "No re-identification; no restricted files or NFHS microdata"
+      },
+      "extract_sha256": "2d55c7faef9c93a9bca675be00d3b1b150569d3faad567482e960ba2ef66e513",
+      "cohort_sha256": "8bdd92e71c97801396d6719e5717f4b688373893b163baa83b0cb046e2d0c1d7",
+      "transformations": [
+        "Documented per-column, per-cycle Refused/Don't know codes -> empty CSV fields",
+        "Exact duplicate removal only; real missingness retained; original column names",
+        "No imputation, extra value filtering, column shuffling or injection",
+        "Pooled cycle weights retained unchanged; not a population-estimation dataset"
+      ],
+      "pandas_version": "3.0.5"
+    },
+    {
+      "dataset_id": "nhanes_2017_bpx_02",
+      "source": "NHANES",
+      "cycle": [
+        "2017-2018"
+      ],
+      "filters_applied": [
+        "RIDAGEYR >= 20",
+        "Primary module: BPX; left join remaining modules on SEQN",
+        "Whole-row sample: 1000 per cycle, seed + cycle year"
+      ],
+      "extraction_date": "2026-10-18T11:03:14.471055+00:00",
+      "row_count": 1000,
+      "column_count": 17,
+      "columns": {
+        "SEQN": {
+          "dtype": "id",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDDSRVYR": {
+          "dtype": "ordinal",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIDAGEYR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIAGENDR": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIDRETH3": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "DMDEDUC2": {
+          "dtype": "ordinal",
+          "missing_pct": 0.2,
+          "missing_count": 2,
+          "nonresponse_codes": [
+            7.0,
+            9.0
+          ],
+          "nonresponse_replaced": 2
+        },
+        "INDFMPIR": {
+          "dtype": "numeric",
+          "missing_pct": 12.1,
+          "missing_count": 121,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "WTINT2YR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "WTMEC2YR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDMVSTRA": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDMVPSU": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BPXSY1": {
+          "dtype": "numeric",
+          "missing_pct": 11.3,
+          "missing_count": 113,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BPXSY2": {
+          "dtype": "numeric",
+          "missing_pct": 7.1,
+          "missing_count": 71,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BPXSY3": {
+          "dtype": "numeric",
+          "missing_pct": 7.1,
+          "missing_count": 71,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BPXDI1": {
+          "dtype": "numeric",
+          "missing_pct": 11.3,
+          "missing_count": 113,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BPXDI2": {
+          "dtype": "numeric",
+          "missing_pct": 7.1,
+          "missing_count": 71,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BPXDI3": {
+          "dtype": "numeric",
+          "missing_pct": 7.1,
+          "missing_count": 71,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        }
+      },
+      "time_column": null,
+      "weight_columns": [
+        "WTINT2YR",
+        "WTMEC2YR"
+      ],
+      "id_columns": [
+        "SEQN"
+      ],
+      "design_columns": [
+        "SDMVSTRA",
+        "SDMVPSU"
+      ],
+      "sampling_seed": 20261018,
+      "coverage": "numeric_pairs",
+      "duplicates_removed": 0,
+      "sources": [
+        {
+          "component": "DEMO_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DEMO_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DEMO_J.htm",
+          "data_sha256": "c0b46e0345ea19404928656277c8b0d10b0cca348a9b2fe4fc3c67e8b7ee73ec",
+          "codebook_sha256": "07f8f1e7f884fab180ccf53c705652de9d663833fdad85b0d759919c8464cde0"
+        },
+        {
+          "component": "BPX_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/BPX_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/BPX_J.htm",
+          "data_sha256": "f98f1d9a4c18173e715c749b4294f6f1525140d5ad5751316bb17cc038fb3423",
+          "codebook_sha256": "a7583578150897efec8748a3bc05ecbc6e54d5a0b5a32cdfda87c883aba56a37"
+        }
+      ],
+      "contamination_screen": {
+        "accepted": true,
+        "notes": [
+          "Direct public-use NHANES component extracts; not Iris, Titanic, Wine, Boston, mtcars or the packaged diabetes ML benchmark.",
+          "No Kaggle/repackaged ML benchmark, MIMIC or PhysioNet source accepted.",
+          "NHANES may occur in model training; source screening cannot prove otherwise.",
+          "Pilot extracts share participants and are not independent population samples."
+        ]
+      },
+      "license": {
+        "access": "Public-use NHANES; CDC-produced materials generally public domain",
+        "policy_url": "https://www.cdc.gov/other/agencymaterials.html",
+        "restrictions": "No re-identification; no restricted files or NFHS microdata"
+      },
+      "extract_sha256": "20fdcf52c51d5bd13d96e2968c6c4f8859723f1d9b0b6b929a6a9490e97eee5f",
+      "cohort_sha256": "8bdd92e71c97801396d6719e5717f4b688373893b163baa83b0cb046e2d0c1d7",
+      "transformations": [
+        "Documented per-column, per-cycle Refused/Don't know codes -> empty CSV fields",
+        "Exact duplicate removal only; real missingness retained; original column names",
+        "No imputation, extra value filtering, column shuffling or injection",
+        "Pooled cycle weights retained unchanged; not a population-estimation dataset"
+      ],
+      "pandas_version": "3.0.5"
+    },
+    {
+      "dataset_id": "nhanes_2017_biopro_03",
+      "source": "NHANES",
+      "cycle": [
+        "2017-2018"
+      ],
+      "filters_applied": [
+        "RIDAGEYR >= 20",
+        "Primary module: BIOPRO; left join remaining modules on SEQN",
+        "Whole-row sample: 1000 per cycle, seed + cycle year"
+      ],
+      "extraction_date": "2026-10-18T11:03:14.825712+00:00",
+      "row_count": 1000,
+      "column_count": 19,
+      "columns": {
+        "SEQN": {
+          "dtype": "id",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDDSRVYR": {
+          "dtype": "ordinal",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIDAGEYR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIAGENDR": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIDRETH3": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "DMDEDUC2": {
+          "dtype": "ordinal",
+          "missing_pct": 0.2,
+          "missing_count": 2,
+          "nonresponse_codes": [
+            7.0,
+            9.0
+          ],
+          "nonresponse_replaced": 2
+        },
+        "INDFMPIR": {
+          "dtype": "numeric",
+          "missing_pct": 12.1,
+          "missing_count": 121,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "WTINT2YR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "WTMEC2YR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDMVSTRA": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDMVPSU": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "LBXSAL": {
+          "dtype": "numeric",
+          "missing_pct": 6.9,
+          "missing_count": 69,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "LBXSATSI": {
+          "dtype": "numeric",
+          "missing_pct": 6.9,
+          "missing_count": 69,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "LBXSASSI": {
+          "dtype": "numeric",
+          "missing_pct": 7.3,
+          "missing_count": 73,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "LBXSCR": {
+          "dtype": "numeric",
+          "missing_pct": 6.9,
+          "missing_count": 69,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "LBXSGL": {
+          "dtype": "numeric",
+          "missing_pct": 7.000000000000001,
+          "missing_count": 70,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "LBXSUA": {
+          "dtype": "numeric",
+          "missing_pct": 7.000000000000001,
+          "missing_count": 70,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "LBXSTP": {
+          "dtype": "numeric",
+          "missing_pct": 7.000000000000001,
+          "missing_count": 70,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "LBXSTR": {
+          "dtype": "numeric",
+          "missing_pct": 7.000000000000001,
+          "missing_count": 70,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        }
+      },
+      "time_column": null,
+      "weight_columns": [
+        "WTINT2YR",
+        "WTMEC2YR"
+      ],
+      "id_columns": [
+        "SEQN"
+      ],
+      "design_columns": [
+        "SDMVSTRA",
+        "SDMVPSU"
+      ],
+      "sampling_seed": 20261018,
+      "coverage": "numeric_pairs",
+      "duplicates_removed": 0,
+      "sources": [
+        {
+          "component": "DEMO_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DEMO_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DEMO_J.htm",
+          "data_sha256": "c0b46e0345ea19404928656277c8b0d10b0cca348a9b2fe4fc3c67e8b7ee73ec",
+          "codebook_sha256": "07f8f1e7f884fab180ccf53c705652de9d663833fdad85b0d759919c8464cde0"
+        },
+        {
+          "component": "BIOPRO_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/BIOPRO_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/BIOPRO_J.htm",
+          "data_sha256": "5bcd5722c1892883b96a9d7fed0befadabacae313f800fadc0133cd5dd00c4c6",
+          "codebook_sha256": "9943388b7a851d278f0c0d608a0ca1d44cf44185b28ae582d3a8e37cb400a4ab"
+        }
+      ],
+      "contamination_screen": {
+        "accepted": true,
+        "notes": [
+          "Direct public-use NHANES component extracts; not Iris, Titanic, Wine, Boston, mtcars or the packaged diabetes ML benchmark.",
+          "No Kaggle/repackaged ML benchmark, MIMIC or PhysioNet source accepted.",
+          "NHANES may occur in model training; source screening cannot prove otherwise.",
+          "Pilot extracts share participants and are not independent population samples."
+        ]
+      },
+      "license": {
+        "access": "Public-use NHANES; CDC-produced materials generally public domain",
+        "policy_url": "https://www.cdc.gov/other/agencymaterials.html",
+        "restrictions": "No re-identification; no restricted files or NFHS microdata"
+      },
+      "extract_sha256": "806ce0629c713ea4222cbcc29fc2516866484c9fca77138da8e200bf6e57d8bf",
+      "cohort_sha256": "8bdd92e71c97801396d6719e5717f4b688373893b163baa83b0cb046e2d0c1d7",
+      "transformations": [
+        "Documented per-column, per-cycle Refused/Don't know codes -> empty CSV fields",
+        "Exact duplicate removal only; real missingness retained; original column names",
+        "No imputation, extra value filtering, column shuffling or injection",
+        "Pooled cycle weights retained unchanged; not a population-estimation dataset"
+      ],
+      "pandas_version": "3.0.5"
+    },
+    {
+      "dataset_id": "nhanes_2017_diq_ghb_04",
+      "source": "NHANES",
+      "cycle": [
+        "2017-2018"
+      ],
+      "filters_applied": [
+        "RIDAGEYR >= 20",
+        "Primary module: DIQ; left join remaining modules on SEQN",
+        "Whole-row sample: 1000 per cycle, seed + cycle year"
+      ],
+      "extraction_date": "2026-10-18T11:03:15.373980+00:00",
+      "row_count": 1000,
+      "column_count": 16,
+      "columns": {
+        "SEQN": {
+          "dtype": "id",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDDSRVYR": {
+          "dtype": "ordinal",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIDAGEYR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIAGENDR": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIDRETH3": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "DMDEDUC2": {
+          "dtype": "ordinal",
+          "missing_pct": 0.1,
+          "missing_count": 1,
+          "nonresponse_codes": [
+            7.0,
+            9.0
+          ],
+          "nonresponse_replaced": 1
+        },
+        "INDFMPIR": {
+          "dtype": "numeric",
+          "missing_pct": 16.1,
+          "missing_count": 161,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "WTINT2YR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "WTMEC2YR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDMVSTRA": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDMVPSU": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "DIQ010": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [
+            7.0,
+            9.0
+          ],
+          "nonresponse_replaced": 0
+        },
+        "DIQ160": {
+          "dtype": "categorical",
+          "missing_pct": 19.6,
+          "missing_count": 196,
+          "nonresponse_codes": [
+            7.0,
+            9.0
+          ],
+          "nonresponse_replaced": 1
+        },
+        "DIQ050": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [
+            7.0,
+            9.0
+          ],
+          "nonresponse_replaced": 0
+        },
+        "DIQ070": {
+          "dtype": "categorical",
+          "missing_pct": 68.30000000000001,
+          "missing_count": 683,
+          "nonresponse_codes": [
+            7.0,
+            9.0
+          ],
+          "nonresponse_replaced": 0
+        },
+        "LBXGH": {
+          "dtype": "numeric",
+          "missing_pct": 9.0,
+          "missing_count": 90,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        }
+      },
+      "time_column": null,
+      "weight_columns": [
+        "WTINT2YR",
+        "WTMEC2YR"
+      ],
+      "id_columns": [
+        "SEQN"
+      ],
+      "design_columns": [
+        "SDMVSTRA",
+        "SDMVPSU"
+      ],
+      "sampling_seed": 20261018,
+      "coverage": "group_differences",
+      "duplicates_removed": 0,
+      "sources": [
+        {
+          "component": "DEMO_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DEMO_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DEMO_J.htm",
+          "data_sha256": "c0b46e0345ea19404928656277c8b0d10b0cca348a9b2fe4fc3c67e8b7ee73ec",
+          "codebook_sha256": "07f8f1e7f884fab180ccf53c705652de9d663833fdad85b0d759919c8464cde0"
+        },
+        {
+          "component": "DIQ_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DIQ_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DIQ_J.htm",
+          "data_sha256": "1ecbf5360dfc331d1efbf32198553dc30e9a1f4cff0a907ed30ca72bac797f89",
+          "codebook_sha256": "d2545b2ef455fabf4f5ef8873b9c46d2ce5e599424f3f7d6bec236a57bf0d869"
+        },
+        {
+          "component": "GHB_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/GHB_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/GHB_J.htm",
+          "data_sha256": "35f07094573a0061a03ed609a5a363b34eb1b1c7065d1623b43d72e132a8a654",
+          "codebook_sha256": "b9f90ef7aa539fe98edc776818ddfbfc4ee9f88ecf5c21ba168c5de8116e174d"
+        }
+      ],
+      "contamination_screen": {
+        "accepted": true,
+        "notes": [
+          "Direct public-use NHANES component extracts; not Iris, Titanic, Wine, Boston, mtcars or the packaged diabetes ML benchmark.",
+          "No Kaggle/repackaged ML benchmark, MIMIC or PhysioNet source accepted.",
+          "NHANES may occur in model training; source screening cannot prove otherwise.",
+          "Pilot extracts share participants and are not independent population samples."
+        ]
+      },
+      "license": {
+        "access": "Public-use NHANES; CDC-produced materials generally public domain",
+        "policy_url": "https://www.cdc.gov/other/agencymaterials.html",
+        "restrictions": "No re-identification; no restricted files or NFHS microdata"
+      },
+      "extract_sha256": "6e7bf7a3968852eb03014c144d3ed724ded4917883a0e2d00611d37b058c070d",
+      "cohort_sha256": "93a3eada091bea3f100bbc776fb4bb2b213256d060fe101ee4f042fc8c38c283",
+      "transformations": [
+        "Documented per-column, per-cycle Refused/Don't know codes -> empty CSV fields",
+        "Exact duplicate removal only; real missingness retained; original column names",
+        "No imputation, extra value filtering, column shuffling or injection",
+        "Pooled cycle weights retained unchanged; not a population-estimation dataset"
+      ],
+      "pandas_version": "3.0.5"
+    },
+    {
+      "dataset_id": "nhanes_2017_smq_bmx_05",
+      "source": "NHANES",
+      "cycle": [
+        "2017-2018"
+      ],
+      "filters_applied": [
+        "RIDAGEYR >= 20",
+        "Primary module: SMQ; left join remaining modules on SEQN",
+        "Whole-row sample: 1000 per cycle, seed + cycle year"
+      ],
+      "extraction_date": "2026-10-18T11:03:15.728991+00:00",
+      "row_count": 1000,
+      "column_count": 17,
+      "columns": {
+        "SEQN": {
+          "dtype": "id",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDDSRVYR": {
+          "dtype": "ordinal",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIDAGEYR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIAGENDR": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIDRETH3": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "DMDEDUC2": {
+          "dtype": "ordinal",
+          "missing_pct": 0.1,
+          "missing_count": 1,
+          "nonresponse_codes": [
+            7.0,
+            9.0
+          ],
+          "nonresponse_replaced": 1
+        },
+        "INDFMPIR": {
+          "dtype": "numeric",
+          "missing_pct": 16.1,
+          "missing_count": 161,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "WTINT2YR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "WTMEC2YR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDMVSTRA": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDMVPSU": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SMQ020": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [
+            7.0,
+            9.0
+          ],
+          "nonresponse_replaced": 0
+        },
+        "SMQ040": {
+          "dtype": "categorical",
+          "missing_pct": 55.800000000000004,
+          "missing_count": 558,
+          "nonresponse_codes": [
+            7.0,
+            9.0
+          ],
+          "nonresponse_replaced": 0
+        },
+        "SMD030": {
+          "dtype": "numeric",
+          "missing_pct": 55.900000000000006,
+          "missing_count": 559,
+          "nonresponse_codes": [
+            777.0,
+            999.0
+          ],
+          "nonresponse_replaced": 1
+        },
+        "SMD650": {
+          "dtype": "numeric",
+          "missing_pct": 81.0,
+          "missing_count": 810,
+          "nonresponse_codes": [
+            777.0,
+            999.0
+          ],
+          "nonresponse_replaced": 0
+        },
+        "BMXBMI": {
+          "dtype": "numeric",
+          "missing_pct": 6.5,
+          "missing_count": 65,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BMXWAIST": {
+          "dtype": "numeric",
+          "missing_pct": 11.5,
+          "missing_count": 115,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        }
+      },
+      "time_column": null,
+      "weight_columns": [
+        "WTINT2YR",
+        "WTMEC2YR"
+      ],
+      "id_columns": [
+        "SEQN"
+      ],
+      "design_columns": [
+        "SDMVSTRA",
+        "SDMVPSU"
+      ],
+      "sampling_seed": 20261018,
+      "coverage": "group_differences",
+      "duplicates_removed": 0,
+      "sources": [
+        {
+          "component": "DEMO_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DEMO_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DEMO_J.htm",
+          "data_sha256": "c0b46e0345ea19404928656277c8b0d10b0cca348a9b2fe4fc3c67e8b7ee73ec",
+          "codebook_sha256": "07f8f1e7f884fab180ccf53c705652de9d663833fdad85b0d759919c8464cde0"
+        },
+        {
+          "component": "SMQ_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/SMQ_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/SMQ_J.htm",
+          "data_sha256": "73c3708e540cbf520a566508aa629c3e4ba53cad77dae9388ca36384646455f4",
+          "codebook_sha256": "9859d76717b31135754247d509a1d559cce686f29c473ed96857fa8a64f36255"
+        },
+        {
+          "component": "BMX_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/BMX_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/BMX_J.htm",
+          "data_sha256": "8d675e42d8826ac98714b2c3dd4c5138a5e353fb4424f7eff5e6db4a01ce838a",
+          "codebook_sha256": "557b2ad6946237b7a169819006e7126e48e25cdb45926605cb368342c6773689"
+        }
+      ],
+      "contamination_screen": {
+        "accepted": true,
+        "notes": [
+          "Direct public-use NHANES component extracts; not Iris, Titanic, Wine, Boston, mtcars or the packaged diabetes ML benchmark.",
+          "No Kaggle/repackaged ML benchmark, MIMIC or PhysioNet source accepted.",
+          "NHANES may occur in model training; source screening cannot prove otherwise.",
+          "Pilot extracts share participants and are not independent population samples."
+        ]
+      },
+      "license": {
+        "access": "Public-use NHANES; CDC-produced materials generally public domain",
+        "policy_url": "https://www.cdc.gov/other/agencymaterials.html",
+        "restrictions": "No re-identification; no restricted files or NFHS microdata"
+      },
+      "extract_sha256": "eb17348b626eb36b640c446af93b61d49f4e3ac73f2a8e850ae76e71020057ec",
+      "cohort_sha256": "93a3eada091bea3f100bbc776fb4bb2b213256d060fe101ee4f042fc8c38c283",
+      "transformations": [
+        "Documented per-column, per-cycle Refused/Don't know codes -> empty CSV fields",
+        "Exact duplicate removal only; real missingness retained; original column names",
+        "No imputation, extra value filtering, column shuffling or injection",
+        "Pooled cycle weights retained unchanged; not a population-estimation dataset"
+      ],
+      "pandas_version": "3.0.5"
+    },
+    {
+      "dataset_id": "nhanes_2017_paq_bmx_06",
+      "source": "NHANES",
+      "cycle": [
+        "2017-2018"
+      ],
+      "filters_applied": [
+        "RIDAGEYR >= 20",
+        "Primary module: PAQ; left join remaining modules on SEQN",
+        "Whole-row sample: 1000 per cycle, seed + cycle year"
+      ],
+      "extraction_date": "2026-10-18T11:03:16.082967+00:00",
+      "row_count": 1000,
+      "column_count": 19,
+      "columns": {
+        "SEQN": {
+          "dtype": "id",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDDSRVYR": {
+          "dtype": "ordinal",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIDAGEYR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIAGENDR": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIDRETH3": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "DMDEDUC2": {
+          "dtype": "ordinal",
+          "missing_pct": 0.1,
+          "missing_count": 1,
+          "nonresponse_codes": [
+            7.0,
+            9.0
+          ],
+          "nonresponse_replaced": 1
+        },
+        "INDFMPIR": {
+          "dtype": "numeric",
+          "missing_pct": 16.1,
+          "missing_count": 161,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "WTINT2YR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "WTMEC2YR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDMVSTRA": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDMVPSU": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "PAQ605": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [
+            7.0,
+            9.0
+          ],
+          "nonresponse_replaced": 0
+        },
+        "PAQ620": {
+          "dtype": "categorical",
+          "missing_pct": 0.1,
+          "missing_count": 1,
+          "nonresponse_codes": [
+            7.0,
+            9.0
+          ],
+          "nonresponse_replaced": 1
+        },
+        "PAQ650": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [
+            7.0,
+            9.0
+          ],
+          "nonresponse_replaced": 0
+        },
+        "PAQ665": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [
+            7.0,
+            9.0
+          ],
+          "nonresponse_replaced": 0
+        },
+        "PAD680": {
+          "dtype": "numeric",
+          "missing_pct": 1.0999999999999999,
+          "missing_count": 11,
+          "nonresponse_codes": [
+            7777.0,
+            9999.0
+          ],
+          "nonresponse_replaced": 7
+        },
+        "PAQ670": {
+          "dtype": "ordinal",
+          "missing_pct": 60.0,
+          "missing_count": 600,
+          "nonresponse_codes": [
+            77.0,
+            99.0
+          ],
+          "nonresponse_replaced": 0
+        },
+        "BMXBMI": {
+          "dtype": "numeric",
+          "missing_pct": 6.5,
+          "missing_count": 65,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BMXWAIST": {
+          "dtype": "numeric",
+          "missing_pct": 11.5,
+          "missing_count": 115,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        }
+      },
+      "time_column": null,
+      "weight_columns": [
+        "WTINT2YR",
+        "WTMEC2YR"
+      ],
+      "id_columns": [
+        "SEQN"
+      ],
+      "design_columns": [
+        "SDMVSTRA",
+        "SDMVPSU"
+      ],
+      "sampling_seed": 20261018,
+      "coverage": "group_differences",
+      "duplicates_removed": 0,
+      "sources": [
+        {
+          "component": "DEMO_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DEMO_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DEMO_J.htm",
+          "data_sha256": "c0b46e0345ea19404928656277c8b0d10b0cca348a9b2fe4fc3c67e8b7ee73ec",
+          "codebook_sha256": "07f8f1e7f884fab180ccf53c705652de9d663833fdad85b0d759919c8464cde0"
+        },
+        {
+          "component": "PAQ_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/PAQ_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/PAQ_J.htm",
+          "data_sha256": "048120aa3a5c8b5cd457ad3e13dfd62d728b12ea6644960e933ad374ec907e79",
+          "codebook_sha256": "0d14e3602706ae11d6e977470bcb5c2b42301ad28c144090f7298f41dd92d764"
+        },
+        {
+          "component": "BMX_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/BMX_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/BMX_J.htm",
+          "data_sha256": "8d675e42d8826ac98714b2c3dd4c5138a5e353fb4424f7eff5e6db4a01ce838a",
+          "codebook_sha256": "557b2ad6946237b7a169819006e7126e48e25cdb45926605cb368342c6773689"
+        }
+      ],
+      "contamination_screen": {
+        "accepted": true,
+        "notes": [
+          "Direct public-use NHANES component extracts; not Iris, Titanic, Wine, Boston, mtcars or the packaged diabetes ML benchmark.",
+          "No Kaggle/repackaged ML benchmark, MIMIC or PhysioNet source accepted.",
+          "NHANES may occur in model training; source screening cannot prove otherwise.",
+          "Pilot extracts share participants and are not independent population samples."
+        ]
+      },
+      "license": {
+        "access": "Public-use NHANES; CDC-produced materials generally public domain",
+        "policy_url": "https://www.cdc.gov/other/agencymaterials.html",
+        "restrictions": "No re-identification; no restricted files or NFHS microdata"
+      },
+      "extract_sha256": "6b751e30ff4ba7bf26bc52fcd5cdaf12a1260d5453849e71c7c65d7d076499d5",
+      "cohort_sha256": "93a3eada091bea3f100bbc776fb4bb2b213256d060fe101ee4f042fc8c38c283",
+      "transformations": [
+        "Documented per-column, per-cycle Refused/Don't know codes -> empty CSV fields",
+        "Exact duplicate removal only; real missingness retained; original column names",
+        "No imputation, extra value filtering, column shuffling or injection",
+        "Pooled cycle weights retained unchanged; not a population-estimation dataset"
+      ],
+      "pandas_version": "3.0.5"
+    },
+    {
+      "dataset_id": "nhanes_2013_2018_bmx_trend_07",
+      "source": "NHANES",
+      "cycle": [
+        "2013-2014",
+        "2015-2016",
+        "2017-2018"
+      ],
+      "filters_applied": [
+        "RIDAGEYR >= 20",
+        "Primary module: BMX; left join remaining modules on SEQN",
+        "Whole-row sample: 1000 per cycle, seed + cycle year"
+      ],
+      "extraction_date": "2026-10-18T11:03:16.716284+00:00",
+      "row_count": 3000,
+      "column_count": 15,
+      "columns": {
+        "SEQN": {
+          "dtype": "id",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDDSRVYR": {
+          "dtype": "ordinal",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIDAGEYR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIAGENDR": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIDRETH3": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "DMDEDUC2": {
+          "dtype": "ordinal",
+          "missing_pct": 0.16666666666666669,
+          "missing_count": 5,
+          "nonresponse_codes": [
+            7.0,
+            9.0
+          ],
+          "nonresponse_replaced": 5
+        },
+        "INDFMPIR": {
+          "dtype": "numeric",
+          "missing_pct": 10.433333333333334,
+          "missing_count": 313,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "WTINT2YR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "WTMEC2YR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDMVSTRA": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDMVPSU": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BMXWT": {
+          "dtype": "numeric",
+          "missing_pct": 1.4000000000000001,
+          "missing_count": 42,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BMXHT": {
+          "dtype": "numeric",
+          "missing_pct": 1.5,
+          "missing_count": 45,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BMXBMI": {
+          "dtype": "numeric",
+          "missing_pct": 1.633333333333333,
+          "missing_count": 49,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BMXWAIST": {
+          "dtype": "numeric",
+          "missing_pct": 6.633333333333333,
+          "missing_count": 199,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        }
+      },
+      "time_column": "SDDSRVYR",
+      "weight_columns": [
+        "WTINT2YR",
+        "WTMEC2YR"
+      ],
+      "id_columns": [
+        "SEQN"
+      ],
+      "design_columns": [
+        "SDMVSTRA",
+        "SDMVPSU"
+      ],
+      "sampling_seed": 20261018,
+      "coverage": "trends",
+      "duplicates_removed": 0,
+      "sources": [
+        {
+          "component": "DEMO_H",
+          "cycle": "2013-2014",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2013/DataFiles/DEMO_H.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2013/DataFiles/DEMO_H.htm",
+          "data_sha256": "f8f0cbb3085a323d4cde22349b164878fea1e64dbc404e65b5815c7816b547d7",
+          "codebook_sha256": "686d31f7e0857fd0c16c9a9a4e9878ad1d6e3ec4cba9a904fcce4048c9506b68"
+        },
+        {
+          "component": "BMX_H",
+          "cycle": "2013-2014",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2013/DataFiles/BMX_H.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2013/DataFiles/BMX_H.htm",
+          "data_sha256": "fd5e9fc6e6aab0a4aee6e699f51497bbc9b62101f7f43aee924c473e38fd9442",
+          "codebook_sha256": "ee05acd20cc0b83e994230fdab31d80ce9ad8ec972ce5538f6c6f52cd527c2cd"
+        },
+        {
+          "component": "DEMO_I",
+          "cycle": "2015-2016",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/DEMO_I.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/DEMO_I.htm",
+          "data_sha256": "c9297c6c37ae8f78f29be9568fa2a03cf3b112616a39afee04030fc775a66a0d",
+          "codebook_sha256": "ae488b8a00e7cdbae20f2fb279819dcb180b03373efa13abf784c52a0b82e473"
+        },
+        {
+          "component": "BMX_I",
+          "cycle": "2015-2016",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/BMX_I.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/BMX_I.htm",
+          "data_sha256": "d31da84e14212b4e58e8340598a5b8e2144fac83333563e966eb1b332e4141d6",
+          "codebook_sha256": "a0c7d0e76a882259d93e0e22f175be57bca746f704f753aab9c673163601f2bd"
+        },
+        {
+          "component": "DEMO_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DEMO_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DEMO_J.htm",
+          "data_sha256": "c0b46e0345ea19404928656277c8b0d10b0cca348a9b2fe4fc3c67e8b7ee73ec",
+          "codebook_sha256": "07f8f1e7f884fab180ccf53c705652de9d663833fdad85b0d759919c8464cde0"
+        },
+        {
+          "component": "BMX_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/BMX_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/BMX_J.htm",
+          "data_sha256": "8d675e42d8826ac98714b2c3dd4c5138a5e353fb4424f7eff5e6db4a01ce838a",
+          "codebook_sha256": "557b2ad6946237b7a169819006e7126e48e25cdb45926605cb368342c6773689"
+        }
+      ],
+      "contamination_screen": {
+        "accepted": true,
+        "notes": [
+          "Direct public-use NHANES component extracts; not Iris, Titanic, Wine, Boston, mtcars or the packaged diabetes ML benchmark.",
+          "No Kaggle/repackaged ML benchmark, MIMIC or PhysioNet source accepted.",
+          "NHANES may occur in model training; source screening cannot prove otherwise.",
+          "Pilot extracts share participants and are not independent population samples."
+        ]
+      },
+      "license": {
+        "access": "Public-use NHANES; CDC-produced materials generally public domain",
+        "policy_url": "https://www.cdc.gov/other/agencymaterials.html",
+        "restrictions": "No re-identification; no restricted files or NFHS microdata"
+      },
+      "extract_sha256": "4c8dfa840664eb71295aee84ab2b726bee584eceb7bdebf159b467d46fcac613",
+      "cohort_sha256": "06a7a488d34c819d03cdd99d895bd5eb1d4544b1af6eb26eb746244dfee39f53",
+      "transformations": [
+        "Documented per-column, per-cycle Refused/Don't know codes -> empty CSV fields",
+        "Exact duplicate removal only; real missingness retained; original column names",
+        "No imputation, extra value filtering, column shuffling or injection",
+        "Pooled cycle weights retained unchanged; not a population-estimation dataset"
+      ],
+      "pandas_version": "3.0.5"
+    },
+    {
+      "dataset_id": "nhanes_2013_2018_bpx_trend_08",
+      "source": "NHANES",
+      "cycle": [
+        "2013-2014",
+        "2015-2016",
+        "2017-2018"
+      ],
+      "filters_applied": [
+        "RIDAGEYR >= 20",
+        "Primary module: BPX; left join remaining modules on SEQN",
+        "Whole-row sample: 1000 per cycle, seed + cycle year"
+      ],
+      "extraction_date": "2026-10-18T11:03:17.404222+00:00",
+      "row_count": 3000,
+      "column_count": 17,
+      "columns": {
+        "SEQN": {
+          "dtype": "id",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDDSRVYR": {
+          "dtype": "ordinal",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIDAGEYR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIAGENDR": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIDRETH3": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "DMDEDUC2": {
+          "dtype": "ordinal",
+          "missing_pct": 0.16666666666666669,
+          "missing_count": 5,
+          "nonresponse_codes": [
+            7.0,
+            9.0
+          ],
+          "nonresponse_replaced": 5
+        },
+        "INDFMPIR": {
+          "dtype": "numeric",
+          "missing_pct": 10.433333333333334,
+          "missing_count": 313,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "WTINT2YR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "WTMEC2YR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDMVSTRA": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDMVPSU": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BPXSY1": {
+          "dtype": "numeric",
+          "missing_pct": 8.7,
+          "missing_count": 261,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BPXSY2": {
+          "dtype": "numeric",
+          "missing_pct": 5.366666666666667,
+          "missing_count": 161,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BPXSY3": {
+          "dtype": "numeric",
+          "missing_pct": 5.4,
+          "missing_count": 162,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BPXDI1": {
+          "dtype": "numeric",
+          "missing_pct": 8.7,
+          "missing_count": 261,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BPXDI2": {
+          "dtype": "numeric",
+          "missing_pct": 5.366666666666667,
+          "missing_count": 161,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BPXDI3": {
+          "dtype": "numeric",
+          "missing_pct": 5.4,
+          "missing_count": 162,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        }
+      },
+      "time_column": "SDDSRVYR",
+      "weight_columns": [
+        "WTINT2YR",
+        "WTMEC2YR"
+      ],
+      "id_columns": [
+        "SEQN"
+      ],
+      "design_columns": [
+        "SDMVSTRA",
+        "SDMVPSU"
+      ],
+      "sampling_seed": 20261018,
+      "coverage": "trends",
+      "duplicates_removed": 0,
+      "sources": [
+        {
+          "component": "DEMO_H",
+          "cycle": "2013-2014",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2013/DataFiles/DEMO_H.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2013/DataFiles/DEMO_H.htm",
+          "data_sha256": "f8f0cbb3085a323d4cde22349b164878fea1e64dbc404e65b5815c7816b547d7",
+          "codebook_sha256": "686d31f7e0857fd0c16c9a9a4e9878ad1d6e3ec4cba9a904fcce4048c9506b68"
+        },
+        {
+          "component": "BPX_H",
+          "cycle": "2013-2014",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2013/DataFiles/BPX_H.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2013/DataFiles/BPX_H.htm",
+          "data_sha256": "b6641efc30ac9b9de328dfbf4110d0d120439aadca2c2bc89f2e77310d1a0c8e",
+          "codebook_sha256": "ba8e018b46211e52d083b8ada6a64800ab03042e9289451666bac8347d88099c"
+        },
+        {
+          "component": "DEMO_I",
+          "cycle": "2015-2016",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/DEMO_I.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/DEMO_I.htm",
+          "data_sha256": "c9297c6c37ae8f78f29be9568fa2a03cf3b112616a39afee04030fc775a66a0d",
+          "codebook_sha256": "ae488b8a00e7cdbae20f2fb279819dcb180b03373efa13abf784c52a0b82e473"
+        },
+        {
+          "component": "BPX_I",
+          "cycle": "2015-2016",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/BPX_I.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/BPX_I.htm",
+          "data_sha256": "45d5c9fa101ccc6da82241bd45c99611595e699665eed2cfed232e9070b52cc1",
+          "codebook_sha256": "8e45eccbf040fe42deb60c44f89ab6045b4f01216153ab47427f044b730481e2"
+        },
+        {
+          "component": "DEMO_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DEMO_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DEMO_J.htm",
+          "data_sha256": "c0b46e0345ea19404928656277c8b0d10b0cca348a9b2fe4fc3c67e8b7ee73ec",
+          "codebook_sha256": "07f8f1e7f884fab180ccf53c705652de9d663833fdad85b0d759919c8464cde0"
+        },
+        {
+          "component": "BPX_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/BPX_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/BPX_J.htm",
+          "data_sha256": "f98f1d9a4c18173e715c749b4294f6f1525140d5ad5751316bb17cc038fb3423",
+          "codebook_sha256": "a7583578150897efec8748a3bc05ecbc6e54d5a0b5a32cdfda87c883aba56a37"
+        }
+      ],
+      "contamination_screen": {
+        "accepted": true,
+        "notes": [
+          "Direct public-use NHANES component extracts; not Iris, Titanic, Wine, Boston, mtcars or the packaged diabetes ML benchmark.",
+          "No Kaggle/repackaged ML benchmark, MIMIC or PhysioNet source accepted.",
+          "NHANES may occur in model training; source screening cannot prove otherwise.",
+          "Pilot extracts share participants and are not independent population samples."
+        ]
+      },
+      "license": {
+        "access": "Public-use NHANES; CDC-produced materials generally public domain",
+        "policy_url": "https://www.cdc.gov/other/agencymaterials.html",
+        "restrictions": "No re-identification; no restricted files or NFHS microdata"
+      },
+      "extract_sha256": "501284b95a8502be060f049caafd04cfd6e5348701f5845fcd003c94571d814d",
+      "cohort_sha256": "06a7a488d34c819d03cdd99d895bd5eb1d4544b1af6eb26eb746244dfee39f53",
+      "transformations": [
+        "Documented per-column, per-cycle Refused/Don't know codes -> empty CSV fields",
+        "Exact duplicate removal only; real missingness retained; original column names",
+        "No imputation, extra value filtering, column shuffling or injection",
+        "Pooled cycle weights retained unchanged; not a population-estimation dataset"
+      ],
+      "pandas_version": "3.0.5"
+    },
+    {
+      "dataset_id": "nhanes_2013_2018_ghb_bmx_trend_09",
+      "source": "NHANES",
+      "cycle": [
+        "2013-2014",
+        "2015-2016",
+        "2017-2018"
+      ],
+      "filters_applied": [
+        "RIDAGEYR >= 20",
+        "Primary module: GHB; left join remaining modules on SEQN",
+        "Whole-row sample: 1000 per cycle, seed + cycle year"
+      ],
+      "extraction_date": "2026-10-18T11:03:18.175918+00:00",
+      "row_count": 3000,
+      "column_count": 14,
+      "columns": {
+        "SEQN": {
+          "dtype": "id",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDDSRVYR": {
+          "dtype": "ordinal",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIDAGEYR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIAGENDR": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIDRETH3": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "DMDEDUC2": {
+          "dtype": "ordinal",
+          "missing_pct": 0.16666666666666669,
+          "missing_count": 5,
+          "nonresponse_codes": [
+            7.0,
+            9.0
+          ],
+          "nonresponse_replaced": 5
+        },
+        "INDFMPIR": {
+          "dtype": "numeric",
+          "missing_pct": 10.433333333333334,
+          "missing_count": 313,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "WTINT2YR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "WTMEC2YR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDMVSTRA": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDMVPSU": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "LBXGH": {
+          "dtype": "numeric",
+          "missing_pct": 4.566666666666666,
+          "missing_count": 137,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BMXBMI": {
+          "dtype": "numeric",
+          "missing_pct": 1.633333333333333,
+          "missing_count": 49,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BMXWAIST": {
+          "dtype": "numeric",
+          "missing_pct": 6.633333333333333,
+          "missing_count": 199,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        }
+      },
+      "time_column": "SDDSRVYR",
+      "weight_columns": [
+        "WTINT2YR",
+        "WTMEC2YR"
+      ],
+      "id_columns": [
+        "SEQN"
+      ],
+      "design_columns": [
+        "SDMVSTRA",
+        "SDMVPSU"
+      ],
+      "sampling_seed": 20261018,
+      "coverage": "trends",
+      "duplicates_removed": 0,
+      "sources": [
+        {
+          "component": "DEMO_H",
+          "cycle": "2013-2014",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2013/DataFiles/DEMO_H.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2013/DataFiles/DEMO_H.htm",
+          "data_sha256": "f8f0cbb3085a323d4cde22349b164878fea1e64dbc404e65b5815c7816b547d7",
+          "codebook_sha256": "686d31f7e0857fd0c16c9a9a4e9878ad1d6e3ec4cba9a904fcce4048c9506b68"
+        },
+        {
+          "component": "GHB_H",
+          "cycle": "2013-2014",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2013/DataFiles/GHB_H.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2013/DataFiles/GHB_H.htm",
+          "data_sha256": "0695894ad55ac96f315a8415401977b0856c402d16762115b534bcd5dfeae89e",
+          "codebook_sha256": "3e5ffb568b1c77f621d7f19088d160b38f62fb47626d1d36ef9abf885f8f6d7b"
+        },
+        {
+          "component": "BMX_H",
+          "cycle": "2013-2014",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2013/DataFiles/BMX_H.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2013/DataFiles/BMX_H.htm",
+          "data_sha256": "fd5e9fc6e6aab0a4aee6e699f51497bbc9b62101f7f43aee924c473e38fd9442",
+          "codebook_sha256": "ee05acd20cc0b83e994230fdab31d80ce9ad8ec972ce5538f6c6f52cd527c2cd"
+        },
+        {
+          "component": "DEMO_I",
+          "cycle": "2015-2016",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/DEMO_I.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/DEMO_I.htm",
+          "data_sha256": "c9297c6c37ae8f78f29be9568fa2a03cf3b112616a39afee04030fc775a66a0d",
+          "codebook_sha256": "ae488b8a00e7cdbae20f2fb279819dcb180b03373efa13abf784c52a0b82e473"
+        },
+        {
+          "component": "GHB_I",
+          "cycle": "2015-2016",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/GHB_I.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/GHB_I.htm",
+          "data_sha256": "e4bc626cd12f6057c7806aef4f85874c9bf1407a7480d6621a4af142260addd2",
+          "codebook_sha256": "27341643876c6833d8954d3cba33073d5433204153a95573581a2383fc9394c3"
+        },
+        {
+          "component": "BMX_I",
+          "cycle": "2015-2016",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/BMX_I.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/BMX_I.htm",
+          "data_sha256": "d31da84e14212b4e58e8340598a5b8e2144fac83333563e966eb1b332e4141d6",
+          "codebook_sha256": "a0c7d0e76a882259d93e0e22f175be57bca746f704f753aab9c673163601f2bd"
+        },
+        {
+          "component": "DEMO_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DEMO_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DEMO_J.htm",
+          "data_sha256": "c0b46e0345ea19404928656277c8b0d10b0cca348a9b2fe4fc3c67e8b7ee73ec",
+          "codebook_sha256": "07f8f1e7f884fab180ccf53c705652de9d663833fdad85b0d759919c8464cde0"
+        },
+        {
+          "component": "GHB_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/GHB_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/GHB_J.htm",
+          "data_sha256": "35f07094573a0061a03ed609a5a363b34eb1b1c7065d1623b43d72e132a8a654",
+          "codebook_sha256": "b9f90ef7aa539fe98edc776818ddfbfc4ee9f88ecf5c21ba168c5de8116e174d"
+        },
+        {
+          "component": "BMX_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/BMX_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/BMX_J.htm",
+          "data_sha256": "8d675e42d8826ac98714b2c3dd4c5138a5e353fb4424f7eff5e6db4a01ce838a",
+          "codebook_sha256": "557b2ad6946237b7a169819006e7126e48e25cdb45926605cb368342c6773689"
+        }
+      ],
+      "contamination_screen": {
+        "accepted": true,
+        "notes": [
+          "Direct public-use NHANES component extracts; not Iris, Titanic, Wine, Boston, mtcars or the packaged diabetes ML benchmark.",
+          "No Kaggle/repackaged ML benchmark, MIMIC or PhysioNet source accepted.",
+          "NHANES may occur in model training; source screening cannot prove otherwise.",
+          "Pilot extracts share participants and are not independent population samples."
+        ]
+      },
+      "license": {
+        "access": "Public-use NHANES; CDC-produced materials generally public domain",
+        "policy_url": "https://www.cdc.gov/other/agencymaterials.html",
+        "restrictions": "No re-identification; no restricted files or NFHS microdata"
+      },
+      "extract_sha256": "979913bdb11590a8c2d6a3a1ef57c6f87ed0bcc85786794f50c29e3ba4ca427e",
+      "cohort_sha256": "06a7a488d34c819d03cdd99d895bd5eb1d4544b1af6eb26eb746244dfee39f53",
+      "transformations": [
+        "Documented per-column, per-cycle Refused/Don't know codes -> empty CSV fields",
+        "Exact duplicate removal only; real missingness retained; original column names",
+        "No imputation, extra value filtering, column shuffling or injection",
+        "Pooled cycle weights retained unchanged; not a population-estimation dataset"
+      ],
+      "pandas_version": "3.0.5"
+    },
+    {
+      "dataset_id": "nhanes_2017_slq_bmx_10",
+      "source": "NHANES",
+      "cycle": [
+        "2017-2018"
+      ],
+      "filters_applied": [
+        "RIDAGEYR >= 20",
+        "Primary module: SLQ; left join remaining modules on SEQN",
+        "Whole-row sample: 1000 per cycle, seed + cycle year"
+      ],
+      "extraction_date": "2026-10-18T11:03:18.546229+00:00",
+      "row_count": 1000,
+      "column_count": 17,
+      "columns": {
+        "SEQN": {
+          "dtype": "id",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDDSRVYR": {
+          "dtype": "ordinal",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIDAGEYR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIAGENDR": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "RIDRETH3": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "DMDEDUC2": {
+          "dtype": "ordinal",
+          "missing_pct": 0.1,
+          "missing_count": 1,
+          "nonresponse_codes": [
+            7.0,
+            9.0
+          ],
+          "nonresponse_replaced": 1
+        },
+        "INDFMPIR": {
+          "dtype": "numeric",
+          "missing_pct": 16.1,
+          "missing_count": 161,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "WTINT2YR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "WTMEC2YR": {
+          "dtype": "numeric",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDMVSTRA": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SDMVPSU": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SLD012": {
+          "dtype": "numeric",
+          "missing_pct": 0.8999999999999999,
+          "missing_count": 9,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SLD013": {
+          "dtype": "numeric",
+          "missing_pct": 0.8,
+          "missing_count": 8,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "SLQ050": {
+          "dtype": "categorical",
+          "missing_pct": 0.0,
+          "missing_count": 0,
+          "nonresponse_codes": [
+            7.0,
+            9.0
+          ],
+          "nonresponse_replaced": 0
+        },
+        "SLQ120": {
+          "dtype": "ordinal",
+          "missing_pct": 0.2,
+          "missing_count": 2,
+          "nonresponse_codes": [
+            7.0,
+            9.0
+          ],
+          "nonresponse_replaced": 2
+        },
+        "BMXBMI": {
+          "dtype": "numeric",
+          "missing_pct": 6.5,
+          "missing_count": 65,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        },
+        "BMXWAIST": {
+          "dtype": "numeric",
+          "missing_pct": 11.5,
+          "missing_count": 115,
+          "nonresponse_codes": [],
+          "nonresponse_replaced": 0
+        }
+      },
+      "time_column": null,
+      "weight_columns": [
+        "WTINT2YR",
+        "WTMEC2YR"
+      ],
+      "id_columns": [
+        "SEQN"
+      ],
+      "design_columns": [
+        "SDMVSTRA",
+        "SDMVPSU"
+      ],
+      "sampling_seed": 20261018,
+      "coverage": "mixed",
+      "duplicates_removed": 0,
+      "sources": [
+        {
+          "component": "DEMO_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DEMO_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DEMO_J.htm",
+          "data_sha256": "c0b46e0345ea19404928656277c8b0d10b0cca348a9b2fe4fc3c67e8b7ee73ec",
+          "codebook_sha256": "07f8f1e7f884fab180ccf53c705652de9d663833fdad85b0d759919c8464cde0"
+        },
+        {
+          "component": "SLQ_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/SLQ_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/SLQ_J.htm",
+          "data_sha256": "5486e1c51d56a959c94106d131a11b2e58bdec8ff30917ad7748917c6fa09f3a",
+          "codebook_sha256": "d151c434f7a24b086cb1858d64708c63e33a8e49e7d2f54c33d881c3ba66b6f4"
+        },
+        {
+          "component": "BMX_J",
+          "cycle": "2017-2018",
+          "data_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/BMX_J.xpt",
+          "codebook_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/BMX_J.htm",
+          "data_sha256": "8d675e42d8826ac98714b2c3dd4c5138a5e353fb4424f7eff5e6db4a01ce838a",
+          "codebook_sha256": "557b2ad6946237b7a169819006e7126e48e25cdb45926605cb368342c6773689"
+        }
+      ],
+      "contamination_screen": {
+        "accepted": true,
+        "notes": [
+          "Direct public-use NHANES component extracts; not Iris, Titanic, Wine, Boston, mtcars or the packaged diabetes ML benchmark.",
+          "No Kaggle/repackaged ML benchmark, MIMIC or PhysioNet source accepted.",
+          "NHANES may occur in model training; source screening cannot prove otherwise.",
+          "Pilot extracts share participants and are not independent population samples."
+        ]
+      },
+      "license": {
+        "access": "Public-use NHANES; CDC-produced materials generally public domain",
+        "policy_url": "https://www.cdc.gov/other/agencymaterials.html",
+        "restrictions": "No re-identification; no restricted files or NFHS microdata"
+      },
+      "extract_sha256": "2222f3f4b370c803dde25ca805e90a703ddd531121777485fdb7d9978cf95d7c",
+      "cohort_sha256": "93a3eada091bea3f100bbc776fb4bb2b213256d060fe101ee4f042fc8c38c283",
+      "transformations": [
+        "Documented per-column, per-cycle Refused/Don't know codes -> empty CSV fields",
+        "Exact duplicate removal only; real missingness retained; original column names",
+        "No imputation, extra value filtering, column shuffling or injection",
+        "Pooled cycle weights retained unchanged; not a population-estimation dataset"
+      ],
+      "pandas_version": "3.0.5"
+    }
+  ]
+}

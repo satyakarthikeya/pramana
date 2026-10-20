@@ -24,6 +24,7 @@ import pandas as pd
 
 from pramana.analysis.cleaning import clean_dataset
 from pramana.analysis.config import load_config
+from pramana.analysis.dataset_artifacts import persist_cleaned_dataset
 from pramana.analysis.hypotheses.generation import generate_candidates
 from pramana.analysis.ingestion import load_dataset
 from pramana.analysis.schema_inference import SchemaProfile, describe_unusable, infer_schema
@@ -56,14 +57,17 @@ def prepare(request: Mapping[str, Any]) -> dict[str, Any]:
     the schema profile carries the cleaning report and every unusable column with
     its reason, so nothing is dropped silently.
     """
+    run_id = request["run_id"]
     cleaned, report = clean_dataset(request["dataset"])
+    dataset_ref = persist_cleaned_dataset(cleaned, run_id)
     schema = infer_schema(cleaned, load_config().schema_inference)
     profile = schema.model_dump(mode="json")
     profile["cleaning_report"] = report.model_dump(mode="json")
     profile["unusable_columns"] = describe_unusable(schema)
+    profile["cleaned_fingerprint"] = cleaned_dataset_ref(str(request["dataset_ref"]), cleaned)
     return {
         "dataset": cleaned,
-        "dataset_ref": cleaned_dataset_ref(str(request["dataset_ref"]), cleaned),
+        "dataset_ref": dataset_ref,
         "schema_profile": profile,
     }
 
