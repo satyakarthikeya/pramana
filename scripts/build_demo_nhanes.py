@@ -17,7 +17,7 @@ The output keeps only those four columns, drops rows with any null, samples
   BIRTH_MOON_PHASE_PCT    P. Rohith's planted decoy (analysis/benchmark/
                           demo_dataset.inject_false_correlation): a nonsense
                           value present on only 40 rows, with an in-sample
-                          Spearman rho of ~0.30 against LBXGLU on those rows.
+                          Spearman rho of ~0.20 against LBXGLU on those rows.
                           That clears the pre-filter, so it IS proposed, and at
                           n=40 it is indistinguishable from chance, so the
                           gateway should REJECT it.
@@ -54,7 +54,7 @@ PILOT_DECOY_SPEC = DemoSpec(
     decoy_column="BIRTH_MOON_PHASE_PCT",
     decoy_target="LBXGLU",
     decoy_pilot_rows=40,
-    decoy_target_rho=0.30,
+    decoy_target_rho=0.20,
 )
 
 
