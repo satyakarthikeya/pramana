@@ -165,6 +165,16 @@ class StrategyToggles(BaseModel):
     trend: bool
 
 
+class StrategyMinimums(BaseModel):
+    """Reserved candidate slots per strategy; unused slots return to the shared pool."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    correlation: int = Field(ge=0, strict=True)
+    group_difference: int = Field(ge=0, strict=True)
+    trend: int = Field(ge=0, strict=True)
+
+
 class HypothesesConfig(BaseModel):
     """Caps and exploratory pre-filters for candidate generation (SCOPE_P 2, component 4).
 
@@ -179,6 +189,7 @@ class HypothesesConfig(BaseModel):
         ge=1, description="Hard cap on the batch handed to the gateway, so BH-FDR stays sane."
     )
     strategies: StrategyToggles
+    strategy_min_candidates: StrategyMinimums
     min_abs_correlation: float = Field(
         ge=0.0, le=1.0, description="Exploratory |rho| floor for a correlation candidate."
     )

@@ -37,6 +37,12 @@ schema_inference:
 
 hypotheses:
   max_candidates_per_run: 50   # keeps BH-FDR sane; gateway shouldn't be flooded
+  # Reserve strongest candidates from each strategy before filling by magnitude.
+  # These are minimum allocations, not separate batches or verification verdicts.
+  strategy_min_candidates:
+    correlation: 1
+    group_difference: 1
+    trend: 1
   strategies:
     correlation: true
     group_difference: true

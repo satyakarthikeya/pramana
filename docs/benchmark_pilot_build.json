@@ -1,0 +1,353 @@
+{
+  "phase": "approved_pilot_10",
+  "approval": "Satya approval relayed by Rohith, 2026-10-18",
+  "plan_sha256": "ebbd513cbe5f2b42293533fc1c2f780eea3f0062659edcc45957f82cfaf1dcff",
+  "sampling_seed": 20261018,
+  "pandas_version": "3.0.5",
+  "datasets": [
+    {
+      "dataset_id": "nhanes_2017_bmx_01",
+      "cycle": [
+        "2017-2018"
+      ],
+      "row_count": 1000,
+      "column_count": 15,
+      "coverage": "numeric_pairs",
+      "time_column": null,
+      "extract_sha256": "2d55c7faef9c93a9bca675be00d3b1b150569d3faad567482e960ba2ef66e513",
+      "cohort_sha256": "8bdd92e71c97801396d6719e5717f4b688373893b163baa83b0cb046e2d0c1d7",
+      "duplicates_removed": 0,
+      "nonresponse_replaced": 2,
+      "missing_cells": 247,
+      "candidate_counts_unverified": {
+        "correlation": 7,
+        "group_difference": 15,
+        "trend": 0
+      },
+      "relative_path": "data/benchmark/extracts/nhanes_2017_bmx_01"
+    },
+    {
+      "dataset_id": "nhanes_2017_bpx_02",
+      "cycle": [
+        "2017-2018"
+      ],
+      "row_count": 1000,
+      "column_count": 17,
+      "coverage": "numeric_pairs",
+      "time_column": null,
+      "extract_sha256": "20fdcf52c51d5bd13d96e2968c6c4f8859723f1d9b0b6b929a6a9490e97eee5f",
+      "cohort_sha256": "8bdd92e71c97801396d6719e5717f4b688373893b163baa83b0cb046e2d0c1d7",
+      "duplicates_removed": 0,
+      "nonresponse_replaced": 2,
+      "missing_cells": 633,
+      "candidate_counts_unverified": {
+        "correlation": 18,
+        "group_difference": 15,
+        "trend": 0
+      },
+      "relative_path": "data/benchmark/extracts/nhanes_2017_bpx_02"
+    },
+    {
+      "dataset_id": "nhanes_2017_biopro_03",
+      "cycle": [
+        "2017-2018"
+      ],
+      "row_count": 1000,
+      "column_count": 19,
+      "coverage": "numeric_pairs",
+      "time_column": null,
+      "extract_sha256": "806ce0629c713ea4222cbcc29fc2516866484c9fca77138da8e200bf6e57d8bf",
+      "cohort_sha256": "8bdd92e71c97801396d6719e5717f4b688373893b163baa83b0cb046e2d0c1d7",
+      "duplicates_removed": 0,
+      "nonresponse_replaced": 2,
+      "missing_cells": 683,
+      "candidate_counts_unverified": {
+        "correlation": 20,
+        "group_difference": 20,
+        "trend": 0
+      },
+      "relative_path": "data/benchmark/extracts/nhanes_2017_biopro_03"
+    },
+    {
+      "dataset_id": "nhanes_2017_diq_ghb_04",
+      "cycle": [
+        "2017-2018"
+      ],
+      "row_count": 1000,
+      "column_count": 16,
+      "coverage": "group_differences",
+      "time_column": null,
+      "extract_sha256": "6e7bf7a3968852eb03014c144d3ed724ded4917883a0e2d00611d37b058c070d",
+      "cohort_sha256": "93a3eada091bea3f100bbc776fb4bb2b213256d060fe101ee4f042fc8c38c283",
+      "duplicates_removed": 0,
+      "nonresponse_replaced": 2,
+      "missing_cells": 1131,
+      "candidate_counts_unverified": {
+        "correlation": 1,
+        "group_difference": 18,
+        "trend": 0
+      },
+      "relative_path": "data/benchmark/extracts/nhanes_2017_diq_ghb_04"
+    },
+    {
+      "dataset_id": "nhanes_2017_smq_bmx_05",
+      "cycle": [
+        "2017-2018"
+      ],
+      "row_count": 1000,
+      "column_count": 17,
+      "coverage": "group_differences",
+      "time_column": null,
+      "extract_sha256": "eb17348b626eb36b640c446af93b61d49f4e3ac73f2a8e850ae76e71020057ec",
+      "cohort_sha256": "93a3eada091bea3f100bbc776fb4bb2b213256d060fe101ee4f042fc8c38c283",
+      "duplicates_removed": 0,
+      "nonresponse_replaced": 2,
+      "missing_cells": 2269,
+      "candidate_counts_unverified": {
+        "correlation": 4,
+        "group_difference": 21,
+        "trend": 0
+      },
+      "relative_path": "data/benchmark/extracts/nhanes_2017_smq_bmx_05"
+    },
+    {
+      "dataset_id": "nhanes_2017_paq_bmx_06",
+      "cycle": [
+        "2017-2018"
+      ],
+      "row_count": 1000,
+      "column_count": 19,
+      "coverage": "group_differences",
+      "time_column": null,
+      "extract_sha256": "6b751e30ff4ba7bf26bc52fcd5cdaf12a1260d5453849e71c7c65d7d076499d5",
+      "cohort_sha256": "93a3eada091bea3f100bbc776fb4bb2b213256d060fe101ee4f042fc8c38c283",
+      "duplicates_removed": 0,
+      "nonresponse_replaced": 9,
+      "missing_cells": 954,
+      "candidate_counts_unverified": {
+        "correlation": 3,
+        "group_difference": 26,
+        "trend": 0
+      },
+      "relative_path": "data/benchmark/extracts/nhanes_2017_paq_bmx_06"
+    },
+    {
+      "dataset_id": "nhanes_2013_2018_bmx_trend_07",
+      "cycle": [
+        "2013-2014",
+        "2015-2016",
+        "2017-2018"
+      ],
+      "row_count": 3000,
+      "column_count": 15,
+      "coverage": "trends",
+      "time_column": "SDDSRVYR",
+      "extract_sha256": "4c8dfa840664eb71295aee84ab2b726bee584eceb7bdebf159b467d46fcac613",
+      "cohort_sha256": "06a7a488d34c819d03cdd99d895bd5eb1d4544b1af6eb26eb746244dfee39f53",
+      "duplicates_removed": 0,
+      "nonresponse_replaced": 5,
+      "missing_cells": 653,
+      "candidate_counts_unverified": {
+        "correlation": 7,
+        "group_difference": 14,
+        "trend": 0
+      },
+      "relative_path": "data/benchmark/extracts/nhanes_2013_2018_bmx_trend_07"
+    },
+    {
+      "dataset_id": "nhanes_2013_2018_bpx_trend_08",
+      "cycle": [
+        "2013-2014",
+        "2015-2016",
+        "2017-2018"
+      ],
+      "row_count": 3000,
+      "column_count": 17,
+      "coverage": "trends",
+      "time_column": "SDDSRVYR",
+      "extract_sha256": "501284b95a8502be060f049caafd04cfd6e5348701f5845fcd003c94571d814d",
+      "cohort_sha256": "06a7a488d34c819d03cdd99d895bd5eb1d4544b1af6eb26eb746244dfee39f53",
+      "duplicates_removed": 0,
+      "nonresponse_replaced": 5,
+      "missing_cells": 1486,
+      "candidate_counts_unverified": {
+        "correlation": 18,
+        "group_difference": 13,
+        "trend": 0
+      },
+      "relative_path": "data/benchmark/extracts/nhanes_2013_2018_bpx_trend_08"
+    },
+    {
+      "dataset_id": "nhanes_2013_2018_ghb_bmx_trend_09",
+      "cycle": [
+        "2013-2014",
+        "2015-2016",
+        "2017-2018"
+      ],
+      "row_count": 3000,
+      "column_count": 14,
+      "coverage": "trends",
+      "time_column": "SDDSRVYR",
+      "extract_sha256": "979913bdb11590a8c2d6a3a1ef57c6f87ed0bcc85786794f50c29e3ba4ca427e",
+      "cohort_sha256": "06a7a488d34c819d03cdd99d895bd5eb1d4544b1af6eb26eb746244dfee39f53",
+      "duplicates_removed": 0,
+      "nonresponse_replaced": 5,
+      "missing_cells": 703,
+      "candidate_counts_unverified": {
+        "correlation": 5,
+        "group_difference": 10,
+        "trend": 0
+      },
+      "relative_path": "data/benchmark/extracts/nhanes_2013_2018_ghb_bmx_trend_09"
+    },
+    {
+      "dataset_id": "nhanes_2017_slq_bmx_10",
+      "cycle": [
+        "2017-2018"
+      ],
+      "row_count": 1000,
+      "column_count": 17,
+      "coverage": "mixed",
+      "time_column": null,
+      "extract_sha256": "2222f3f4b370c803dde25ca805e90a703ddd531121777485fdb7d9978cf95d7c",
+      "cohort_sha256": "93a3eada091bea3f100bbc776fb4bb2b213256d060fe101ee4f042fc8c38c283",
+      "duplicates_removed": 0,
+      "nonresponse_replaced": 3,
+      "missing_cells": 361,
+      "candidate_counts_unverified": {
+        "correlation": 3,
+        "group_difference": 19,
+        "trend": 0
+      },
+      "relative_path": "data/benchmark/extracts/nhanes_2017_slq_bmx_10"
+    }
+  ],
+  "participant_overlap_counts": {
+    "nhanes_2017_bmx_01": {
+      "nhanes_2017_bmx_01": 1000,
+      "nhanes_2017_bpx_02": 1000,
+      "nhanes_2017_biopro_03": 1000,
+      "nhanes_2017_diq_ghb_04": 172,
+      "nhanes_2017_smq_bmx_05": 172,
+      "nhanes_2017_paq_bmx_06": 172,
+      "nhanes_2013_2018_bmx_trend_07": 1000,
+      "nhanes_2013_2018_bpx_trend_08": 1000,
+      "nhanes_2013_2018_ghb_bmx_trend_09": 1000,
+      "nhanes_2017_slq_bmx_10": 172
+    },
+    "nhanes_2017_bpx_02": {
+      "nhanes_2017_bmx_01": 1000,
+      "nhanes_2017_bpx_02": 1000,
+      "nhanes_2017_biopro_03": 1000,
+      "nhanes_2017_diq_ghb_04": 172,
+      "nhanes_2017_smq_bmx_05": 172,
+      "nhanes_2017_paq_bmx_06": 172,
+      "nhanes_2013_2018_bmx_trend_07": 1000,
+      "nhanes_2013_2018_bpx_trend_08": 1000,
+      "nhanes_2013_2018_ghb_bmx_trend_09": 1000,
+      "nhanes_2017_slq_bmx_10": 172
+    },
+    "nhanes_2017_biopro_03": {
+      "nhanes_2017_bmx_01": 1000,
+      "nhanes_2017_bpx_02": 1000,
+      "nhanes_2017_biopro_03": 1000,
+      "nhanes_2017_diq_ghb_04": 172,
+      "nhanes_2017_smq_bmx_05": 172,
+      "nhanes_2017_paq_bmx_06": 172,
+      "nhanes_2013_2018_bmx_trend_07": 1000,
+      "nhanes_2013_2018_bpx_trend_08": 1000,
+      "nhanes_2013_2018_ghb_bmx_trend_09": 1000,
+      "nhanes_2017_slq_bmx_10": 172
+    },
+    "nhanes_2017_diq_ghb_04": {
+      "nhanes_2017_bmx_01": 172,
+      "nhanes_2017_bpx_02": 172,
+      "nhanes_2017_biopro_03": 172,
+      "nhanes_2017_diq_ghb_04": 1000,
+      "nhanes_2017_smq_bmx_05": 1000,
+      "nhanes_2017_paq_bmx_06": 1000,
+      "nhanes_2013_2018_bmx_trend_07": 172,
+      "nhanes_2013_2018_bpx_trend_08": 172,
+      "nhanes_2013_2018_ghb_bmx_trend_09": 172,
+      "nhanes_2017_slq_bmx_10": 1000
+    },
+    "nhanes_2017_smq_bmx_05": {
+      "nhanes_2017_bmx_01": 172,
+      "nhanes_2017_bpx_02": 172,
+      "nhanes_2017_biopro_03": 172,
+      "nhanes_2017_diq_ghb_04": 1000,
+      "nhanes_2017_smq_bmx_05": 1000,
+      "nhanes_2017_paq_bmx_06": 1000,
+      "nhanes_2013_2018_bmx_trend_07": 172,
+      "nhanes_2013_2018_bpx_trend_08": 172,
+      "nhanes_2013_2018_ghb_bmx_trend_09": 172,
+      "nhanes_2017_slq_bmx_10": 1000
+    },
+    "nhanes_2017_paq_bmx_06": {
+      "nhanes_2017_bmx_01": 172,
+      "nhanes_2017_bpx_02": 172,
+      "nhanes_2017_biopro_03": 172,
+      "nhanes_2017_diq_ghb_04": 1000,
+      "nhanes_2017_smq_bmx_05": 1000,
+      "nhanes_2017_paq_bmx_06": 1000,
+      "nhanes_2013_2018_bmx_trend_07": 172,
+      "nhanes_2013_2018_bpx_trend_08": 172,
+      "nhanes_2013_2018_ghb_bmx_trend_09": 172,
+      "nhanes_2017_slq_bmx_10": 1000
+    },
+    "nhanes_2013_2018_bmx_trend_07": {
+      "nhanes_2017_bmx_01": 1000,
+      "nhanes_2017_bpx_02": 1000,
+      "nhanes_2017_biopro_03": 1000,
+      "nhanes_2017_diq_ghb_04": 172,
+      "nhanes_2017_smq_bmx_05": 172,
+      "nhanes_2017_paq_bmx_06": 172,
+      "nhanes_2013_2018_bmx_trend_07": 3000,
+      "nhanes_2013_2018_bpx_trend_08": 3000,
+      "nhanes_2013_2018_ghb_bmx_trend_09": 3000,
+      "nhanes_2017_slq_bmx_10": 172
+    },
+    "nhanes_2013_2018_bpx_trend_08": {
+      "nhanes_2017_bmx_01": 1000,
+      "nhanes_2017_bpx_02": 1000,
+      "nhanes_2017_biopro_03": 1000,
+      "nhanes_2017_diq_ghb_04": 172,
+      "nhanes_2017_smq_bmx_05": 172,
+      "nhanes_2017_paq_bmx_06": 172,
+      "nhanes_2013_2018_bmx_trend_07": 3000,
+      "nhanes_2013_2018_bpx_trend_08": 3000,
+      "nhanes_2013_2018_ghb_bmx_trend_09": 3000,
+      "nhanes_2017_slq_bmx_10": 172
+    },
+    "nhanes_2013_2018_ghb_bmx_trend_09": {
+      "nhanes_2017_bmx_01": 1000,
+      "nhanes_2017_bpx_02": 1000,
+      "nhanes_2017_biopro_03": 1000,
+      "nhanes_2017_diq_ghb_04": 172,
+      "nhanes_2017_smq_bmx_05": 172,
+      "nhanes_2017_paq_bmx_06": 172,
+      "nhanes_2013_2018_bmx_trend_07": 3000,
+      "nhanes_2013_2018_bpx_trend_08": 3000,
+      "nhanes_2013_2018_ghb_bmx_trend_09": 3000,
+      "nhanes_2017_slq_bmx_10": 172
+    },
+    "nhanes_2017_slq_bmx_10": {
+      "nhanes_2017_bmx_01": 172,
+      "nhanes_2017_bpx_02": 172,
+      "nhanes_2017_biopro_03": 172,
+      "nhanes_2017_diq_ghb_04": 1000,
+      "nhanes_2017_smq_bmx_05": 1000,
+      "nhanes_2017_paq_bmx_06": 1000,
+      "nhanes_2013_2018_bmx_trend_07": 172,
+      "nhanes_2013_2018_bpx_trend_08": 172,
+      "nhanes_2013_2018_ghb_bmx_trend_09": 172,
+      "nhanes_2017_slq_bmx_10": 1000
+    }
+  },
+  "limits": [
+    "10 pilot extracts, not the final 40-dataset evaluation",
+    "Extracts overlap participants; do not treat them as independent population samples",
+    "Candidate counts are unverified proposals, not findings or evaluation results",
+    "No column shuffle, injection, truth labels or verdicts produced by this builder"
+  ]
+}
