@@ -12,7 +12,7 @@ class ProposerSettings(BaseModel):
     """Bound model resources and refuse remote endpoints or verification-tier models."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
-    engine: Literal["deterministic", "ollama"]
+    engine: Literal["deterministic", "ollama", "api"]
     trace_backend: Literal["local", "langfuse"]
     model: str
     base_url: str
@@ -28,6 +28,36 @@ class ProposerSettings(BaseModel):
     max_output_tokens: int = Field(ge=128, le=4096)
     context_tokens: int = Field(ge=2048, le=8192)
     num_threads: int = Field(ge=1, le=16)
+    # Hosted Gemma behind an OpenAI-compatible endpoint, used only when engine == "api".
+    # The key is read from the environment variable named here, never from config.
+    api_base_url: str = "https://openrouter.ai/api/v1"
+    api_model: str = "google/gemma-4-26b-a4b-it"
+    api_key_env: str = "PRAMANA_ANALYSIS_API_KEY"
+
+    @property
+    def active_model(self) -> str:
+        """The model name the configured engine will actually call."""
+        return self.api_model if self.engine == "api" else self.model
+
+    @model_validator(mode="after")
+    def hosted_gemma_only(self) -> Self:
+        """The API engine may reach a remote host, but only over https and only for Gemma."""
+        parsed = urlsplit(self.api_base_url)
+        if (
+            parsed.scheme != "https"
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError("api_base_url must be a plain https URL with no credentials")
+        name = self.api_model.strip().casefold().split("/")[-1]
+        if not name.startswith("gemma"):
+            raise ValueError("the hosted analysis proposer requires a Gemma model")
+        if not self.api_key_env.isidentifier():
+            raise ValueError("api_key_env must be an environment variable name")
+        return self
 
     @model_validator(mode="after")
     def local_gemma_only(self) -> Self:

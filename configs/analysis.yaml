@@ -26,7 +26,9 @@ schema_inference:
 
 hypotheses:
   proposer:
-    engine: deterministic       # explicit offline baseline; env PRAMANA_ANALYSIS_ENGINE=ollama
+    engine: deterministic       # deterministic | ollama (local) | api (hosted Gemma); env PRAMANA_ANALYSIS_ENGINE
+    # engine=api reads PRAMANA_ANALYSIS_API_KEY and defaults to api_model google/gemma-4-26b-a4b-it
+    # on https://openrouter.ai/api/v1; override with PRAMANA_ANALYSIS_API_MODEL / _API_BASE_URL.
     trace_backend: local        # owner-authorized local audit; langfuse remains optional
     model: gemma2:2b             # installed Q4_0; i5-11300H / 16GB RAM CPU profile
     base_url: http://localhost:11434
