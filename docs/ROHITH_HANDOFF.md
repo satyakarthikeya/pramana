@@ -2,6 +2,11 @@
 
 Snapshot: 18 October 2026. Owner: P. Rohith, CB.AI.U4AID23123.
 
+**Scale-up update:** Rohith subsequently authorized building all forty before
+Satya's pilot evaluation. See [the forty-extract handoff](BENCHMARK_40_HANDOFF.md)
+for the completed source collection, audit and rebuild command. The pilot record
+below describes the original ten-source checkpoint; evaluation remains pending.
+
 ## Where the team can review the work
 
 | Work | Repository location | Status at this snapshot |

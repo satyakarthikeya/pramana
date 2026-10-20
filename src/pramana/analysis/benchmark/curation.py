@@ -63,8 +63,8 @@ class ExtractSpec(StrictModel):
 
 
 class PilotPlan(StrictModel):
-    phase: Literal["pilot"]
-    required_count: Literal[10]
+    phase: Literal["pilot", "benchmark"]
+    required_count: Literal[10, 40]
     seed: int = Field(ge=0)
     min_age: int = Field(ge=20)
     download_timeout_seconds: int = Field(gt=0)
@@ -77,9 +77,17 @@ class PilotPlan(StrictModel):
 
     @model_validator(mode="after")
     def valid_pilot(self) -> Self:
+        if self.required_count != (10 if self.phase == "pilot" else 40):
+            raise ValueError("phase and required count do not match")
         ids = [item.dataset_id for item in self.extracts]
         if len(ids) != self.required_count or len(set(ids)) != len(ids):
             raise ValueError("pilot count or unique dataset IDs do not match")
+        definitions = [
+            (tuple(item.cycles), tuple(item.modules), tuple(sorted(item.columns)))
+            for item in self.extracts
+        ]
+        if len(set(definitions)) != len(definitions):
+            raise ValueError("extracts must have distinct cycle/module/column definitions")
         for kind in ("numeric_pairs", "group_differences", "trends"):
             if sum(item.coverage == kind for item in self.extracts) < 3:
                 raise ValueError(f"pilot requires at least three extracts covering {kind}")

@@ -1,0 +1,699 @@
+# Rohith authorized scale-up before Satya evaluation, 2026-10-18.
+phase: benchmark
+required_count: 40
+seed: 20261018
+min_age: 20
+download_timeout_seconds: 60
+common_columns:
+  SEQN: id
+  SDDSRVYR: ordinal
+  RIDAGEYR: numeric
+  RIAGENDR: categorical
+  RIDRETH3: categorical
+  DMDEDUC2: ordinal
+  INDFMPIR: numeric
+  WTINT2YR: numeric
+  WTMEC2YR: numeric
+  SDMVSTRA: categorical
+  SDMVPSU: categorical
+weight_columns:
+- WTINT2YR
+- WTMEC2YR
+id_columns:
+- SEQN
+design_columns:
+- SDMVSTRA
+- SDMVPSU
+cycles:
+  H:
+    year: 2013
+    label: 2013-2014
+  I:
+    year: 2015
+    label: 2015-2016
+  J:
+    year: 2017
+    label: 2017-2018
+extracts:
+- dataset_id: nhanes_2017_bmx_01
+  cycles:
+  - J
+  modules:
+  - BMX
+  rows_per_cycle: 1000
+  coverage: numeric_pairs
+  columns:
+    BMXWT: numeric
+    BMXHT: numeric
+    BMXBMI: numeric
+    BMXWAIST: numeric
+- dataset_id: nhanes_2017_bpx_02
+  cycles:
+  - J
+  modules:
+  - BPX
+  rows_per_cycle: 1000
+  coverage: numeric_pairs
+  columns:
+    BPXSY1: numeric
+    BPXSY2: numeric
+    BPXSY3: numeric
+    BPXDI1: numeric
+    BPXDI2: numeric
+    BPXDI3: numeric
+- dataset_id: nhanes_2017_biopro_03
+  cycles:
+  - J
+  modules:
+  - BIOPRO
+  rows_per_cycle: 1000
+  coverage: numeric_pairs
+  columns:
+    LBXSAL: numeric
+    LBXSATSI: numeric
+    LBXSASSI: numeric
+    LBXSCR: numeric
+    LBXSGL: numeric
+    LBXSUA: numeric
+    LBXSTP: numeric
+    LBXSTR: numeric
+- dataset_id: nhanes_2017_diq_ghb_04
+  cycles:
+  - J
+  modules:
+  - DIQ
+  - GHB
+  rows_per_cycle: 1000
+  coverage: group_differences
+  columns:
+    DIQ010: categorical
+    DIQ160: categorical
+    DIQ050: categorical
+    DIQ070: categorical
+    LBXGH: numeric
+- dataset_id: nhanes_2017_smq_bmx_05
+  cycles:
+  - J
+  modules:
+  - SMQ
+  - BMX
+  rows_per_cycle: 1000
+  coverage: group_differences
+  columns:
+    SMQ020: categorical
+    SMQ040: categorical
+    SMD030: numeric
+    SMD650: numeric
+    BMXBMI: numeric
+    BMXWAIST: numeric
+- dataset_id: nhanes_2017_paq_bmx_06
+  cycles:
+  - J
+  modules:
+  - PAQ
+  - BMX
+  rows_per_cycle: 1000
+  coverage: group_differences
+  columns:
+    PAQ605: categorical
+    PAQ620: categorical
+    PAQ650: categorical
+    PAQ665: categorical
+    PAD680: numeric
+    PAQ670: ordinal
+    BMXBMI: numeric
+    BMXWAIST: numeric
+- dataset_id: nhanes_2013_2018_bmx_trend_07
+  cycles:
+  - H
+  - I
+  - J
+  modules:
+  - BMX
+  rows_per_cycle: 1000
+  coverage: trends
+  time_column: SDDSRVYR
+  columns:
+    BMXWT: numeric
+    BMXHT: numeric
+    BMXBMI: numeric
+    BMXWAIST: numeric
+- dataset_id: nhanes_2013_2018_bpx_trend_08
+  cycles:
+  - H
+  - I
+  - J
+  modules:
+  - BPX
+  rows_per_cycle: 1000
+  coverage: trends
+  time_column: SDDSRVYR
+  columns:
+    BPXSY1: numeric
+    BPXSY2: numeric
+    BPXSY3: numeric
+    BPXDI1: numeric
+    BPXDI2: numeric
+    BPXDI3: numeric
+- dataset_id: nhanes_2013_2018_ghb_bmx_trend_09
+  cycles:
+  - H
+  - I
+  - J
+  modules:
+  - GHB
+  - BMX
+  rows_per_cycle: 1000
+  coverage: trends
+  time_column: SDDSRVYR
+  columns:
+    LBXGH: numeric
+    BMXBMI: numeric
+    BMXWAIST: numeric
+- dataset_id: nhanes_2017_slq_bmx_10
+  cycles:
+  - J
+  modules:
+  - SLQ
+  - BMX
+  rows_per_cycle: 1000
+  coverage: mixed
+  columns:
+    SLD012: numeric
+    SLD013: numeric
+    SLQ050: categorical
+    SLQ120: ordinal
+    BMXBMI: numeric
+    BMXWAIST: numeric
+- dataset_id: nhanes_2013_bmx_11
+  cycles:
+  - H
+  modules:
+  - BMX
+  rows_per_cycle: 1000
+  coverage: numeric_pairs
+  columns:
+    BMXWT: numeric
+    BMXHT: numeric
+    BMXBMI: numeric
+    BMXWAIST: numeric
+- dataset_id: nhanes_2013_bpx_12
+  cycles:
+  - H
+  modules:
+  - BPX
+  rows_per_cycle: 1000
+  coverage: numeric_pairs
+  columns:
+    BPXSY1: numeric
+    BPXSY2: numeric
+    BPXSY3: numeric
+    BPXDI1: numeric
+    BPXDI2: numeric
+    BPXDI3: numeric
+- dataset_id: nhanes_2013_biopro_13
+  cycles:
+  - H
+  modules:
+  - BIOPRO
+  rows_per_cycle: 1000
+  coverage: numeric_pairs
+  columns:
+    LBXSAL: numeric
+    LBXSATSI: numeric
+    LBXSASSI: numeric
+    LBXSCR: numeric
+    LBXSGL: numeric
+    LBXSUA: numeric
+    LBXSTP: numeric
+    LBXSTR: numeric
+- dataset_id: nhanes_2013_diq_ghb_14
+  cycles:
+  - H
+  modules:
+  - DIQ
+  - GHB
+  rows_per_cycle: 1000
+  coverage: group_differences
+  columns:
+    DIQ010: categorical
+    DIQ160: categorical
+    DIQ050: categorical
+    DIQ070: categorical
+    LBXGH: numeric
+- dataset_id: nhanes_2013_smq_bmx_15
+  cycles:
+  - H
+  modules:
+  - SMQ
+  - BMX
+  rows_per_cycle: 1000
+  coverage: group_differences
+  columns:
+    SMQ020: categorical
+    SMQ040: categorical
+    SMD030: numeric
+    SMD650: numeric
+    BMXBMI: numeric
+    BMXWAIST: numeric
+- dataset_id: nhanes_2013_paq_bmx_16
+  cycles:
+  - H
+  modules:
+  - PAQ
+  - BMX
+  rows_per_cycle: 1000
+  coverage: group_differences
+  columns:
+    PAQ605: categorical
+    PAQ620: categorical
+    PAQ650: categorical
+    PAQ665: categorical
+    PAD680: numeric
+    PAQ670: ordinal
+    BMXBMI: numeric
+    BMXWAIST: numeric
+- dataset_id: nhanes_2015_bmx_17
+  cycles:
+  - I
+  modules:
+  - BMX
+  rows_per_cycle: 1000
+  coverage: numeric_pairs
+  columns:
+    BMXWT: numeric
+    BMXHT: numeric
+    BMXBMI: numeric
+    BMXWAIST: numeric
+- dataset_id: nhanes_2015_bpx_18
+  cycles:
+  - I
+  modules:
+  - BPX
+  rows_per_cycle: 1000
+  coverage: numeric_pairs
+  columns:
+    BPXSY1: numeric
+    BPXSY2: numeric
+    BPXSY3: numeric
+    BPXDI1: numeric
+    BPXDI2: numeric
+    BPXDI3: numeric
+- dataset_id: nhanes_2015_biopro_19
+  cycles:
+  - I
+  modules:
+  - BIOPRO
+  rows_per_cycle: 1000
+  coverage: numeric_pairs
+  columns:
+    LBXSAL: numeric
+    LBXSATSI: numeric
+    LBXSASSI: numeric
+    LBXSCR: numeric
+    LBXSGL: numeric
+    LBXSUA: numeric
+    LBXSTP: numeric
+    LBXSTR: numeric
+- dataset_id: nhanes_2015_diq_ghb_20
+  cycles:
+  - I
+  modules:
+  - DIQ
+  - GHB
+  rows_per_cycle: 1000
+  coverage: group_differences
+  columns:
+    DIQ010: categorical
+    DIQ160: categorical
+    DIQ050: categorical
+    DIQ070: categorical
+    LBXGH: numeric
+- dataset_id: nhanes_2015_smq_bmx_21
+  cycles:
+  - I
+  modules:
+  - SMQ
+  - BMX
+  rows_per_cycle: 1000
+  coverage: group_differences
+  columns:
+    SMQ020: categorical
+    SMQ040: categorical
+    SMD030: numeric
+    SMD650: numeric
+    BMXBMI: numeric
+    BMXWAIST: numeric
+- dataset_id: nhanes_2015_paq_bmx_22
+  cycles:
+  - I
+  modules:
+  - PAQ
+  - BMX
+  rows_per_cycle: 1000
+  coverage: group_differences
+  columns:
+    PAQ605: categorical
+    PAQ620: categorical
+    PAQ650: categorical
+    PAQ665: categorical
+    PAD680: numeric
+    PAQ670: ordinal
+    BMXBMI: numeric
+    BMXWAIST: numeric
+- modules:
+  - BMX
+  - BPX
+  columns:
+    BMXWT: numeric
+    BMXHT: numeric
+    BMXBMI: numeric
+    BMXWAIST: numeric
+    BPXSY1: numeric
+    BPXSY2: numeric
+    BPXSY3: numeric
+    BPXDI1: numeric
+    BPXDI2: numeric
+    BPXDI3: numeric
+  rows_per_cycle: 1000
+  coverage: numeric_pairs
+  dataset_id: nhanes_2013_bmx_bpx_23
+  cycles:
+  - H
+- modules:
+  - BMX
+  - BPX
+  columns:
+    BMXWT: numeric
+    BMXHT: numeric
+    BMXBMI: numeric
+    BMXWAIST: numeric
+    BPXSY1: numeric
+    BPXSY2: numeric
+    BPXSY3: numeric
+    BPXDI1: numeric
+    BPXDI2: numeric
+    BPXDI3: numeric
+  rows_per_cycle: 1000
+  coverage: numeric_pairs
+  dataset_id: nhanes_2015_bmx_bpx_24
+  cycles:
+  - I
+- modules:
+  - BMX
+  - BPX
+  columns:
+    BMXWT: numeric
+    BMXHT: numeric
+    BMXBMI: numeric
+    BMXWAIST: numeric
+    BPXSY1: numeric
+    BPXSY2: numeric
+    BPXSY3: numeric
+    BPXDI1: numeric
+    BPXDI2: numeric
+    BPXDI3: numeric
+  rows_per_cycle: 1000
+  coverage: numeric_pairs
+  dataset_id: nhanes_2017_bmx_bpx_25
+  cycles:
+  - J
+- modules:
+  - GHB
+  - BIOPRO
+  columns:
+    LBXGH: numeric
+    LBXSAL: numeric
+    LBXSATSI: numeric
+    LBXSASSI: numeric
+    LBXSCR: numeric
+    LBXSGL: numeric
+    LBXSUA: numeric
+    LBXSTP: numeric
+    LBXSTR: numeric
+  rows_per_cycle: 1000
+  coverage: numeric_pairs
+  dataset_id: nhanes_2013_ghb_biopro_26
+  cycles:
+  - H
+- modules:
+  - GHB
+  - BIOPRO
+  columns:
+    LBXGH: numeric
+    LBXSAL: numeric
+    LBXSATSI: numeric
+    LBXSASSI: numeric
+    LBXSCR: numeric
+    LBXSGL: numeric
+    LBXSUA: numeric
+    LBXSTP: numeric
+    LBXSTR: numeric
+  rows_per_cycle: 1000
+  coverage: numeric_pairs
+  dataset_id: nhanes_2015_ghb_biopro_27
+  cycles:
+  - I
+- modules:
+  - GHB
+  - BIOPRO
+  columns:
+    LBXGH: numeric
+    LBXSAL: numeric
+    LBXSATSI: numeric
+    LBXSASSI: numeric
+    LBXSCR: numeric
+    LBXSGL: numeric
+    LBXSUA: numeric
+    LBXSTP: numeric
+    LBXSTR: numeric
+  rows_per_cycle: 1000
+  coverage: numeric_pairs
+  dataset_id: nhanes_2017_ghb_biopro_28
+  cycles:
+  - J
+- modules:
+  - DIQ
+  - BMX
+  columns:
+    DIQ010: categorical
+    DIQ160: categorical
+    DIQ050: categorical
+    DIQ070: categorical
+    BMXWT: numeric
+    BMXHT: numeric
+    BMXBMI: numeric
+    BMXWAIST: numeric
+  rows_per_cycle: 1000
+  coverage: group_differences
+  dataset_id: nhanes_2013_diq_bmx_29
+  cycles:
+  - H
+- modules:
+  - DIQ
+  - BMX
+  columns:
+    DIQ010: categorical
+    DIQ160: categorical
+    DIQ050: categorical
+    DIQ070: categorical
+    BMXWT: numeric
+    BMXHT: numeric
+    BMXBMI: numeric
+    BMXWAIST: numeric
+  rows_per_cycle: 1000
+  coverage: group_differences
+  dataset_id: nhanes_2015_diq_bmx_30
+  cycles:
+  - I
+- modules:
+  - DIQ
+  - BMX
+  columns:
+    DIQ010: categorical
+    DIQ160: categorical
+    DIQ050: categorical
+    DIQ070: categorical
+    BMXWT: numeric
+    BMXHT: numeric
+    BMXBMI: numeric
+    BMXWAIST: numeric
+  rows_per_cycle: 1000
+  coverage: group_differences
+  dataset_id: nhanes_2017_diq_bmx_31
+  cycles:
+  - J
+- modules:
+  - SMQ
+  - BPX
+  columns:
+    SMQ020: categorical
+    SMQ040: categorical
+    SMD030: numeric
+    SMD650: numeric
+    BPXSY1: numeric
+    BPXSY2: numeric
+    BPXSY3: numeric
+    BPXDI1: numeric
+    BPXDI2: numeric
+    BPXDI3: numeric
+  rows_per_cycle: 1000
+  coverage: group_differences
+  dataset_id: nhanes_2013_smq_bpx_32
+  cycles:
+  - H
+- modules:
+  - SMQ
+  - BPX
+  columns:
+    SMQ020: categorical
+    SMQ040: categorical
+    SMD030: numeric
+    SMD650: numeric
+    BPXSY1: numeric
+    BPXSY2: numeric
+    BPXSY3: numeric
+    BPXDI1: numeric
+    BPXDI2: numeric
+    BPXDI3: numeric
+  rows_per_cycle: 1000
+  coverage: group_differences
+  dataset_id: nhanes_2015_smq_bpx_33
+  cycles:
+  - I
+- modules:
+  - SMQ
+  - BPX
+  columns:
+    SMQ020: categorical
+    SMQ040: categorical
+    SMD030: numeric
+    SMD650: numeric
+    BPXSY1: numeric
+    BPXSY2: numeric
+    BPXSY3: numeric
+    BPXDI1: numeric
+    BPXDI2: numeric
+    BPXDI3: numeric
+  rows_per_cycle: 1000
+  coverage: group_differences
+  dataset_id: nhanes_2017_smq_bpx_34
+  cycles:
+  - J
+- dataset_id: nhanes_2013_2018_biopro_trend_35
+  cycles:
+  - H
+  - I
+  - J
+  modules:
+  - BIOPRO
+  rows_per_cycle: 1000
+  coverage: trends
+  columns:
+    LBXSAL: numeric
+    LBXSATSI: numeric
+    LBXSASSI: numeric
+    LBXSCR: numeric
+    LBXSGL: numeric
+    LBXSUA: numeric
+    LBXSTP: numeric
+    LBXSTR: numeric
+  time_column: SDDSRVYR
+- dataset_id: nhanes_2013_2018_diq_ghb_trend_36
+  cycles:
+  - H
+  - I
+  - J
+  modules:
+  - DIQ
+  - GHB
+  rows_per_cycle: 1000
+  coverage: trends
+  columns:
+    DIQ010: categorical
+    DIQ160: categorical
+    DIQ050: categorical
+    DIQ070: categorical
+    LBXGH: numeric
+  time_column: SDDSRVYR
+- dataset_id: nhanes_2013_2018_smq_bmx_trend_37
+  cycles:
+  - H
+  - I
+  - J
+  modules:
+  - SMQ
+  - BMX
+  rows_per_cycle: 1000
+  coverage: trends
+  columns:
+    SMQ020: categorical
+    SMQ040: categorical
+    SMD030: numeric
+    SMD650: numeric
+    BMXBMI: numeric
+    BMXWAIST: numeric
+  time_column: SDDSRVYR
+- dataset_id: nhanes_2013_2018_paq_bmx_trend_38
+  cycles:
+  - H
+  - I
+  - J
+  modules:
+  - PAQ
+  - BMX
+  rows_per_cycle: 1000
+  coverage: trends
+  columns:
+    PAQ605: categorical
+    PAQ620: categorical
+    PAQ650: categorical
+    PAQ665: categorical
+    PAD680: numeric
+    PAQ670: ordinal
+    BMXBMI: numeric
+    BMXWAIST: numeric
+  time_column: SDDSRVYR
+- modules:
+  - BMX
+  - BPX
+  columns:
+    BMXWT: numeric
+    BMXHT: numeric
+    BMXBMI: numeric
+    BMXWAIST: numeric
+    BPXSY1: numeric
+    BPXSY2: numeric
+    BPXSY3: numeric
+    BPXDI1: numeric
+    BPXDI2: numeric
+    BPXDI3: numeric
+  rows_per_cycle: 1000
+  coverage: trends
+  dataset_id: nhanes_2013_2018_bmx_bpx_trend_39
+  cycles:
+  - H
+  - I
+  - J
+  time_column: SDDSRVYR
+- modules:
+  - GHB
+  - BIOPRO
+  columns:
+    LBXGH: numeric
+    LBXSAL: numeric
+    LBXSATSI: numeric
+    LBXSASSI: numeric
+    LBXSCR: numeric
+    LBXSGL: numeric
+    LBXSUA: numeric
+    LBXSTP: numeric
+    LBXSTR: numeric
+  rows_per_cycle: 1000
+  coverage: trends
+  dataset_id: nhanes_2013_2018_ghb_biopro_trend_40
+  cycles:
+  - H
+  - I
+  - J
+  time_column: SDDSRVYR

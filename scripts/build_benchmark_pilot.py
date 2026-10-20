@@ -1,4 +1,4 @@
-"""Build or check Rohith's approved ten-extract handoff. Never shuffle or inject."""
+"""Build or check a ten- or forty-extract handoff. Never shuffle or inject."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ from pramana.analysis.hypotheses.generation import generate_candidates  # noqa: 
 
 
 def main() -> int:
-    """Build all ten extracts, validate handoffs, and publish aggregate audit metadata only."""
+    """Validate every planned handoff and publish aggregate audit metadata only."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", type=Path, default=DEFAULT_PLAN)
     parser.add_argument("--data-dir", type=Path, default=ROOT / "data")
@@ -34,11 +34,11 @@ def main() -> int:
     parser.add_argument("--check-only", action="store_true")
     parser.add_argument("--summary", type=Path)
     parser.add_argument("--metadata-report", type=Path)
-    parser.add_argument(
-        "--source-lock", type=Path, default=ROOT / "configs/benchmark_pilot_sources.json"
-    )
+    parser.add_argument("--source-lock", type=Path)
     args = parser.parse_args()
     plan = load_plan(args.plan)
+    if args.source_lock is None:
+        args.source_lock = args.plan.with_name(f"{args.plan.stem}_sources.json")
     raw = args.data_dir / "raw/nhanes"
     output = args.data_dir / "benchmark/extracts"
     if not args.offline and not args.check_only:
@@ -107,8 +107,14 @@ def main() -> int:
             flush=True,
         )
     summary = {
-        "phase": "approved_pilot_10",
-        "approval": "Satya approval relayed by Rohith, 2026-10-18",
+        "phase": (
+            "approved_pilot_10" if plan.phase == "pilot" else "benchmark_40_awaiting_evaluation"
+        ),
+        "approval": (
+            "Satya approval relayed by Rohith, 2026-10-18"
+            if plan.phase == "pilot"
+            else "Rohith authorized expansion 2026-10-18; Satya pilot evaluation pending"
+        ),
         "plan_sha256": hashlib.sha256(
             json.dumps(plan.model_dump(mode="json"), sort_keys=True).encode("utf-8")
         ).hexdigest(),
@@ -120,7 +126,7 @@ def main() -> int:
             for left, ids in people.items()
         },
         "limits": [
-            "10 pilot extracts, not the final 40-dataset evaluation",
+            "Source handoffs only; Satya's injection and evaluation have not been run",
             "Extracts overlap participants; do not treat them as independent population samples",
             "Candidate counts are unverified proposals, not findings or evaluation results",
             "No column shuffle, injection, truth labels or verdicts produced by this builder",
@@ -130,7 +136,7 @@ def main() -> int:
         write_json(args.summary, summary)
     if args.metadata_report:
         write_json(
-            args.metadata_report, {"phase": "approved_pilot_10", "datasets": metadata_reports}
+            args.metadata_report, {"phase": summary["phase"], "datasets": metadata_reports}
         )
     if not args.source_lock.is_file() and not args.check_only:
         write_json(
