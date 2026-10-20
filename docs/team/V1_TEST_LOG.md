@@ -52,8 +52,8 @@ the same directory. Earlier clean run:
 
 | Dataset | Run ID | Result | End-to-end browser duration |
 |---|---|---|---|
-| Synthetic sample | `73cbc1ab-a87e-4da2-955a-5b58bbdfa93a` | 1 PASS, 2 REJECT | 17.633 s |
-| Related second upload | `4e4a9343-9b47-4fba-b93c-1b51fbe18e00` | 1 PASS, 2 REJECT; source-verified hints | 18.444 s |
+| Synthetic sample | `54970671-5b7e-4ac5-bf4f-ac44cbc01f38` | 1 PASS, 2 REJECT | 16.109 s |
+| Related second upload | `24ef6b4a-642c-4cea-a68a-a5336c4f0fc0` | 1 PASS, 2 REJECT; source-verified hints | 16.862 s |
 
 Both stored only PASS findings. Repeated later screenshot runs use new run UUIDs;
 consult the artifact's recorded IDs rather than conflating separate executions.
@@ -105,7 +105,10 @@ synthetic files, profiles, screenshots and downloads remain ignored.
 - Clean-clone installation and full journey on a second machine (A5); a teammate
   must test without this machine's prepared package/model caches.
 - Optional funded hosted-Gemma acceptance/cost record (C2), if the team wants it.
-- Publish/acknowledge owed contract and whitelist review notices (G5).
+- Contract/whitelist notices were published in
+  [PR #25's review comment](https://github.com/satyakarthikeya/pramana/pull/25#issuecomment-6288098957).
+  Affected-owner acknowledgments remain required; no private notifications or
+  individual approval is implied by publishing a repository review notice.
 - Human-written report (G6), human rehearsal/sign-off and the scheduled 26 October
   freeze. No agent-authored capstone report or premature code-freeze claim.
 - Team decision on deleting historical docs after review; no material files removed.
