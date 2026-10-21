@@ -1,5 +1,5 @@
 # V1 product defaults; not verification thresholds or a silent model fallback.
-generator: template
+generator: llm
 max_candidates: 8
 preview_rows: 5
 sample_seed: 20261020

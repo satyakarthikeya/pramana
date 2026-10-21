@@ -1,4 +1,4 @@
-"""Routine Gemma/schema/cleaning orchestration node."""
+"""Deterministic schema/cleaning orchestration node; no hidden model inference."""
 
 from typing import Any
 

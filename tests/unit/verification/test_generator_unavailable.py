@@ -82,16 +82,22 @@ def test_wrong_provider_raises_unavailable(config) -> None:
 
 
 def test_transport_failure_raises_unavailable(monkeypatch: pytest.MonkeyPatch, config) -> None:
-    import openai
+    from uuid import uuid4
+
+    from structlog.contextvars import bound_contextvars
 
     class _Down:
         def __init__(self, *args, **kwargs) -> None:
             raise ConnectionError("network unreachable")
 
     monkeypatch.setenv("DEEPSEEK_API_KEY", "not-a-real-key")
-    monkeypatch.setattr(openai, "OpenAI", _Down)
-    with pytest.raises(GeneratorUnavailable, match="network unreachable"):
+    monkeypatch.setattr(generator, "complete_chat", _Down)
+    with (
+        bound_contextvars(run_id=str(uuid4())),
+        pytest.raises(GeneratorUnavailable, match="required tracing failed") as caught,
+    ):
         generator._call_deepseek("s", "u", config)
+    assert "network unreachable" not in str(caught.value)
 
 
 def test_bad_model_output_is_not_unavailable(monkeypatch: pytest.MonkeyPatch, config) -> None:

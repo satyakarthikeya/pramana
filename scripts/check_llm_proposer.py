@@ -1,9 +1,10 @@
-"""Preflight or exercise the real, traced local claim proposer on synthetic data."""
+"""Preflight or exercise the traced DeepSeek claim proposer on synthetic data."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -25,38 +26,42 @@ from pramana.common.logging import bind_run_context, clear_log_context  # noqa: 
 
 
 def main() -> int:
-    """Check local Ollama and the explicitly chosen local/Langfuse audit backend."""
+    """Check configuration without inference, or explicitly run live synthetic tests."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--preflight-only", action="store_true")
     parser.add_argument("--verify", action="store_true", help="Verify the returned batch once")
-    parser.add_argument("--trace-backend", choices=["local", "langfuse"])
+    parser.add_argument("--trace-backend", choices=["langfuse"])
     args = parser.parse_args()
     load_dotenv(ROOT / ".env", override=False)
     config = load_config()
-    settings = config.hypotheses.proposer.model_copy(update={"engine": "ollama"})
+    settings = config.hypotheses.proposer.model_copy(update={"engine": "api"})
     if args.trace_backend:
         settings = settings.model_copy(update={"trace_backend": args.trace_backend})
     hypotheses = config.hypotheses.model_copy(update={"proposer": settings})
     tracing = None
     try:
-        if settings.trace_backend == "langfuse":
+        settings = type(settings).model_validate(settings.model_dump())
+        required = (
+            "DEEPSEEK_API_KEY",
+            "LANGFUSE_PUBLIC_KEY",
+            "LANGFUSE_SECRET_KEY",
+            "LANGFUSE_HOST",
+        )
+        if any(not os.getenv(name, "").strip() for name in required):
+            raise RuntimeError("Fill the DeepSeek and Langfuse credentials in .env")
+        if not load_runtime_config().langfuse.enabled:
+            raise RuntimeError("Enable Langfuse for live DeepSeek calls")
+        if not args.preflight_only:
             tracing = get_langfuse_client(load_runtime_config().langfuse)
             if tracing is None or not tracing.auth_check():
                 raise RuntimeError("Langfuse credentials were not accepted")
-        import ollama
-
-        info = ollama.Client(host=settings.base_url, timeout=10, trust_env=False).show(
-            settings.model
-        )
-        details = info.model_dump(mode="json") if hasattr(info, "model_dump") else dict(info)
-        family = str(details.get("details", {}).get("family", ""))
-        if not family.startswith("gemma"):
-            raise RuntimeError("The installed model does not report a Gemma family")
     except Exception as error:
         print(f"BLOCKED: preflight failed ({type(error).__name__}); no model inference was made.")
         return 2
     print(
-        f"Preflight passed: {settings.model}; audit backend: {settings.trace_backend}.", flush=True
+        f"Configuration preflight passed: {settings.active_model}; "
+        f"audit backend: {settings.trace_backend}. Provider access is not yet validated.",
+        flush=True,
     )
     if args.preflight_only:
         return 0
@@ -85,7 +90,7 @@ def main() -> int:
         )
         report = {
             "run_id": str(run_id),
-            "model": settings.model,
+            "model": settings.active_model,
             "seed": settings.seed,
             "candidate_count_unverified": len(candidates),
             "elapsed_seconds": round(time.monotonic() - started, 2),

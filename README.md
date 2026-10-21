@@ -51,7 +51,7 @@ rules that apply inside it.
 ## Pipeline
 
 ```
-dataset → preparation (rules; Gemma only where stuck) → analysis agent (LLM proposes claims)
+dataset → preparation (rules) → analysis agent (LLM proposes claims)
         → VERIFICATION GATEWAY (DeepSeek writes the test; our code decides)
               ├─ PASS → memory (ChromaDB) → report
               └─ REJECT → discarded
@@ -72,12 +72,15 @@ Python 3.11+ is required. From a clean clone on Windows:
 python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt
 .venv\Scripts\python.exe -m pip install -e .
+# Copy .env.example only if .env does not already exist; preserve existing keys.
+# Fill DEEPSEEK_API_KEY and Langfuse credentials in .env, then:
 .venv\Scripts\python.exe -m pramana
 ```
 
 The last line is the **one start command**. Open **http://127.0.0.1:8080**.
-On Linux/macOS, use `.venv/bin/python` instead. No Docker, Redis, Celery worker,
-Ollama, Langfuse account, paid key or `.env` file is needed for this V1 profile.
+On Linux/macOS, use `.venv/bin/python` instead. No Docker, Redis, Celery worker or
+local generative model is needed. The live profile requires DeepSeek and Langfuse
+credentials in the ignored `.env` file; no keys belong in browser JavaScript.
 Internet is needed for package installation and the first local MiniLM embedding
 model download; allow that first-use download to finish. Memory persists locally.
 If port 8080 is already used (for example by the Docker API), start with
@@ -87,7 +90,7 @@ If port 8080 is already used (for example by the Docker API), start with
 
 1. Click **Try the sample**, or upload CSV/XLSX and optionally enter a question.
    The sample is generated from a seeded recipe in the repository; no participant
-   data is committed. The rule scan explores the supported relationships rather
+   data is committed. DeepSeek proposes supported structured relationships rather
    than promising free-form question answering.
 2. Watch the stage and elapsed time. Inspect detected column roles, exclusions and
    the bounded cleaned-row preview. These are data descriptions, not findings.
@@ -100,24 +103,30 @@ If port 8080 is already used (for example by the Docker API), start with
 6. **New analysis** resets the form; it does not cancel or silently restart an active
    statistical family. Only one run is allowed at a time.
 
-### Optional model configuration
+### DeepSeek-only model configuration
 
-Copy `.env.example` to `.env` only if you need overrides. Never commit keys.
-V1's launcher explicitly selects template verification by default, while the
-standalone gateway configuration keeps the verification owner's LLM default.
-For the approved DeepSeek code generator, set local `DEEPSEEK_API_KEY` and a matching
-`DEEPSEEK_BASE_URL`, configure valid Langfuse tracing, and run:
+Create `.env` from `.env.example` only if it does not already exist. Never overwrite
+existing keys. Both analysis and verification use `DEEPSEEK_API_KEY` and the official
+`https://api.deepseek.com` endpoint. `DEEPSEEK_MODEL=deepseek-flash` sets both roles;
+`deepseek-v4-pro` is the explicit alternative, never an automatic substitution.
+Live calls require `LANGFUSE_HOST`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` and
+`PRAMANA_LANGFUSE_ENABLED=true`. All calls are traced under the workflow run ID.
 
 ```powershell
 .venv\Scripts\python.exe -m pramana --generator llm
 ```
 
-Missing credentials fail closed; they never trigger template substitution. Hosted
-Gemma proposal (`PRAMANA_ANALYSIS_ENGINE=api`) is optional and not accepted against
-a real funded provider in this V1 session. Configure `PRAMANA_ANALYSIS_API_KEY`,
-the approved Gemma model and endpoint explicitly; see `configs/analysis.yaml`.
-The rule proposer stays the shipped default. Existing non-V1 Docker tooling remains
-available for development but is not a V1 startup dependency.
+Missing credentials, tracing failures, malformed JSON and invalid generated code
+fail closed; they never trigger another model or a template substitution. Statistical
+tests, BH correction, verdicts and PASS-only memory writes remain deterministic code.
+Schema inference, cleaning and lesson formatting also remain rule-based; their
+optional refiner hook is not a hidden model call. MiniLM embeddings remain local for
+memory search only. Gemma/Ollama is no longer an inference dependency.
+
+For an explicitly labelled offline reference run, set
+`PRAMANA_ANALYSIS_ENGINE=deterministic`, `PRAMANA_VERIFICATION_GENERATOR=template`
+and `PRAMANA_LANGFUSE_ENABLED=false`. This is not DeepSeek acceptance evidence.
+See [the DeepSeek migration/testing checklist](docs/team/DEEPSEEK_ONLY_TODO.md).
 
 ### Storage and reset
 

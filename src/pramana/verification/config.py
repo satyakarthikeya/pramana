@@ -240,6 +240,8 @@ def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> VerificationConfig:
     """
     raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     override = os.environ.get(GENERATOR_ENV_VAR)
+    if model := os.getenv("DEEPSEEK_MODEL"):
+        raw["llm"]["model"] = model
     if override is not None:
         if override not in _GENERATOR_CHOICES:
             raise ValueError(

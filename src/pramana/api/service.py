@@ -235,12 +235,17 @@ class RunService:
             )
             if state.verification_summary and state.verification_summary.generator_unavailable:
                 error = (
-                    "Verification generator unavailable. Check the configured provider credentials."
+                    "Verification generator unavailable. Check DeepSeek credentials and Langfuse."
                 )
             elif state.errors:
                 for failure in state.errors:
                     if failure.error_type == "DataInputError":
                         error = failure.message
+                    elif failure.node == "analysis" and failure.error_type == "ProposerUnavailable":
+                        error = (
+                            "Analysis model unavailable. Check DEEPSEEK_API_KEY and Langfuse "
+                            "configuration; no unverified findings were published."
+                        )
                     elif failure.node == "ingest":
                         error = (
                             "The file could not be read as a table. "

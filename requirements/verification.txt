@@ -8,6 +8,6 @@ scipy>=1.13
 statsmodels>=0.14        # BH-FDR cross-check in tests, not the production path
 scikit-learn>=1.5        # stats utilities available to sandboxed generated code
 
-# Verification LLM — DeepSeek V4, gateway ONLY (AGENTS.md §2).
+# DeepSeek API compatibility tooling; runtime roles use the shared traced client.
 # OpenAI-compatible client pointed at the DeepSeek endpoint; key from env.
 openai>=1.40

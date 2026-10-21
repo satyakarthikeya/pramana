@@ -69,7 +69,7 @@ class LLMSettings(BaseModel):
         ):
             raise ValueError("Use HTTPS or a local HTTP endpoint, without URL credentials")
         if not self.api_key.get_secret_value().strip():
-            raise ValueError("An explicit key is required; use a local placeholder for Ollama")
+            raise ValueError("An explicit key is required for the configured endpoint")
         if (self.input_usd_per_million is None) != (self.output_usd_per_million is None):
             raise ValueError("Configure both token prices or neither")
         return self
@@ -152,6 +152,8 @@ def complete_chat(
     insight_id: str | None = None,
     temperature: float = 0,
     max_tokens: int = 2048,
+    json_output: bool = False,
+    thinking: Literal["enabled", "disabled"] | None = None,
 ) -> Completion:
     """Return traced text with bounded same-model retries, or fail without fallback.
 
@@ -172,15 +174,18 @@ def complete_chat(
     observe = getattr(client, "start_as_current_observation", None)
     if observe is None:
         raise LLMUnavailable("Configured Langfuse tracing is required before inference")
-    payload = json.dumps(
-        {
-            "model": settings.model,
-            "messages": [item.model_dump() for item in messages],
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-            "stream": False,
-        }
-    ).encode("utf-8")
+    body: dict[str, Any] = {
+        "model": settings.model,
+        "messages": [item.model_dump() for item in messages],
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream": False,
+    }
+    if json_output:
+        body["response_format"] = {"type": "json_object"}
+    if thinking is not None:
+        body["thinking"] = {"type": thinking}
+    payload = json.dumps(body).encode("utf-8")
     logger = get_logger(component="llm", run_id=str(run_id), insight_id=insight_id)
     for attempt in range(settings.max_retries + 1):
         try:
@@ -189,7 +194,12 @@ def complete_chat(
                 as_type="generation",
                 trace_context={"trace_id": run_id.hex},
                 model=settings.model,
-                model_parameters={"temperature": temperature, "max_tokens": max_tokens},
+                model_parameters={
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                    "json_output": json_output,
+                    "thinking": thinking,
+                },
                 metadata={"run_id": str(run_id), "insight_id": insight_id, "attempt": attempt + 1},
                 input=[item.model_dump() for item in messages],
             ) as span:

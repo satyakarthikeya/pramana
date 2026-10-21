@@ -107,9 +107,9 @@ def test_container_analysis_endpoint_keeps_the_owner_validation(
     from pramana.orchestration.analysis_integration import native_analysis_adapters
 
     monkeypatch.setenv("PRAMANA_ANALYSIS_BASE_URL", "https://unapproved.example")
-    with pytest.raises(ValueError, match="local Ollama endpoint"):
+    with pytest.raises(ValueError, match="Legacy local analysis settings"):
         native_analysis_adapters()
-    monkeypatch.setenv("PRAMANA_ANALYSIS_BASE_URL", "http://host.docker.internal:11434")
+    monkeypatch.setenv("PRAMANA_ANALYSIS_BASE_URL", "https://api.deepseek.com")
     monkeypatch.setenv("PRAMANA_ANALYSIS_MODEL", "llama3.1:latest")
-    with pytest.raises(ValueError, match="Gemma model tag"):
+    with pytest.raises(ValueError, match="Legacy local analysis settings"):
         native_analysis_adapters()

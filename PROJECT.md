@@ -6,6 +6,18 @@
 > "Where models are used" table in §2 and tracked in `docs/DECISIONS_LLM_ROLES.md`.
 > Do not assume a component exists because it appears in a diagram here.
 
+> **Provider update, 21 October 2026:** the user explicitly requested DeepSeek-only
+> generative inference. Analysis now proposes structured claims through DeepSeek;
+> the gateway separately asks DeepSeek to write falsification code. Gemma/Ollama
+> inference is removed. Schema, cleaning and lesson formatting are rules only;
+> optional semantic-refiner hooks are not live model implementations. MiniLM is
+> retained for local embeddings, not generation. This supersedes historical model
+> names/split rationale below. All hosted calls require run-linked Langfuse tracing.
+> No statistical threshold, sandbox or PASS-only memory contract is changed.
+> Live smoke/browser/group/trend/replay checks are recorded in
+> `docs/team/DEEPSEEK_LIVE_TEST_LOG.md`. Affected-owner reviews, broad evaluation
+> and release gates remain tracked in `docs/team/DEEPSEEK_ONLY_TODO.md`.
+
 ## 1. What is PRAMANA
 
 PRAMANA (Sanskrit: "valid proof") is a **self-evolving data analysis agent with execution-grounded verification**.
@@ -32,10 +44,10 @@ User uploads dataset (+ optional question)
         │                                 dataset unless it passes [3] on that dataset.
         ▼
 [1] Preparation                        → ingest, clean (rules), infer the schema.
-        │                                 Gemma (local) only where the rules are stuck:
-        │                                 it labels an unclear column or SUGGESTS a
+        │                                 No semantic model is currently wired here:
+        │                                 an optional future refiner may suggest a
         │                                 cleaning step. Code applies and logs any step;
-        │                                 Gemma never edits data itself.
+        │                                 a model must never edit data itself.
         ▼
 [2] Analysis agent (LLM)               → reads the schema profile, column summaries, the
         │                                 user's question and [0]'s hints, and proposes
@@ -74,7 +86,7 @@ User uploads dataset (+ optional question)
         ▼
 [4] Memory write                       → the memory guard admits PASS proofs only and
         │                                 raises on anything else. PASSed insights are
-        │                                 abstracted into lessons (Gemma, optional) and
+        │                                 abstracted into lessons (rules) and
         │                                 stored in ChromaDB. REJECTed ones are discarded.
         ▼
 [5] Report to user                     → PASS insights, each with its proof object.
@@ -90,17 +102,17 @@ User uploads dataset (+ optional question)
 
 Across sessions ("episode mode"): on a new related dataset, the agent retrieves verified lessons from ChromaDB instead of starting cold ([0] above). Self-evolution is measured by comparing batch vs. episode performance.
 
-**Where models are used** (status as of 18 September 2026; update this table in the same PR that changes a status):
+**Where models are used** (implementation status, 21 October 2026; live evidence and limitations in the test log):
 
 | Step | Model | What it may do | What it may never do | Status |
 |---|---|---|---|---|
-| [0] + [4] memory search | all-MiniLM-L6-v2 embeddings (local, `configs/memory.yaml`) | Find lessons similar to a new dataset | Decide what is stored (the guard does) | Persistent Chroma store + retrieval API built locally; automatic episode consumption pending |
-| [1] schema inference | Gemma (local) | Label a column the rules could not classify, or decline to | Edit data; decide anything statistical | Hook built (`SemanticRefiner`), no implementation |
-| [1] cleaning | Gemma (local), optional | Suggest a step for a non-standard case; code applies it and records it in the cleaning report | Edit data directly | Not built — cleaning is rules only |
-| [2] analysis agent | Configurable: Gemma (local) or an API model | Propose structured claims | Write a claim's sentence; supply a number the gate uses | Local Gemma structured proposer built and smoke-tested with code verification; explicit local audit or Langfuse; deterministic baseline remains explicit |
-| [3b] falsification code | DeepSeek V4 (API) | Write `falsify(frame)` calling our library | Compute or report a statistic; import anything else | Built; **config still defaults to the template generator** |
-| [3c] column check | none (code) | — | — | **Not built** |
-| [4] lesson abstraction | Gemma (local), optional | Reword a PASS result as a lesson | Store anything that did not PASS | Rule-based abstraction built; no Gemma abstraction calls |
+| [0] + [4] memory search | all-MiniLM-L6-v2 embeddings (local) | Find similar verified lessons | Decide what is stored | Persistent store, automatic historical hints and source links built |
+| [1] schema inference | none (rules) | Classify supported columns | Guess unknown roles | Heuristics built; optional `SemanticRefiner` hook has no model implementation |
+| [1] cleaning | none (rules) | Apply and log configured cleaning | Silently edit data | Rule-based implementation built |
+| [2] analysis agent | DeepSeek API | Propose structured claims | Author claim prose, proof or verdict | Shared traced client exercised live; invalid/omitted proposals remain possible; deterministic baseline is explicit only |
+| [3b] falsification code | DeepSeek API | Write `falsify(frame)` calling our library | Supply a statistic or verdict as evidence | LLM default; shared run-linked tracing, bounded transport and no fallback implemented |
+| [3c] column check | none (code) | Refuse unstated columns and row selection | Relax sandbox restrictions | Built, along with template-agreement diagnostics |
+| [4] lesson abstraction | none (rules) | Render a lesson from a PASS proof | Store a non-PASS claim | Rule-based abstraction and guarded writes built |
 | everything else in [3], the memory guard | none (code) | — | — | Built |
 
 **The template generator** (`verification/falsification/templates.py`) writes the same test for a claim type without any model. It stays as the reference the DeepSeek path is measured against and as an explicit offline mode, chosen in config. It is never a silent fallback: a run configured for DeepSeek either gets DeepSeek's code or a NOT_TESTABLE.
@@ -111,15 +123,15 @@ Across sessions ("episode mode"): on a new related dataset, the agent retrieves 
 |---|---|---|
 | Orchestration | LangGraph | agent graph / state machine |
 | Backend API | FastAPI | |
-| Routine sub-agent LLM | Gemma (local) | schema-inference and cleaning help, lesson abstraction — cheap tasks |
-| Analysis LLM | Gemma (local) or an API model | proposes structured claims; model choice is open (`docs/DECISIONS_LLM_ROLES.md`) |
+| Routine operations | deterministic code | schema heuristics, cleaning, lesson formatting; no hidden generative calls |
+| Analysis LLM | DeepSeek API | proposes structured claims only; separate prompt from verification |
 | Verification LLM | DeepSeek V4 (API) | writes falsification code ONLY; that code may import just `numpy`, `pandas` and `pramana.verification.stats` — do not swap to a local model |
 | Verified memory | ChromaDB + all-MiniLM-L6-v2 embeddings | vector store; write access gated by verification verdict |
 | Observability | Langfuse | tracing every LLM call |
 | Task queue | Celery + Redis | async execution of falsification code |
 | Deployment | Docker | |
 
-**Model split rationale (do not change without team decision):** Gemma handles cheap routine work to control cost. The analysis agent is where an LLM's judgement is wanted — it is also where hallucinated claims come from, which is what the gateway is built to catch. DeepSeek V4 is reserved for the verification gateway, and even there its only job is to write the falsification program.
+**Provider decision (user request, 21 October 2026):** DeepSeek handles both generative roles with separate prompts and boundaries. The analysis agent proposes hypotheses; the gateway's model writes the falsification harness. Routine operations stay deterministic. Accuracy comes from execution, validation and the guard, not from a model promising a correct answer. This cross-module migration requires affected-owner review before merge.
 
 **Why DeepSeek writes the tests.** A template is one fixed test per claim type. It cannot adapt to a particular claim or dataset — a subgroup claim, a unit written into a column, a code like `0` meaning "not measured" — so such claims either fail as NOT_TESTABLE or get tested on the wrong values. DeepSeek writes the test each claim needs.
 

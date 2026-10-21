@@ -18,6 +18,8 @@ Start with **[V1.md](V1.md)**: the MVP plan and the do-list. Everything else is 
 | File | What it is |
 |---|---|
 | [TEAM_GOALS_CHECKLIST.md](team/TEAM_GOALS_CHECKLIST.md) | Whole-project goals checklist (includes work past V1) |
+| [DEEPSEEK_ONLY_TODO.md](team/DEEPSEEK_ONLY_TODO.md) | Current provider migration and pending live website/API acceptance |
+| [DEEPSEEK_LIVE_TEST_LOG.md](team/DEEPSEEK_LIVE_TEST_LOG.md) | Real DeepSeek/browser/replay/remote trace evidence and honest coverage limitations |
 | [TESTING_PHASE.md](team/TESTING_PHASE.md) | How to test the stack, including live services |
 | [V1_TEST_LOG.md](team/V1_TEST_LOG.md) | Actual local V1/browser evidence, defects fixed and remaining release gates |
 | [V1_REVIEW_NOTICES.md](team/V1_REVIEW_NOTICES.md) | Contract/whitelist notices and required cross-module review |

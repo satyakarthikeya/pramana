@@ -9,15 +9,15 @@ docker compose -f docker/docker-compose.yml up --build
 
 The API container joins separate internal queue and storage networks plus an egress network.
 The API image pins Chroma's client to 1.5.9 and Compose uses that same server release.
-Compose explicitly selects HTTP Chroma and Celery verification, so writes reach the
+Compose explicitly selects HTTP Chroma and in-process verification, so writes reach the
 shared storage service instead of creating an ephemeral local index in the API container.
 Chroma 1.5 stores its database under `/data`; the named volume mounts at that exact
 path. The older `/chroma/chroma` mount and `PERSIST_DIRECTORY` settings do not
 configure persistence for this server image.
-To activate the installed Gemma proposer explicitly, set `PRAMANA_ANALYSIS_ENGINE=ollama`
-before starting Compose. The API uses `host.docker.internal:11434` to reach host Ollama.
-`PRAMANA_ANALYSIS_MODEL` defaults to `gemma2:2b`; the analysis owner's validated model
-settings still refuse non-Gemma tags and non-local endpoints.
+Both model roles use the official DeepSeek API with the same local `.env` key.
+Gemma/Ollama is not used. Fill Langfuse credentials as well. The default in-process
+profile matches the local V1 website. For the isolated queue path explicitly set
+`PRAMANA_API_VERIFICATION_MODE=celery`; the generation/execution split below applies.
 The worker joins only the queue network, so it can reach Redis but cannot reach ChromaDB or
 the public internet. It also runs as a non-root user with a read-only filesystem, dropped
 Linux capabilities, process/CPU/memory limits, and a bounded temporary directory.

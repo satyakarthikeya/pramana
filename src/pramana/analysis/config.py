@@ -38,15 +38,6 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 #: The config this module runs on unless a caller passes another path.
 DEFAULT_CONFIG_PATH = _REPO_ROOT / "configs" / "analysis.yaml"
 
-#: Model families reserved for the verification gateway (`AGENTS.md` 2). Routing
-#: schema inference through one of them is a cost and scope violation, not a style
-#: choice, so the configuration that would do it is refused at load time rather than
-#: caught in review. Matched on the leading token, because "deepseek-v4" is DeepSeek.
-VERIFICATION_TIER_MODELS: frozenset[str] = frozenset(
-    {"deepseek", "deepseek-v4", "deepseek-chat", "deepseek-reasoner"}
-)
-
-
 class SchemaInferenceConfig(BaseModel):
     """Cutoffs for deterministic column classification (SCOPE_P 2, component 2)."""
 
@@ -58,7 +49,7 @@ class SchemaInferenceConfig(BaseModel):
     )
     model: str = Field(
         min_length=1,
-        description="The local sub-agent model for cheap semantic work. Gemma-tier only.",
+        description="Reserved DeepSeek semantic-refiner model; no refiner is wired by default.",
     )
     min_confidence: float = Field(
         gt=0.0,
@@ -89,20 +80,10 @@ class SchemaInferenceConfig(BaseModel):
     )
 
     @model_validator(mode="after")
-    def _model_is_not_verification_tier(self) -> Self:
-        """Guarantees: the configured model is not the gateway's (`AGENTS.md` 2).
-
-        Schema inference is explicitly routine sub-agent work. Refusing the
-        configuration means the expensive, trust-critical model cannot be spent on it
-        by accident, and the rule is enforced by the loader rather than by whoever
-        reviews the YAML.
-        """
-        if self.model.strip().casefold().split("/")[-1] in VERIFICATION_TIER_MODELS:
-            raise ValueError(
-                f"schema_inference.model {self.model!r} is a verification-tier model; "
-                f"schema inference is routine sub-agent work and runs on the local model "
-                f"(AGENTS.md 2). Verification-tier models: {sorted(VERIFICATION_TIER_MODELS)}"
-            )
+    def _model_is_deepseek(self) -> Self:
+        """Refuse stale local-model configuration without inventing a refinement call."""
+        if self.model not in {"deepseek-flash", "deepseek-v4-pro"}:
+            raise ValueError("schema_inference.model must name a supported DeepSeek model")
         return self
 
     @model_validator(mode="after")
@@ -211,13 +192,15 @@ def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> AnalysisConfig:
 
     Guarantees: every cutoff used by schema inference and candidate generation came
     from `path`. A missing key, an unknown key inside a served section, an
-    out-of-range value, or a verification-tier model raises `ValidationError` here --
+    out-of-range value, or a non-DeepSeek model raises `ValidationError` here --
     before a single column is classified.
     """
     raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     if engine := os.getenv("PRAMANA_ANALYSIS_ENGINE"):
         raw["hypotheses"]["proposer"]["engine"] = engine
     for key, variable in (
+        ("api_base_url", "DEEPSEEK_BASE_URL"),
+        ("api_model", "DEEPSEEK_MODEL"),
         ("api_base_url", "PRAMANA_ANALYSIS_API_BASE_URL"),
         ("api_model", "PRAMANA_ANALYSIS_API_MODEL"),
     ):

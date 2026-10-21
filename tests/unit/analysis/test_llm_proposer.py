@@ -29,7 +29,7 @@ def inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple:
     hypothesis = config.hypotheses.model_copy(
         update={
             "proposer": config.hypotheses.proposer.model_copy(
-                update={"engine": "ollama", "trace_backend": "langfuse"}
+                update={"engine": "api", "trace_backend": "langfuse"}
             )
         }
     )
@@ -62,7 +62,7 @@ def install_fake_model(monkeypatch: pytest.MonkeyPatch, claims: list[dict]) -> t
     monkeypatch.setattr(proposer, "get_langfuse_client", lambda _settings: tracing)
     transport = MagicMock()
     transport.chat.return_value = {
-        "model": "gemma2:2b",
+        "model": "deepseek-flash",
         "done": True,
         "done_reason": "stop",
         "message": {"content": json.dumps({"claims": claims})},
@@ -71,9 +71,7 @@ def install_fake_model(monkeypatch: pytest.MonkeyPatch, claims: list[dict]) -> t
         "total_duration": 1000,
     }
     factory = MagicMock(return_value=transport)
-    import ollama
-
-    monkeypatch.setattr(ollama, "Client", factory)
+    monkeypatch.setattr(proposer, "_call_api", lambda *args: transport.chat(*args))
     return tracing, observation, factory, transport
 
 
@@ -119,6 +117,8 @@ def test_prompt_excludes_rows_ids_relationships_and_limits_context(inputs: tuple
     assert "rows" not in payload
     assert payload["historical_hints"] == "hint"
     assert len(prompt) <= config.proposer.max_prompt_chars
+    assert "direction MUST be positive or negative" in prompt
+    assert "NEVER null" in prompt
 
 
 def test_traced_model_batch_replay_and_no_frame_mutation(
@@ -136,14 +136,9 @@ def test_traced_model_batch_replay_and_no_frame_mutation(
     assert candidates[0].claim == "bmi is positively associated with age"
     assert candidates[0].asserted_direction is Direction.POSITIVE
     assert tracing.start_kwargs["trace_context"]["trace_id"] == run_id.hex
-    assert tracing.start_kwargs["model"] == config.proposer.model
-    assert factory.call_args.kwargs["trust_env"] is False
-    assert transport.chat.call_args.kwargs["stream"] is False
-    assert transport.chat.call_args.kwargs["options"]["num_thread"] == 4
-    assert (
-        "claim"
-        not in transport.chat.call_args.kwargs["format"]["$defs"]["StructuredClaim"]["properties"]
-    )
+    assert tracing.start_kwargs["model"] == config.proposer.api_model
+    assert transport.chat.call_args.args[1].api_model == "deepseek-flash"
+    assert transport.chat.call_args.args[2] == run_id
     assert observation.update.called
     assert (
         generate_candidates(frame, schema, config, dataset_ref="cleaned.pkl", run_id=run_id)
@@ -155,22 +150,20 @@ def test_traced_model_batch_replay_and_no_frame_mutation(
     pd.testing.assert_frame_equal(before, frame)
 
 
-def test_missing_tracing_refuses_before_any_ollama_request(
+def test_missing_tracing_refuses_before_any_api_request(
     inputs: tuple,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import ollama
-
     frame, schema, config = inputs
     monkeypatch.setattr(proposer, "get_langfuse_client", lambda _settings: None)
     factory = MagicMock()
-    monkeypatch.setattr(ollama, "Client", factory)
+    monkeypatch.setattr(proposer, "_call_api", factory)
     with pytest.raises(proposer.ProposerUnavailable, match="Langfuse"):
         generate_candidates(frame, schema, config, dataset_ref="cleaned.pkl", run_id=uuid4())
     factory.assert_not_called()
 
 
-def test_explicit_local_backend_uses_no_langfuse_and_keeps_audit(
+def test_local_trace_backend_cannot_bypass_remote_tracing(
     inputs: tuple,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -183,16 +176,16 @@ def test_explicit_local_backend_uses_no_langfuse_and_keeps_audit(
     tracing_factory = MagicMock(side_effect=AssertionError("local mode must not request Langfuse"))
     monkeypatch.setattr(proposer, "get_langfuse_client", tracing_factory)
     run_id = uuid4()
-    result = generate_candidates(frame, schema, config, dataset_ref="cleaned.pkl", run_id=run_id)
-    assert len(result) == 1
-    assert transport.chat.call_count == 1
+    with pytest.raises(proposer.ProposerUnavailable, match="Langfuse"):
+        generate_candidates(frame, schema, config, dataset_ref="cleaned.pkl", run_id=run_id)
+    assert transport.chat.call_count == 0
     tracing_factory.assert_not_called()
     audit = json.loads(
         (tmp_path / "runs" / str(run_id) / "analysis_proposer.json").read_text("utf-8")
     )
-    assert audit["status"] == "completed"
+    assert audit["status"] == "failed"
     assert audit["settings"]["trace_backend"] == "local"
-    assert audit["response"]["model"] == "gemma2:2b"
+    assert "response" not in audit
 
 
 def test_model_failure_never_calls_scan_and_is_not_retried(
@@ -308,8 +301,8 @@ def test_explicit_engine_override_and_run_uuid_requirement(
     inputs: tuple,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("PRAMANA_ANALYSIS_ENGINE", "ollama")
-    assert load_config().hypotheses.proposer.engine == "ollama"
+    monkeypatch.setenv("PRAMANA_ANALYSIS_ENGINE", "api")
+    assert load_config().hypotheses.proposer.engine == "api"
     frame, schema, config = inputs
     from structlog.contextvars import clear_contextvars
 

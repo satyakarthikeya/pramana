@@ -28,17 +28,14 @@ If a change would weaken this, stop and flag it instead of implementing it.
 The principle behind every rule below: **models propose and write code; code decides.**
 Where each model sits in the flow, and what is built, is in `PROJECT.md` §2.
 
-- **DeepSeek V4 (API)** = verification gateway ONLY, and inside it ONLY to write falsification code (`falsify(frame)`). That code may import only `numpy`, `pandas` and `pramana.verification.stats`, and must obtain every p-value and effect size by calling that library. DeepSeek never computes, estimates or reports a statistic, a q-value or a verdict. Do not route routine tasks through it (cost) and do not replace it with a local model (trust thesis).
-- **Analysis LLM** (Gemma or an API model, set in config) = proposes STRUCTURED candidate claims only (`claim_type`, `variables`, direction, reference group). Code renders the claim sentence from a hedged template; the model never authors `claim` text. Nothing it outputs is passed to the gate as evidence, and `analysis_evidence` never carries a p-value, q-value or verdict.
-- **Gemma (local)** = schema inference and cleaning help (label a column, suggest a step that code applies and logs), lesson abstraction, other cheap sub-agent tasks. It never edits data directly. Do not use it for verification.
+- **DeepSeek-only profile (user requested 21 October 2026)**: DeepSeek is the only generative provider. In the gateway its role remains ONLY writing falsification code (`falsify(frame)`), which may import only `numpy`, `pandas` and `pramana.verification.stats` and must obtain every p-value and effect size from that library. DeepSeek never supplies a statistic, q-value or verdict as evidence.
+- **Analysis LLM** (DeepSeek API, separate role/prompt) = proposes STRUCTURED candidate claims only (`claim_type`, `variables`, direction, reference group). Code renders the claim sentence from a hedged template; the model never authors `claim` text. Nothing it outputs is passed to the gate as evidence, and `analysis_evidence` never carries a p-value, q-value or verdict.
+- **Routine operations** remain deterministic where implemented: schema heuristics, cleaning, lesson formatting. No Gemma/Ollama inference path remains. An optional semantic-refiner interface is not an implemented model call. MiniLM embeddings for memory search are not a generative LLM and remain local. Any future model-assisted routine operation must use explicitly configured DeepSeek, never edit data directly, and trace its calls.
 - **No silent model substitution.** A run configured for a model either gets that model's output or fails closed (NOT_TESTABLE / a recorded error). The template generator is chosen explicitly in config, never used as a quiet fallback.
 - All LLM calls must be traced through **Langfuse**, under the run's `run_id`.
-  **Local analysis-proposer exception:** Rohith relayed Satya's authorization on
-  19 October 2026 to run claim generation locally without Langfuse. Explicit
-  `hypotheses.proposer.trace_backend: local` must record each attempt, model,
-  parameters and exact response under its run ID in ignored local storage.
-  Choosing `langfuse` still requires valid credentials and never silently falls
-  back to local logging. Other model roles and the verification rules are unchanged.
+  The historical local-proposer exception does not authorize untraced hosted calls.
+  DeepSeek calls require valid Langfuse credentials and fail closed without them.
+  Local run artifacts remain an additional audit record, not a tracing fallback.
 
 ## 3. Statistics correctness rules (non-negotiable)
 

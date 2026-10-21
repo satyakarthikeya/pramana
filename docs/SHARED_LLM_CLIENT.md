@@ -1,5 +1,11 @@
 # Shared inference client (W4)
 
+**21 October update:** structured analysis and verification-code generation now
+both use this client with the official DeepSeek endpoint. Runtime callers reject
+non-DeepSeek models/providers and the old local-engine selection. The generic
+transport can still be tested against mock/local endpoints; that is not a product
+Gemma fallback. `json_output` and explicit `thinking` controls are traced too.
+
 Owner: B. Karthikeya. Additive public interface:
 `pramana.common.llm_client.{LLMSettings, ChatMessage, Completion, complete_chat}`.
 No new dependency. Provider adapters still belong to their module owners.

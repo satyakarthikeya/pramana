@@ -73,7 +73,7 @@ def generate_candidates(
     in a fixed order, and the cap breaks ties on `insight_id` so an equal-effect pair
     cannot swap places between runs.
     """
-    if config.proposer.engine in {"ollama", "api"}:
+    if config.proposer.engine == "api":
         from pramana.analysis.hypotheses.llm_proposer import generate_llm_candidates
 
         return generate_llm_candidates(
@@ -86,6 +86,8 @@ def generate_candidates(
             lesson_hints=lesson_hints,
             claim_screen=claim_screen,
         )
+    if config.proposer.engine != "deterministic":
+        raise ValueError("Unsupported analysis engine; no deterministic fallback")
     toggles = config.strategies
     candidates: list[CandidateInsight] = []
     seen: set[str] = set()

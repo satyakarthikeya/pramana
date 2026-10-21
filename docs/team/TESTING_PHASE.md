@@ -1,5 +1,10 @@
 # Testing phase: workflow integration
 
+**Current profile, 21 October 2026:** follow
+[DEEPSEEK_ONLY_TODO.md](DEEPSEEK_ONLY_TODO.md) first. Both LLM roles now use
+DeepSeek and require Langfuse credentials. The earlier keyless/Gemma evidence
+below is historical and must not be reported as live DeepSeek acceptance.
+
 For the local **V1 product**, start with the root README, `docs/V1.md` and
 [V1_TEST_LOG.md](V1_TEST_LOG.md): no Docker/Celery/Redis or paid key is required for
 the explicit template/in-process profile. The remainder of this file records the

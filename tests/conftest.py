@@ -21,3 +21,4 @@ def _offline_template_generator(monkeypatch: pytest.MonkeyPatch) -> None:
     key. Tests that need the shipped default or the LLM path set the variable themselves.
     """
     monkeypatch.setenv("PRAMANA_VERIFICATION_GENERATOR", "template")
+    monkeypatch.setenv("PRAMANA_ANALYSIS_ENGINE", "deterministic")

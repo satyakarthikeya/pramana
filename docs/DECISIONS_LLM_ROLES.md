@@ -9,6 +9,15 @@
 
 ## Why this record exists
 
+**21 October 2026 superseding request (D4):** B. Karthikeya explicitly requested
+DeepSeek for all generative roles and removal of Gemma/Ollama inference. The current
+implementation uses the official DeepSeek API for structured proposal and separately
+for falsification code; both use the shared traced client and one local key. Schema,
+cleaning and lesson formatting remain rules only. MiniLM embeddings remain local.
+This supersedes the older provider split below, not the gateway's trust boundaries.
+Affected-owner review is required before merging. See
+[the migration checklist](team/DEEPSEEK_ONLY_TODO.md) for tested and pending work.
+
 The first design (`PROJECT.md`, August) said PRAMANA is "an LLM agent that analyzes
 datasets", verified by a gateway running on DeepSeek V4, with Gemma for routine
 sub-agent work. What got built drifted from that:

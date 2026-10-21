@@ -39,7 +39,7 @@ def test_shipped_config_loads_and_is_frozen() -> None:
     config = load_config()
 
     assert isinstance(config, AnalysisConfig)
-    assert config.schema_inference.model == "gemma"
+    assert config.schema_inference.model == "deepseek-flash"
     assert config.hypotheses.max_candidates_per_run >= 1
     with pytest.raises(ValidationError):
         config.hypotheses.max_candidates_per_run = 10  # type: ignore[misc]
@@ -60,28 +60,28 @@ def test_shipped_config_is_internally_consistent() -> None:
     )
 
 
-def test_verification_tier_model_is_refused(tmp_path: Path, raw_config: dict[str, Any]) -> None:
-    """AGENTS.md 2: schema inference is routine work and never runs on the gateway's model."""
-    raw_config["schema_inference"]["model"] = "deepseek-v4"
+def test_non_deepseek_model_is_refused(tmp_path: Path, raw_config: dict[str, Any]) -> None:
+    """The requested profile refuses the old local-model configuration."""
+    raw_config["schema_inference"]["model"] = "gemma2:2b"
 
-    with pytest.raises(ValidationError, match="verification-tier model"):
+    with pytest.raises(ValidationError, match="supported DeepSeek model"):
         load_config(_write(tmp_path, raw_config))
 
 
 def test_verification_tier_model_is_refused_behind_a_provider_prefix(
     tmp_path: Path, raw_config: dict[str, Any]
 ) -> None:
-    """`deepseek/deepseek-chat` is still DeepSeek; the check matches the trailing token."""
+    """A provider-prefixed retired alias is not a currently supported direct API model."""
     raw_config["schema_inference"]["model"] = "deepseek/deepseek-chat"
 
-    with pytest.raises(ValidationError, match="verification-tier model"):
+    with pytest.raises(ValidationError, match="supported DeepSeek model"):
         load_config(_write(tmp_path, raw_config))
 
 
-def test_local_model_names_are_accepted(tmp_path: Path, raw_config: dict[str, Any]) -> None:
-    raw_config["schema_inference"]["model"] = "ollama/gemma2:9b"
+def test_supported_deepseek_model_is_accepted(tmp_path: Path, raw_config: dict[str, Any]) -> None:
+    raw_config["schema_inference"]["model"] = "deepseek-v4-pro"
 
-    assert load_config(_write(tmp_path, raw_config)).schema_inference.model == "ollama/gemma2:9b"
+    assert load_config(_write(tmp_path, raw_config)).schema_inference.model == "deepseek-v4-pro"
 
 
 def test_unknown_key_inside_a_served_section_fails_loudly(
@@ -112,14 +112,14 @@ def test_sections_owned_by_other_components_are_ignored(
 
     config = load_config(_write(tmp_path, raw_config))
 
-    assert config.schema_inference.model == "gemma"
+    assert config.schema_inference.model == "deepseek-flash"
 
 
 def test_ordinal_cap_above_categorical_cap_is_refused() -> None:
     with pytest.raises(ValidationError, match="must not exceed"):
         SchemaInferenceConfig(
             use_llm_for_ambiguous_only=True,
-            model="gemma",
+            model="deepseek-flash",
             min_confidence=0.7,
             min_non_null=20,
             id_unique_ratio=0.95,
