@@ -30,7 +30,7 @@ implementation. Its earlier diabetes demo is not used for this approved NHANES p
 
 Satya's ten-source approval was relayed by Rohith on 18 October 2026. This implements
 the approved **pilot of ten**, not a claim that the final 40-dataset evaluation is
-finished. The source plan is [benchmark_pilot.yaml](../configs/benchmark_pilot.yaml).
+finished. The source plan is [benchmark_pilot.yaml](../../configs/benchmark_pilot.yaml).
 
 | Dataset ID | Source modules | Cycle(s) | Rows | Columns | Intended coverage |
 |---|---|---|---:|---:|---|
@@ -91,7 +91,7 @@ python scripts/build_benchmark_pilot.py --offline --summary artifacts/pilot_rebu
 python scripts/build_benchmark_pilot.py --check-only --offline
 ```
 
-The reviewed [source lock](../configs/benchmark_pilot_sources.json) records byte
+The reviewed [source lock](../../configs/benchmark_pilot_sources.json) records byte
 hashes for every SAS file and codebook. A changed cached source is refused rather
 than silently accepted. Missing cached files in offline mode fail clearly. Source
 updates require review of the lock. Reproduction was checked with the pandas version
@@ -103,8 +103,8 @@ and software. No Langfuse credentials or LLM calls are required for building the
 
 ## What was checked on the real pilot
 
-See [actual build report](benchmark_pilot_build.json) and
-[full metadata report](benchmark_pilot_metadata.json). These contain aggregate audit
+See [actual build report](../data/benchmark_pilot_build.json) and
+[full metadata report](../data/benchmark_pilot_metadata.json). These contain aggregate audit
 information and schema/codebook metadata, not participant records.
 
 - 10 valid handoffs; 16,000 rows total; 14–19 columns per extract.

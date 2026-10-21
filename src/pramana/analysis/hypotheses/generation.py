@@ -73,7 +73,7 @@ def generate_candidates(
     in a fixed order, and the cap breaks ties on `insight_id` so an equal-effect pair
     cannot swap places between runs.
     """
-    if config.proposer.engine == "ollama":
+    if config.proposer.engine in {"ollama", "api"}:
         from pramana.analysis.hypotheses.llm_proposer import generate_llm_candidates
 
         return generate_llm_candidates(

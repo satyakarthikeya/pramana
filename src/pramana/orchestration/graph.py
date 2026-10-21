@@ -29,6 +29,7 @@ from pramana.orchestration.nodes import (
 )
 from pramana.orchestration.run_lifecycle import complete_run, record_failure, start_run
 from pramana.orchestration.state import PramanaState, RunStatus
+from pramana.orchestration.telemetry import relay_verification_result
 
 NodeCallable = Callable[[PramanaState], Mapping[str, Any]]
 
@@ -70,6 +71,23 @@ def _guarded(
                 with traced_run(client, str(current.run_id), name=f"workflow-{name}"):
                     update = dict(function(current))
                 if name == "verification":
+                    summary = update.get("verification_summary")
+                    if summary is not None:
+                        relay_verification_result(
+                            client, current.run_id, summary, update["proof_objects"]
+                        )
+                    if summary is not None and summary.generator_unavailable:
+                        current = record_failure(
+                            current,
+                            name,
+                            RuntimeError(
+                                "Verification generator unavailable; "
+                                f"{summary.generator_unavailable_count} claims could not be tested"
+                            ),
+                            attempt,
+                            exhausted=True,
+                        )
+                        update["status"] = current.status
                     failed_ids = [
                         proof.insight_id
                         for proof in update.get("proof_objects", [])

@@ -29,6 +29,26 @@ router = APIRouter(prefix="/runs", tags=["runs"])
 Service = Annotated[RunService, Depends(get_service)]
 
 
+@router.post("/sample", response_model=RunView, status_code=202)
+def create_sample_run(background: BackgroundTasks, service: Service) -> RunView:
+    """Generate the committed synthetic sample recipe locally and run it normally."""
+    from pramana.api.v1 import sample_frame
+
+    if not service.reserve():
+        raise HTTPException(429, "A run is already active; try again after it finishes.")
+    path = service.root / "api/uploads" / f"{uuid4()}.csv"
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        sample_frame().to_csv(path, index=False)
+        view = service.repository.create(uuid4(), "synthetic-sample.csv")
+        background.add_task(service.execute, view.run_id, path, None)
+        return view
+    except Exception:
+        path.unlink(missing_ok=True)
+        service.release()
+        raise
+
+
 @router.post("", response_model=RunView, status_code=202)
 async def create_run(
     background: BackgroundTasks,

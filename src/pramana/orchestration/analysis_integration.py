@@ -52,7 +52,9 @@ def _persist_cleaned_frame(frame: pd.DataFrame, run_id: UUID, data_dir: Path) ->
     return str(target.resolve())
 
 
-def native_analysis_adapters(*, data_dir: Path | None = None) -> AnalysisNodeAdapters:
+def native_analysis_adapters(
+    *, data_dir: Path | None = None, candidate_limit: int | None = None
+) -> AnalysisNodeAdapters:
     """Use Rohith's current public analysis API behind graph-compatible callables.
 
     The returned adapters guarantee that candidate generation and downstream
@@ -81,6 +83,13 @@ def native_analysis_adapters(*, data_dir: Path | None = None) -> AnalysisNodeAda
             proposer_values[setting] = value
     proposer = type(analysis_config.hypotheses.proposer).model_validate(proposer_values)
     hypotheses = analysis_config.hypotheses.model_copy(update={"proposer": proposer})
+    if candidate_limit is not None:
+        hypotheses = type(hypotheses).model_validate(
+            {
+                **hypotheses.model_dump(),
+                "max_candidates_per_run": min(candidate_limit, hypotheses.max_candidates_per_run),
+            }
+        )
 
     def ingest(state: PramanaState) -> dict[str, Any]:
         if not state.dataset_ref:

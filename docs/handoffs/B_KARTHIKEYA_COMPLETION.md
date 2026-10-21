@@ -2,21 +2,20 @@
 
 API keys are not required to complete the workflow implementation. The user has
 explicitly deferred paid-provider and live Langfuse checks to the tester. See
-[TESTING_PHASE.md](TESTING_PHASE.md) for setup, credentials, exact commands, expected
+[TESTING_PHASE.md](../team/TESTING_PHASE.md) for setup, credentials, exact commands, expected
 failure behavior and the tester sign-off checklist. Implementation readiness and
 live-service acceptance are tracked separately.
 
-For the audited goals of all four members, including incomplete work, see
-[TEAM_GOALS_CHECKLIST.md](TEAM_GOALS_CHECKLIST.md). Working workflow integration
-does not mean every architecture goal is closed: W4's shared inference client and
-the isolated-worker telemetry relay remain implementation work, not merely missing
-credentials.
+For the current goals of all four members, see
+[TEAM_GOALS_CHECKLIST.md](../team/TEAM_GOALS_CHECKLIST.md). The follow-up branch from
+`origin/main` `2707af0` adds W4's shared inference interface and bounded completion
+telemetry relay. Existing module callers still need owner-reviewed migration;
+remote Langfuse delivery and realistic batch timeout budgets need acceptance.
 
-This work builds on `origin/feat/rohith/memory-backend` (memory/API/dashboard)
-and `origin/feat/rohith/llm-claim-proposer` (Gemma proposer). Both are dependencies,
-not newly authored modules. Merge those dependencies before this integration PR.
-Main is unchanged. Only orchestration, its tests, Docker, a smoke-check script and this handoff receive
-new implementation changes.
+The original workflow PR #20 and its memory/API and Gemma proposer prerequisites
+are now merged. The follow-up builds from current main, not those old dependency
+branches. Changes remain in common/orchestration, their tests, shared integration
+tests, local Docker and handoff documentation; no teammate module internals changed.
 
 ## Implemented in the integration branch
 
@@ -53,9 +52,10 @@ injects a small test embedding to avoid a model download. This proves storage an
 workflow behavior; it does not establish live Gemma, DeepSeek or Langfuse service
 availability. Existing API tests cover upload through the graph to guarded memory.
 
-Validated locally: full suite **563 passed** after runtime fixes, with 10 existing
+Validated locally after pulling gateway PR #21: full suite **747 passed** in
+387.80 seconds, with 10 existing
 collection/deprecation warnings. Repository lint passed. Mypy passed for orchestration,
-common and the stack smoke script (23 source files). `pip check` and Docker Compose
+common and the stack smoke script (25 source files). `pip check` and Docker Compose
 configuration validation passed. No verification threshold or proof contract changed.
 
 The initial full-suite attempt ran before missing analysis/API dependencies were
@@ -71,7 +71,7 @@ real statistical execution, MiniLM embeddings and guarded HTTP Chroma persistenc
 The Gemma API run produced 1 PASS and 1 REJECT. Existing lessons survived Chroma
 recreation and remained searchable. Worker termination and failed-execution tests
 both produced degraded runs without memory writes. Run IDs and evidence locations
-are in [TESTING_PHASE.md](TESTING_PHASE.md).
+are in [TESTING_PHASE.md](../team/TESTING_PHASE.md).
 
 Runtime fixes: numerical thread caps in the worker image keep imports below the
 unchanged execution-memory limit; exhausted execution failures now degrade the
@@ -79,19 +79,20 @@ graph; Chroma's named volume now mounts at the actual `/data` database path.
 
 ## Remaining deployment/owner dependencies
 
-- W4's shared OpenAI-compatible inference client is not implemented. Existing
-  module-specific callers need a coordinated migration; the shared Langfuse
-  client alone does not satisfy W4.
+- W4's additive interface is implemented in `common/llm_client.py`. Consumer
+  consolidation remains a coordinated owner task; see [client handoff](../SHARED_LLM_CLIENT.md).
 - Docker Desktop runs from the user's AppData Programs/DockerDesktop directory.
   Keyless Compose/Redis/worker-kill acceptance passed on this machine.
-- Worker Langfuse delivery needs a bounded telemetry relay. Trusted API generation
-  and graph observations have network access, but worker isolation stays intact.
+- A bounded completion relay now exports validated result metadata from the trusted
+  graph, not from the worker. Actual Langfuse delivery is untested without credentials;
+  this does not replay every executor log. Worker isolation stays intact.
 - Gemma/Ollama, DeepSeek and Langfuse need their live services and local credentials
   for live activation. No secrets belong in commits or PR descriptions.
 - The API currently starts batch runs. An episode control belongs to the API owner;
   the graph entrypoint already supports it without API changes.
-- Verification calibration, claim-column enforcement and evaluation results remain
-  verification-owner work. Workflow integration does not establish their completion.
+- Upstream now includes W1/W8, a V1 floor decision and evaluation A/D. The full
+  benchmark study, B/C and measured deployment budgets remain unfinished; workflow
+  integration does not establish those results.
 - Memory safety and sandbox-related changes require Satya's review before merge.
 
 No claim of whole-project completion follows from passing the offline tests.

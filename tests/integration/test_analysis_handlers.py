@@ -15,6 +15,7 @@ from pramana.orchestration.integration import (
     PreparationResult,
 )
 from pramana.orchestration.tasks import native_verification_handler
+from pramana.verification.gateway import BatchSummary
 
 
 def _write_csv(tmp_path: Path) -> Path:
@@ -93,13 +94,21 @@ def test_preparation_artifact_is_accepted_by_the_existing_worker_handler(
 
     def capture_gateway(
         batch: list[CandidateInsight], frame: pd.DataFrame, _config: object
-    ) -> list[ProofObject]:
+    ) -> tuple[list[ProofObject], BatchSummary]:
         seen["batch"] = batch
         pd.testing.assert_frame_equal(frame, prepared["dataset"])
-        return []
+        return [], BatchSummary(
+            bh_family_id="transport-fixture",
+            generator="template",
+            n_candidates=len(batch),
+            n_screened_out=len(batch),
+            n_tested=0,
+            generator_unavailable_count=0,
+            column_check_by_claim_type={},
+        )
 
     # This test covers transport into the worker; real statistical tests remain separate.
-    monkeypatch.setattr("pramana.verification.gateway.verify_batch", capture_gateway)
+    monkeypatch.setattr("pramana.verification.gateway.verify_batch_with_summary", capture_gateway)
     result = native_verification_handler(
         {
             "run_id": str(run_id),
@@ -109,7 +118,8 @@ def test_preparation_artifact_is_accepted_by_the_existing_worker_handler(
         data_dir=tmp_path,
     )
     assert seen["batch"] == candidates
-    assert result == {"proof_objects": []}
+    assert result["proof_objects"] == []
+    assert result["verification_summary"].n_candidates == len(candidates)
     missing_run = uuid4()
     with pytest.raises(FileNotFoundError):
         native_verification_handler(

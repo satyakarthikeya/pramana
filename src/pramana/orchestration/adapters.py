@@ -69,6 +69,11 @@ def safe_report_adapter(state: PramanaState) -> NodeUpdate:
                 if proof.verdict is Verdict.PASS and proof.insight_id in candidates
             ],
             "errors": error_rows,
+            "verification_summary": (
+                state.verification_summary.model_dump(mode="json")
+                if state.verification_summary is not None
+                else None
+            ),
             "rejected_claims": [
                 {
                     "insight_id": proof.insight_id,
@@ -117,7 +122,9 @@ def _serializable(value: Any) -> Any:
     return value
 
 
-def inprocess_verification_adapter(state: PramanaState) -> NodeUpdate:
+def inprocess_verification_adapter(
+    state: PramanaState, *, progress: Callable[[int, int], None] | None = None
+) -> NodeUpdate:
     """Verify the complete candidate family in this process, with no queue involved.
 
     For local and demo runs without Redis or a Celery worker. The gateway still runs
@@ -126,14 +133,29 @@ def inprocess_verification_adapter(state: PramanaState) -> NodeUpdate:
     from, so no ``dataset_ref`` resolution is needed.
     """
     from pramana.verification.config import load_config as load_verification_config
-    from pramana.verification.gateway import verify_batch
+    from pramana.verification.gateway import verify_batch_with_summary
 
     if not state.candidate_insights:
         return {"proof_objects": []}
     if state.dataset is None:
         raise ValueError("In-process verification requires the cleaned dataset in state")
-    proofs = verify_batch(state.candidate_insights, state.dataset, load_verification_config())
-    return {"proof_objects": proofs}
+    config = load_verification_config()
+    options: dict[str, Any] = {}
+    if progress is not None:
+        from pramana.verification.falsification.generator import get_generator
+
+        generator = get_generator(config)
+        positions = {item.insight_id: i + 1 for i, item in enumerate(state.candidate_insights)}
+
+        def generate(candidate: Any, current: Any) -> Any:
+            progress(positions[candidate.insight_id], len(state.candidate_insights))
+            return generator(candidate, current)
+
+        options["generate"] = generate
+    proofs, summary = verify_batch_with_summary(
+        state.candidate_insights, state.dataset, config, **options
+    )
+    return {"proof_objects": proofs, "verification_summary": summary}
 
 
 def celery_verification_adapter(state: PramanaState) -> NodeUpdate:

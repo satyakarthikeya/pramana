@@ -19,4 +19,4 @@ api:
   port: 8080
   max_upload_mb: 100
   max_active_runs: 1                # bounded local background execution
-  verification_mode: celery        # explicitly select inprocess for local demo
+  verification_mode: inprocess     # V1 is local; Compose explicitly selects Celery

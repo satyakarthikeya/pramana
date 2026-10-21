@@ -75,18 +75,18 @@ def test_inprocess_adapter_passes_the_whole_family_and_state_frame(
 ) -> None:
     import pramana.verification.gateway as gateway
     from pramana.orchestration.adapters import inprocess_verification_adapter
-    from tests.unit.orchestration.helpers import proof
+    from tests.unit.orchestration.helpers import batch_summary, proof
 
     state = make_run("toy.csv")
     state.dataset = {"frame": "sentinel"}
     state.candidate_insights = [candidate("a"), candidate("b")]
     seen: dict[str, Any] = {}
 
-    def fake_verify_batch(candidates: Any, frame: Any, config: Any) -> list[Any]:
+    def fake_verify_batch(candidates: Any, frame: Any, config: Any) -> Any:
         seen.update(ids=[item.insight_id for item in candidates], frame=frame)
-        return [proof("a", passed=True), proof("b", passed=False)]
+        return [proof("a", passed=True), proof("b", passed=False)], batch_summary(2)
 
-    monkeypatch.setattr(gateway, "verify_batch", fake_verify_batch)
+    monkeypatch.setattr(gateway, "verify_batch_with_summary", fake_verify_batch)
     result = inprocess_verification_adapter(state)
 
     assert seen == {"ids": ["a", "b"], "frame": {"frame": "sentinel"}}

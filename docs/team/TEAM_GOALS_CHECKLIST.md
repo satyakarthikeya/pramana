@@ -1,8 +1,15 @@
 # PRAMANA team goals and acceptance checklist
 
-Audited: 20 October 2026. Checkout: `feat/b-karthikeya/workflow-completion`.
-Runtime implementation checkpoint: `7e68baf`; subsequent documentation commits
-do not change that implementation. Ownership follows `PROJECT.md` section 4,
+V1 follow-up: the local application/software tasks are implemented and tested on
+`feat/b-karthikeya/v1-product`: **771 tests passed**; two actual headless browser
+journeys, exports, hints and PASS-only real memory passed. See
+[V1 task status](../V1.md) and [V1 evidence/remaining release gates](V1_TEST_LOG.md).
+The broader goals below include work explicitly outside V1. Review/second-machine,
+paid-provider and human report/freeze gates are not implied complete.
+
+Audited: 20 October 2026. Checkout: `feat/b-karthikeya/workflow-followup`,
+based on refreshed `origin/main` at `2707af0` (gateway PR #21 merged).
+Earlier workflow PR #20 is merged. Ownership follows `PROJECT.md` section 4,
 `OWNERSHIP.md`, `SCOPE.md` and the three member scope files.
 
 This is an engineering handoff, not capstone report prose. A checked box means
@@ -16,10 +23,10 @@ Ownership below describes responsibility, not who authored every commit.
 | Area | Current boundary |
 |---|---|
 | Local workflow | Working: Gemma proposals, actual template statistical execution, guarded memory and results API |
-| Automated verification | 563 tests passed at the runtime checkpoint; final recheck recorded below |
-| DeepSeek-generated execution | Implementation present, but live acceptance and claim-column enforcement remain pending; template mode stays explicit |
-| Observability | Shared tracing and graph spans implemented; live Langfuse and isolated-worker export not accepted |
-| Benchmark and evaluation | Demo builder exists; 40-dataset work is on separate review branches; evaluation modules are specifications only |
+| Automated verification | Updated checkout: 747 passed, 10 existing warnings; earlier workflow checkpoint passed 563 |
+| DeepSeek-generated execution | Default is now LLM; W1/W8 implemented upstream, one owner-reported live run; current session's paid acceptance deferred |
+| Observability | Shared inference client and bounded result relay implemented; consumer migration and live Langfuse acceptance pending |
+| Benchmark and evaluation | 40-extract curation merged; evaluation A/D, metrics and tables implemented; B/C and study results pending |
 | Deployment and review | Local Docker demonstrated; cloud acceptance and required owner reviews remain outstanding |
 
 The whole project is **not complete**. This branch is ready for review and the
@@ -52,20 +59,29 @@ Scope: system architecture, workflow, common utilities and local Docker.
 - [x] Real local acceptance: upload through queue to actual statistical execution,
   MiniLM embedding, guarded Chroma writes and persistence after recreation.
 - [x] Live worker-loss and failed-program acceptance: degraded, zero memory writes.
-- [ ] W4: consolidate the separate module-specific inference clients into one
-  shared OpenAI-compatible client with timeout/retry, usage/cost and run tracing.
-  `common/langfuse_client.py` is a tracing client, not that inference client.
-  Coordinate consumers with Rohith and Satya; do not silently replace their calls.
-- [ ] Provide a bounded worker telemetry relay without giving untrusted execution
-  public network access; accept remote Langfuse delivery under one run ID.
+- [x] W4 shared interface: `common/llm_client.py` provides OpenAI-compatible
+  transport, bounded timeouts/retries/responses, usage/cost estimates, run-linked
+  Langfuse generation observations and no model fallback. No new dependency.
+- [ ] Complete project-wide W4 consumer consolidation with Rohith and Satya;
+  existing module-specific inference calls remain unchanged pending owner migration.
+- [x] Bounded completion-telemetry relay: validated worker results return through
+  Redis; the trusted graph exports counts and up to 50 bounded insight metadata
+  rows. No code, prompt, raw rows or exception text is relayed; no worker egress.
+- [ ] Accept actual remote Langfuse delivery. Completion telemetry is not every
+  worker execution log; a killed worker is represented by its caller's failure.
+- [x] Preserve the new gateway batch diagnostics across queue/state/report; provider
+  outages retain REJECT proofs, mark the graph degraded and skip memory without retry.
 - [ ] Accept W13 with actual approved DeepSeek generation after Satya's safety
   prerequisites and tester credentials are ready.
 - [ ] Demonstrate clean-clone startup on another machine and obtain required
   verification-owner review of memory/sandbox integration before merge.
+- [ ] Validate realistic Celery family-size/time budgets: current 90-second task
+  limit is suitable only for small families; sequential resampling and W8 comparisons
+  can exceed it. Timeouts must degrade without partial-family results.
 
 Evidence: `tests/unit/orchestration/`, `tests/integration/test_episode_workflow.py`,
 `tests/integration/test_native_analysis_workflow.py`,
-[workflow handoff](B_KARTHIKEYA_COMPLETION.md), [testing phase](TESTING_PHASE.md).
+[workflow handoff](../handoffs/B_KARTHIKEYA_COMPLETION.md), [testing phase](TESTING_PHASE.md).
 Your local functional workflow works; your complete tracing/model-client
 acceptance boundary is not yet closed.
 
@@ -87,12 +103,12 @@ Scope: dataset preparation, schema, proposals, prioritization and curation.
 - [x] Seeded NHANES demo builder and planted-decoy construction have tests
   (`analysis/benchmark/demo_dataset.py`, `tests/unit/analysis/test_demo_dataset.py`).
 - [ ] Integrate and accept W7 Gemma semantic refinement: this checkout has the
-  `SemanticRefiner` seam, not its implementation. Separate PR #15 is under review.
+  `SemanticRefiner` seam, not its implementation. PR #15 was closed, not merged.
 - [ ] Optional Gemma cleaning suggestions applied and logged by deterministic code
   are not implemented in this checkout; keep optional scope explicit.
-- [ ] Integrate and validate the benchmark pilot and 40-extract curation,
-  provenance and per-dataset contamination screening (PRs #16 and #17).
-  Current `benchmark/curation.py` and `contamination.py` are docstring-only.
+- [x] Benchmark pilot and 40-extract curation, provenance and per-dataset
+  contamination screening are merged (PRs #16/#17). See
+  [40-extract evidence](../handoffs/BENCHMARK_40_HANDOFF.md); raw data remains ignored.
 - [ ] W11: demonstrate that the actual LLM proposes the NHANES demo's intended
   decoy and the gateway rejects it while real relationships survive. Synthetic
   Gemma smoke acceptance is not evidence for this specific NHANES demonstration.
@@ -117,27 +133,25 @@ Scope: shared contracts, verification, statistics and evaluation.
   implemented; no silent template substitution on model failure.
 - [x] Batch gateway, proof-preserving results and PASS-only memory guard.
 - [x] Gateway/statistical integration tests exercise real code execution.
-- [ ] W1: enforce generated code's claim columns and permitted rows. Library
-  stamps alone do not prove that the right data was tested. This blocks treating
-  the DeepSeek default as safe for user-facing operation.
-- [ ] W2/W3: owner-reviewed deterministic test pinning and deliberate default
-  switch only after W1 and deployment generation/execution acceptance.
+- [x] W1 static claim-column/row policy implemented upstream. It is a conservative
+  AST check with documented limits, not a proof of arbitrary program semantics.
+- [x] W2/W3: tests explicitly pin templates; shipped default is now LLM, with
+  `PRAMANA_VERIFICATION_GENERATOR=template` for intentional offline operation.
 - [ ] W5: migrate generator inference/tracing onto W4 after the shared client lands.
-- [ ] W8/W12: template agreement checks and measured DeepSeek-versus-template
-  comparison, recording model, generator and exact executed source.
-- [ ] Calibrate provisional effect-size bands against the real demo; do not tune
-  thresholds simply to manufacture a desired PASS or REJECT.
-- [ ] Resolve categorical-versus-categorical claim scope; Cramer's V exists but
-  is not reachable from a corresponding claim type.
-- [ ] Explicitly retain/defer bootstrap proof intervals and disclose the
-  quadratic Sen-slope row ceiling; bootstrap library tests do not imply template use.
-- [ ] Build A/B/C/D evaluation, fair critic condition C, ground-truth scoring,
-  precision/recall/FDR, batch-versus-episode comparison and report tables.
-  `evaluation/conditions.py`, `metrics.py` and `report_tables.py` are docstrings,
-  not an implemented harness. Independently shuffled columns need a planted
-  relationship design that accounts for all induced associations when labeling truth.
-- [ ] Run the curated benchmark and measure permutation cost/timeouts at scale;
-  disclose the 40-dataset power limitation rather than inventing results.
+- [x] W8 template agreement diagnostics implemented in a separate shadow family;
+  diagnostic disagreements cannot alter the primary proofs or verdicts.
+- [ ] W12 at scale: owner reports one 9-claim live run with zero disagreements;
+  that is not a benchmark disagreement/refusal rate.
+- [x] Effect-size decision recorded: rho measured on demo, other active metrics
+  checked by known-answer simulation; current V1 floors retained, not tuned for PASS.
+- [x] Categorical-versus-categorical claims explicitly out of scope for V1;
+  bootstrap proof intervals deferred and quadratic Sen-slope ceiling disclosed.
+- [x] Planted-data builder, A/D conditions, metrics, run logging and report tables
+  implemented upstream. B and C explicitly remain `NotImplementedError`.
+- [ ] Complete B/C, owner-approved scoring, full benchmark runs and batch-versus-
+  episode study; report actual results with overlap/power limitations.
+- [x] Permutation cost measured on a representative frame upstream; see
+  `scripts/measure_permutation_cost.py`. Re-measure for the deployment machine.
 - [ ] Accept live approved DeepSeek, replay and Langfuse evidence with the tester;
   review changes touching memory safety or sandbox behavior before merge.
 
@@ -171,32 +185,26 @@ and required review remain as recorded in `OWNERSHIP.md`.
   stack, including the designated NHANES real-versus-decoy demonstration.
 - [ ] Cloud deployment, production overrides, secret management, external access
   controls, backups/recovery and cloud end-to-end acceptance are not demonstrated.
-- [ ] Review the imported memory/API branch and sign off its merge and deployment.
+- [x] Memory/API PR #18 is merged; cloud deployment sign-off is still outstanding.
 
 Evidence: `tests/unit/memory/`, `tests/unit/api/test_api.py`,
-`src/pramana/dashboard/static/`, [memory/API handoff](KARTHIK_LOCAL_HANDOFF.md).
+`src/pramana/dashboard/static/`, [memory/API handoff](../handoffs/KARTHIK_LOCAL_HANDOFF.md).
 
 ## Team integration, testing and publication
 
-- [x] Latest remote references fetched before this final audit; `origin/main`
-  remains `12149d7` at audit time. No direct commit or push to main.
-- [x] Integrate published memory/API PR #18 and Gemma proposer PR #19 as explicit
-  dependencies on this feature branch; do not present their code as new workflow work.
-- [ ] Merge those prerequisite PRs in dependency order after owner review; this
-  integration PR must wait. PRs #14–#17 are separate work, not implicitly completed
-  or merged by this audit.
+- [x] Remote changes pulled and follow-up branched from `origin/main` `2707af0`.
+  PRs #14, #16–#21 are merged; #15 is closed without merge. No direct main edits.
 - [x] Local Docker and Gemma downloads finished; four services were running at
   final acceptance. Offline/template and actual-model results are distinguished.
-- [x] Final live Gemma stack recheck: run `8150beab-a09e-4db1-8670-1143f8c93e70`,
+- [x] Rebuilt live Gemma stack recheck: run `e1705647-c5c9-4748-80b3-2cfe6101ad61`,
   1 PASS, 1 REJECT, complete proofs and PASS-only persistence. Ignored evidence:
   `artifacts/workflow_stack_smoke.json` (local, not committed).
 - [x] Earlier live worker-loss, failed-execution and persistence evidence is
   recorded with run/task IDs in [TESTING_PHASE.md](TESTING_PHASE.md).
-- [x] Repository Ruff, owned-module Mypy (23 files), `pip check`, and Compose
+- [x] Repository Ruff, owned-module Mypy plus stack script (25 files), `pip check`, and Compose
   configuration validation passed during this final audit.
-- [x] Final full-suite rerun: **563 passed, 10 existing warnings in 217.38 seconds**.
-  Warnings concern pytest collecting the `TestType` enum and test embedding
-  deprecations; no test failed. Only documentation changed after this run.
+- [x] Refreshed full-suite rerun: **747 passed, 10 existing warnings in 387.80 seconds**.
+  No skips or failures. Only documentation changed after this run.
 - [ ] Tester supplies local funded provider and Langfuse credentials and completes
   the deferred checklist. Keys, raw datasets, local stores and generated artifacts
   must remain outside commits; no paid-provider acceptance is claimed.
@@ -215,12 +223,13 @@ status records in the PR that completes each outstanding item.
 
 ## Next actions in dependency order
 
-1. Review/merge #18 and #19, then review this workflow branch; review schema and
-   benchmark PRs separately rather than mixing unaccepted workstreams.
-2. B. Karthikeya delivers W4 and bounded worker telemetry; Satya handles W5 and W1.
-3. Tester accepts actual approved DeepSeek and Langfuse with the safety prerequisites
-   satisfied; keep explicit template mode until then.
-4. Rohith completes the specific demo and benchmark handoff; Satya runs evaluation
-   and calibrates/discloses statistical limitations.
+1. Review this additive follow-up against current main; do not reopen already merged
+   dependency PRs. Obtain the required module/verification-owner review.
+2. Satya and Rohith migrate their consumers onto W4; tester accepts live Langfuse
+   authentication, generation/run linkage and the bounded completion relay.
+3. Tester accepts distributed actual DeepSeek execution with the current W1/W8
+   checks and practical batch time budgets. Use explicit template mode without keys.
+4. Rohith accepts the specific LLM demo; Satya completes B/C and benchmark evaluation,
+   applies approved scoring, and discloses statistical limitations.
 5. Karthik Reddy accepts the browser demo, episode controls and cloud deployment;
    the team signs off the final demonstration, results and report.

@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from pramana.common.config import RuntimeConfig
 from pramana.contracts import CandidateInsight, ProofObject
+from pramana.verification.gateway import BatchSummary
 
 
 class RunStatus(StrEnum):
@@ -58,6 +59,7 @@ class PramanaState(BaseModel):
     schema_profile: dict[str, Any] = Field(default_factory=dict)
     candidate_insights: list[CandidateInsight] = Field(default_factory=list)
     proof_objects: list[ProofObject] = Field(default_factory=list)
+    verification_summary: BatchSummary | None = None
     memory_receipts: list[Any] = Field(default_factory=list)
     report: dict[str, Any] | None = None
     retry_counts: dict[str, int] = Field(default_factory=dict)
