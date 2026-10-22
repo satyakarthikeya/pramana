@@ -1,5 +1,17 @@
 # PRAMANA team goals and acceptance checklist
 
+**21 October provider migration:** DeepSeek-only implementation and live testing
+are tracked separately in [DEEPSEEK_ONLY_TODO.md](DEEPSEEK_ONLY_TODO.md).
+Earlier Gemma acceptance below is historical evidence, not evidence of the new
+provider profile. No live DeepSeek/website acceptance is claimed until that new
+checklist records it.
+
+Live update: [DEEPSEEK_LIVE_TEST_LOG.md](DEEPSEEK_LIVE_TEST_LOG.md) records real
+DeepSeek smoke, two browser journeys, group/trend execution, 14 exact program
+replays and remote Langfuse readback. Final post-fix suite: **781 passed**.
+One additional shuffled-decoy coverage assertion failed because the model omitted
+that candidate; this is disclosed, not silently counted as a passed check.
+
 V1 follow-up: the local application/software tasks are implemented and tested on
 `feat/b-karthikeya/v1-product`: **771 tests passed**; two actual headless browser
 journeys, exports, hints and PASS-only real memory passed. See
@@ -22,10 +34,10 @@ Ownership below describes responsibility, not who authored every commit.
 
 | Area | Current boundary |
 |---|---|
-| Local workflow | Working: Gemma proposals, actual template statistical execution, guarded memory and results API |
+| Local workflow | DeepSeek-only smoke, two browser journeys and group/trend run exercised; coverage limitations documented |
 | Automated verification | Updated checkout: 747 passed, 10 existing warnings; earlier workflow checkpoint passed 563 |
 | DeepSeek-generated execution | Default is now LLM; W1/W8 implemented upstream, one owner-reported live run; current session's paid acceptance deferred |
-| Observability | Shared inference client and bounded result relay implemented; consumer migration and live Langfuse acceptance pending |
+| Observability | Both implemented LLM roles migrated; actual DeepSeek generations/usage read back from Langfuse under matching run IDs |
 | Benchmark and evaluation | 40-extract curation merged; evaluation A/D, metrics and tables implemented; B/C and study results pending |
 | Deployment and review | Local Docker demonstrated; cloud acceptance and required owner reviews remain outstanding |
 
@@ -62,8 +74,10 @@ Scope: system architecture, workflow, common utilities and local Docker.
 - [x] W4 shared interface: `common/llm_client.py` provides OpenAI-compatible
   transport, bounded timeouts/retries/responses, usage/cost estimates, run-linked
   Langfuse generation observations and no model fallback. No new dependency.
-- [ ] Complete project-wide W4 consumer consolidation with Rohith and Satya;
-  existing module-specific inference calls remain unchanged pending owner migration.
+- [x] W4 consumer consolidation implemented for structured analysis and
+  falsification generation in the 21 October DeepSeek-only migration. Both now
+  use the shared bounded/run-traced transport; affected-owner review and actual
+  remote Langfuse acceptance remain pending, not implied by mocked tests.
 - [x] Bounded completion-telemetry relay: validated worker results return through
   Redis; the trusted graph exports counts and up to 50 bounded insight metadata
   rows. No code, prompt, raw rows or exception text is relayed; no worker egress.

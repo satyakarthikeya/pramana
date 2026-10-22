@@ -74,15 +74,12 @@ def native_analysis_adapters(
 
     artifact_root = (data_dir or DATA_DIR).resolve()
     analysis_config = load_config()
-    proposer_values = analysis_config.hypotheses.proposer.model_dump()
-    for setting, environment in (
-        ("base_url", "PRAMANA_ANALYSIS_BASE_URL"),
-        ("model", "PRAMANA_ANALYSIS_MODEL"),
-    ):
-        if value := os.getenv(environment):
-            proposer_values[setting] = value
-    proposer = type(analysis_config.hypotheses.proposer).model_validate(proposer_values)
-    hypotheses = analysis_config.hypotheses.model_copy(update={"proposer": proposer})
+    if any(os.getenv(name) for name in ("PRAMANA_ANALYSIS_BASE_URL", "PRAMANA_ANALYSIS_MODEL")):
+        raise ValueError(
+            "Legacy local analysis settings are unsupported; use DEEPSEEK_BASE_URL "
+            "and DEEPSEEK_MODEL (or PRAMANA_ANALYSIS_API_BASE_URL / _API_MODEL)"
+        )
+    hypotheses = analysis_config.hypotheses
     if candidate_limit is not None:
         hypotheses = type(hypotheses).model_validate(
             {

@@ -12,8 +12,8 @@ cleaning:
   outlier_method: iqr
 
 schema_inference:
-  use_llm_for_ambiguous_only: true   # heuristics first; Gemma only when unclear
-  model: gemma                        # local, cheap tasks only (AGENTS.md §2)
+  use_llm_for_ambiguous_only: true   # heuristics first; no model refiner wired today
+  model: deepseek-flash             # reserved for an explicitly wired semantic refiner
   # Fail-closed cutoffs. A column the heuristics cannot place above min_confidence
   # becomes UNKNOWN and is excluded from hypothesis generation — a guessed role is
   # how a bad CandidateInsight reaches the gateway.
@@ -26,12 +26,13 @@ schema_inference:
 
 hypotheses:
   proposer:
-    engine: deterministic       # deterministic | ollama (local) | api (hosted Gemma); env PRAMANA_ANALYSIS_ENGINE
-    # engine=api reads PRAMANA_ANALYSIS_API_KEY and defaults to api_model google/gemma-4-26b-a4b-it
-    # on https://openrouter.ai/api/v1; override with PRAMANA_ANALYSIS_API_MODEL / _API_BASE_URL.
-    trace_backend: local        # owner-authorized local audit; langfuse remains optional
-    model: gemma2:2b             # installed Q4_0; i5-11300H / 16GB RAM CPU profile
-    base_url: http://localhost:11434
+    engine: api                 # api (DeepSeek) | deterministic (explicit offline baseline)
+    api_base_url: https://api.deepseek.com
+    api_model: deepseek-flash
+    api_key_env: DEEPSEEK_API_KEY
+    trace_backend: langfuse      # remote inference requires run-linked tracing
+    model: deepseek-flash        # retained config alias; no local model runtime
+    base_url: https://api.deepseek.com
     timeout_seconds: 240
     seed: 20260817
     temperature: 0.0

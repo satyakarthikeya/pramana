@@ -27,7 +27,7 @@ pythonpath = ["src"]
 addopts = "-q --strict-markers"
 markers = [
     "slow: permutation/bootstrap heavy tests",
-    "llm: requires a live DeepSeek or Gemma call",
+    "llm: requires a live DeepSeek call",
     "integration: runs the full graph",
 ]
 

@@ -27,7 +27,7 @@ def test_wrong_llm_direction_is_refuted_in_one_real_gateway_batch(
     monkeypatch.setattr(llm_proposer, "DATA_DIR", tmp_path)
     config = analysis_config()
     hypotheses = config.hypotheses.model_copy(
-        update={"proposer": config.hypotheses.proposer.model_copy(update={"engine": "ollama"})}
+        update={"proposer": config.hypotheses.proposer.model_copy(update={"engine": "api"})}
     )
     install_fake_model(
         monkeypatch,

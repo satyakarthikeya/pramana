@@ -39,7 +39,7 @@ extract_shape:               # benchmark-like extract used by the measurement sc
 conditions:
   # The model a run is configured for. A proposer reporting any other model is refused
   # (AGENTS.md 2: no silent model substitution).
-  analysis_model: deepseek-chat
+  analysis_model: deepseek-flash
 
 measurement:                 # scripts/measure_permutation_cost.py (docs/OPEN_ISSUES.md item 5)
   benchmark_datasets: 40

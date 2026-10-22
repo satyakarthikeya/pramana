@@ -111,7 +111,7 @@ Use `new_run(..., episode_mode=True)` or
 after preparing the current schema and before proposing candidates. The native
 proposer receives `run_id`, `user_query`, and `lesson_hints`. Handler overrides also
 receive `lesson_hints` in `AnalysisRequest`. A deterministic proposer may ignore
-hints; the explicitly selected Ollama proposer can use them to suggest claims.
+hints; the explicitly selected DeepSeek proposer can use them to suggest claims.
 
 Historical proofs remain under `retrieved_lessons` for source provenance. They never
 populate the current run's `proof_objects`. Every new candidate enters the current

@@ -1,6 +1,6 @@
 """Column type/semantic classification (numeric, categorical, ordinal, datetime, ID-like).
 
-Deterministic heuristics first; Gemma (local) only for ambiguous columns.
+Deterministic heuristics; an optional semantic-refiner protocol has no wired model.
 
 What this produces and why it is shaped this way
 ------------------------------------------------
@@ -36,11 +36,11 @@ Without that it stays `UNKNOWN` -- free text and an unnamed key are indistinguis
 from the values, both are excluded from hypotheses either way, and `UNKNOWN` is the
 one that reaches the semantic refiner.
 
-Gemma's place in this
+Optional semantic refinement
 ----------------------
 `SemanticRefiner` is the seam. Heuristics run first and always; the refiner is offered
 only the columns they left `UNKNOWN`, which is what `use_llm_for_ambiguous_only`
-means. No refiner is wired in here -- there is no Gemma client in the repository yet
+means. No semantic-model client is wired in here
 -- so the default is no refinement, and ambiguous columns stay `UNKNOWN`. That is the
 fail-closed default, not a stub standing in for one.
 
@@ -212,7 +212,7 @@ class SchemaProfile(BaseModel):
 
 
 class SemanticRefiner(Protocol):
-    """The Gemma seam (`AGENTS.md` 2): cheap semantic help for ambiguous columns only.
+    """Optional semantic-help interface for ambiguous columns only; no hidden inference.
 
     An implementation receives the heuristics' draft profile -- role `UNKNOWN`, with
     the value statistics and the reasons that got it there -- and returns a role it is
@@ -497,7 +497,7 @@ def infer_schema(
     below `config.min_confidence`, so a consumer honouring `usable_for_hypotheses`
     cannot build a claim on a guess.
 
-    `refiner` is the Gemma seam. It is offered only the columns the heuristics left
+    `refiner` is the optional semantic seam. It is offered only the columns the heuristics left
     `UNKNOWN` -- that is `use_llm_for_ambiguous_only` -- and only when that setting is
     on. A role it returns is recorded with `min_confidence` exactly: believed enough
     to use, never promoted above the bar the heuristics had to clear. A refiner that

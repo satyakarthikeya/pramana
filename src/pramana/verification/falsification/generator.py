@@ -44,12 +44,14 @@ from __future__ import annotations
 import ast
 import os
 import re
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from collections.abc import Callable
 from typing import Any
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
+from structlog.contextvars import bound_contextvars, get_contextvars
 
+from pramana.common.llm_client import ChatMessage, LLMSettings, complete_chat
 from pramana.contracts.candidate_insight import CandidateInsight
 from pramana.contracts.enums import ClaimType, TestType
 from pramana.verification.config import VerificationConfig
@@ -187,100 +189,55 @@ def generate_from_template(
     )
 
 
-@contextmanager
-def _traced(insight_id: str, config: VerificationConfig) -> Iterator[None]:
-    """Trace one generation through Langfuse when it is configured (AGENTS.md 2).
-
-    Tracing is observability, so it never decides anything and never breaks a run: an
-    unconfigured or unreachable Langfuse yields a no-op rather than an exception. The
-    shared client in `pramana.common.langfuse_client` is another member's module and
-    is still a stub, so this reaches the SDK directly for now; when that client lands
-    this body should delegate to it rather than build a second one.
-    """
-    required = ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_HOST")
-    if any(not os.getenv(name) for name in required):
-        yield
-        return
-    try:
-        from langfuse import Langfuse
-
-        client: Any = Langfuse(
-            public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
-            secret_key=os.environ["LANGFUSE_SECRET_KEY"],
-            host=os.environ["LANGFUSE_HOST"],
-        )
-        observe = getattr(client, "start_as_current_observation", None)
-        if observe is None:
-            yield
-            return
-        with observe(
-            name="falsification-generation",
-            as_type="generation",
-            metadata={
-                "insight_id": insight_id,
-                "provider": config.llm.provider,
-                "model": config.llm.model,
-                "temperature": config.llm.temperature,
-            },
-        ):
-            yield
-    except Exception:  # observability must never take the gateway down with it
-        yield
-
-
 def _call_deepseek(system: str, user: str, config: VerificationConfig) -> str:
-    """Send one completion request to DeepSeek and return the raw response text.
-
-    Isolated as a module-level function so tests can substitute it without a live API
-    call, and so every network failure funnels through one `GeneratorError`.
-    """
+    """Generate only through the official API with mandatory run-linked tracing."""
     if config.llm.provider != _REQUIRED_PROVIDER:
-        raise GeneratorUnavailable(
-            f"the falsification generator is configured for provider "
-            f"{config.llm.provider!r}, but verification runs on "
-            f"{_REQUIRED_PROVIDER!r} only (AGENTS.md 2). Routing the gate through "
-            f"another model changes what the PASS means, so it is refused here "
-            f"rather than silently honoured."
-        )
-
-    api_key = os.getenv("DEEPSEEK_API_KEY")
+        raise GeneratorUnavailable("Verification requires the deepseek provider")
+    api_key = os.getenv("DEEPSEEK_API_KEY", "").strip()
     if not api_key:
-        raise GeneratorUnavailable(
-            "DEEPSEEK_API_KEY is not set, so the LLM generator cannot run. The "
-            "template generator is the reference and the explicit offline mode "
-            "(llm.generator or PRAMANA_VERIFICATION_GENERATOR set to 'template'); "
-            "selecting 'llm' without a key fails closed rather than quietly "
-            "falling back to it."
-        )
-
+        raise GeneratorUnavailable("DEEPSEEK_API_KEY is not set; no fallback was used")
     try:
-        from openai import OpenAI
+        from urllib.parse import urlsplit
 
-        client = OpenAI(
-            api_key=api_key,
-            base_url=os.getenv("DEEPSEEK_BASE_URL", _DEFAULT_BASE_URL),
-        )
-        response = client.chat.completions.create(
-            model=config.llm.model,
+        base_url = os.getenv("DEEPSEEK_BASE_URL", _DEFAULT_BASE_URL)
+        endpoint = urlsplit(base_url)
+        if (
+            endpoint.scheme != "https"
+            or endpoint.hostname != "api.deepseek.com"
+            or endpoint.port not in {None, 443}
+            or endpoint.username
+            or endpoint.password
+            or endpoint.query
+            or endpoint.fragment
+            or endpoint.path not in {"", "/", "/v1", "/v1/"}
+        ):
+            raise ValueError("Verification requires the official DeepSeek HTTPS endpoint")
+        if config.llm.model not in {"deepseek-flash", "deepseek-v4-pro"}:
+            raise ValueError("Verification requires a supported DeepSeek model")
+        identifier = get_contextvars().get("run_id")
+        if identifier is None:
+            raise ValueError("A run UUID is required for verification model tracing")
+        result = complete_chat(
+            LLMSettings(
+                api_key=api_key,  # type: ignore[arg-type]
+                base_url=base_url,
+                model=config.llm.model,
+                timeout_seconds=120,
+                max_retries=0,
+            ),
+            [ChatMessage(role="system", content=system), ChatMessage(role="user", content=user)],
+            run_id=UUID(str(identifier)),
+            insight_id=get_contextvars().get("insight_id"),
             temperature=config.llm.temperature,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
+            max_tokens=4096,
+            thinking="disabled",
         )
-    except Exception as error:  # any transport/API failure is a generation failure
+        return result.content
+    except Exception:
+        # Provider exceptions can contain keys or request text: never echo them.
         raise GeneratorUnavailable(
-            f"the DeepSeek request failed ({type(error).__name__}: {error}). A claim "
-            f"whose test could not be generated has not been tested."
-        ) from error
-
-    content = response.choices[0].message.content if response.choices else None
-    if not content or not content.strip():
-        raise GeneratorError(
-            "DeepSeek returned an empty response; there is no falsification program "
-            "to run, so the claim cannot be verified."
-        )
-    return content
+            "DeepSeek generation or required tracing failed; no model/template fallback"
+        ) from None
 
 
 def _extract_source(response: str) -> str:
@@ -294,9 +251,7 @@ def _extract_source(response: str) -> str:
     source = match.group(1) if match else response
     stripped = source.strip()
     if not stripped:
-        raise GeneratorError(
-            "the model's response contained no code; there is nothing to execute."
-        )
+        raise GeneratorError("the model's response contained no code; there is nothing to execute.")
     return stripped + "\n"
 
 
@@ -409,7 +364,7 @@ def generate_from_llm(
         min_observations=config.statistics.min_observations,
     )
 
-    with _traced(candidate.insight_id, config):
+    with bound_contextvars(insight_id=candidate.insight_id):
         response = _call_deepseek(system, user, config)
 
     source = _extract_source(response)
@@ -429,9 +384,7 @@ def generate_from_llm(
 
 
 #: The two paths, keyed by what `configs/verification.yaml` may name.
-_GENERATORS: dict[
-    str, Callable[[CandidateInsight, VerificationConfig], FalsificationProgram]
-] = {
+_GENERATORS: dict[str, Callable[[CandidateInsight, VerificationConfig], FalsificationProgram]] = {
     "template": generate_from_template,
     "llm": generate_from_llm,
 }

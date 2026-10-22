@@ -10,7 +10,4 @@ pyarrow>=16.0            # stable dtypes / parquet round-trips
 # Exploratory statistics for candidate generation (hints, never verdicts)
 scipy>=1.13
 
-# Local Gemma for schema inference / semantic classification (AGENTS.md §2).
-# Pick ONE runtime and delete the other once the team decides:
-ollama>=0.3
-# transformers>=4.44
+# Inference uses the shared stdlib DeepSeek client; no local model runtime needed.

@@ -53,6 +53,12 @@ def main() -> int:
     people: dict[str, set[tuple[float, float]]] = {}
     source_hashes: dict[str, str] = {}
     config = load_config()
+    # Curation counts are a reproducible offline reference, never a live-model run.
+    hypotheses = config.hypotheses.model_copy(
+        update={
+            "proposer": config.hypotheses.proposer.model_copy(update={"engine": "deterministic"}),
+        }
+    )
     for spec in plan.extracts:
         if not args.check_only:
             build_extract(spec, plan, raw, output)
@@ -64,7 +70,7 @@ def main() -> int:
         candidates = generate_candidates(
             frame,
             schema,
-            config.hypotheses,
+            hypotheses,
             dataset_ref=str((output / spec.dataset_id / "extract.csv").resolve()),
         )
         kinds = {
@@ -107,6 +113,7 @@ def main() -> int:
             flush=True,
         )
     summary = {
+        "candidate_engine": "deterministic",
         "phase": (
             "approved_pilot_10" if plan.phase == "pilot" else "benchmark_40_awaiting_evaluation"
         ),
@@ -135,9 +142,7 @@ def main() -> int:
     if args.summary:
         write_json(args.summary, summary)
     if args.metadata_report:
-        write_json(
-            args.metadata_report, {"phase": summary["phase"], "datasets": metadata_reports}
-        )
+        write_json(args.metadata_report, {"phase": summary["phase"], "datasets": metadata_reports})
     if not args.source_lock.is_file() and not args.check_only:
         write_json(
             args.source_lock,

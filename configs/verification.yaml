@@ -67,7 +67,7 @@ executor:
 
 llm:
   generator: llm             # D1: DeepSeek writes each test. `template` stays as the reference and the offline mode; select it here or with PRAMANA_VERIFICATION_GENERATOR=template
-  provider: deepseek         # DeepSeek V4 — verification only, never a local model
-  model: deepseek-chat
+  provider: deepseek         # same provider as analysis; different role and prompt
+  model: deepseek-flash
   temperature: 0.0           # falsification code generation should be near-deterministic
   # API key comes from the DEEPSEEK_API_KEY env var. Never put it in this file.

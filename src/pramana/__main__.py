@@ -1,4 +1,4 @@
-"""One-command local V1 startup; explicit offline mode is not a fallback."""
+"""One-command DeepSeek startup; explicit offline mode is never a fallback."""
 
 from __future__ import annotations
 

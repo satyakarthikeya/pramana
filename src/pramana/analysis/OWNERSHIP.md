@@ -12,7 +12,7 @@ the evaluation/benchmark dataset curation.
 | Path | Component | Build order (SCOPE_P §4) |
 |---|---|---|
 | `ingestion.py` | CSV/XLSX load, limits, dtype stability | 1 |
-| `schema_inference.py` | type/semantic classification (heuristics → Gemma) | 2 |
+| `schema_inference.py` | type/semantic classification (heuristics; optional refiner interface) | 2 |
 | `cleaning.py`, `profiling.py` | cleaning + profile + cleaning report | 3 |
 | `hypotheses/` | correlation, group-difference, trend strategies | 4–5 |
 | `prioritization.py` | rank/cap candidates per run | 6 |
@@ -27,7 +27,9 @@ computed here are *hints* that go in `analysis_evidence`. They are never verdict
 
 ## Who may edit
 
-P. Rohith only.
+P. Rohith owns this module. The 21 October 2026 DeepSeek-only integration was
+explicitly requested by B. Karthikeya across modules; Rohith's review is still
+required before merging. This does not transfer ownership.
 
 ## Who may import, and what
 
@@ -40,7 +42,8 @@ P. Rohith only.
 1. Emit the `CandidateInsight` contract from `pramana.contracts` — imported, not redefined.
 2. Cleaning is seeded and reproducible, and every mutation lands in the cleaning report —
    the gateway must test the *same* dataframe the candidates came from.
-3. Gemma (local) for cheap semantic work only. Never DeepSeek. All calls traced.
+3. DeepSeek is the only generative provider (user request, 21 October 2026).
+   Analysis proposes structured claims only; all hosted calls require Langfuse.
 4. **MIMIC-IV is forbidden** (`AGENTS.md` §6). NHANES / NFHS-5 / other open data only.
 5. Benchmark excludes famous datasets (Iris, Titanic, …) — screening documented per
    dataset, because the report needs it.

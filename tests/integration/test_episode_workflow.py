@@ -26,7 +26,6 @@ def test_two_runs_store_and_retrieve_real_guarded_lessons(
         "PRAMANA_PREPARATION_HANDLER",
         "PRAMANA_ANALYSIS_HANDLER",
         "PRAMANA_MEMORY_HANDLER",
-        "PRAMANA_ANALYSIS_ENGINE",
     ):
         monkeypatch.delenv(name, raising=False)
     source = tmp_path / "toy.csv"
@@ -72,7 +71,7 @@ def test_two_runs_store_and_retrieve_real_guarded_lessons(
 def test_failed_retrieval_degrades_without_proposing_or_writing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.delenv("PRAMANA_ANALYSIS_ENGINE", raising=False)
+    monkeypatch.setenv("PRAMANA_ANALYSIS_ENGINE", "deterministic")
     source = tmp_path / "toy.csv"
     toy_frame().to_csv(source, index=False)
 

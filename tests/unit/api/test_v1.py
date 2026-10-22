@@ -48,9 +48,30 @@ def test_one_command_start_defaults_are_explicit_and_keys_are_not_required(
     main()
     import os
 
-    assert os.environ["PRAMANA_VERIFICATION_GENERATOR"] == "template"
+    assert os.environ["PRAMANA_VERIFICATION_GENERATOR"] == "llm"
     assert os.environ["PRAMANA_API_VERIFICATION_MODE"] == "inprocess"
     assert captured == {"app": "pramana.api.main:app", "host": "127.0.0.1", "port": 8089}
+
+
+def test_deepseek_analysis_failure_is_safe_and_actionable_in_website_api(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PRAMANA_ANALYSIS_ENGINE", "api")
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.setattr(
+        "pramana.analysis.hypotheses.llm_proposer.get_langfuse_client", lambda _: None
+    )
+    with TestClient(create_app(service=real_service(tmp_path))) as client:
+        run_id = client.post("/api/runs/sample").json()["run_id"]
+        view = client.get(f"/api/runs/{run_id}").json()
+        assert view["status"] == "degraded"
+        assert "Analysis model unavailable" in view["error"]
+        assert "DEEPSEEK_API_KEY" in view["error"]
+        results = client.get(f"/api/runs/{run_id}/results").json()
+        assert results["verified_insights"] == []
+        assert results["candidate_count"] == 0
+        assert client.get("/api/memory").json() == []
 
 
 @pytest.mark.parametrize(
