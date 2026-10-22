@@ -1,90 +1,58 @@
-# SCOPE.md — Current work scope: Verification Gateway
+# SCOPE.md — Current scope: ship and review V1
 
-> Owner: P.P. Satya Karthikeya (Verification & Evaluation)
-> This file defines what the coding agent is building RIGHT NOW.
-> Context: `PROJECT.md`. Rules: `AGENTS.md`.
+> One scope for the whole team. The old per-person scope files are gone.
+> Context: `PROJECT.md`. Rules: `AGENTS.md`. Current state: `STATUS.md`.
+> Final review: Tue 27 Oct 2026. Code freeze: end of Mon 26 Oct (fix only what a rehearsal breaks).
 
-## 1. What we are building
+## 1. Goal
 
-The **verification gateway**: the falsification-based layer between the analysis agent's
-candidate insights and (a) the final report, (b) ChromaDB memory writes.
+A stranger starts the app with one command, uploads a table, and gets verified findings with
+proofs, rejected claims with reasons, and PASS-only memory, without help and without a
+terminal beyond the start command.
 
-It is the core novelty of PRAMANA — not a supporting module. Everything downstream
-trusts its verdicts.
+Acceptance journey: open `http://localhost:8080` → upload (or try the sample) → watch stages
+→ read verified findings → read rejected claims ("Not a finding" + reason) → browse/search
+memory → upload a second dataset and see a past lesson offered as a hint → download JSON/CSV.
 
 ## 2. In scope
 
-| # | Component | Description |
-|---|---|---|
-| 1 | Falsification code generator | Given a candidate insight, prompt DeepSeek V4 to generate executable Python that tries to DISPROVE the claim (null-hypothesis framing) |
-| 2 | Sandboxed executor | Run the generated code safely (subprocess/Celery, timeout, import whitelist) and capture the raw test statistic + p-value |
-| 3 | Statistical tests library | Permutation testing and bootstrap resampling implementations the generated code can call (prefer calling our vetted functions over free-form LLM stats) |
-| 4 | BH-FDR correction | Collect raw p-values across the whole run, apply Benjamini-Hochberg, produce q-values |
-| 5 | Evidence scoring | Combine q-value + effect size (+ optionally test stability across resamples) into a single evidence score with a configurable threshold |
-| 6 | Verdict + proof object | Emit PASS/REJECT with the full proof object schema (see PROJECT.md §5) |
-| 7 | Memory guard | The single function through which ALL ChromaDB writes flow; enforces `verdict == PASS` |
-| 8 | Gateway config | One config file: alpha, evidence threshold, n_permutations, n_bootstrap, timeout, seed |
+- Upload, cleaning, profiling, schema inference (rules)
+- Claim proposal by DeepSeek, with the rule scan as an explicit offline mode
+- The full verification gateway, proof objects, PASS-only memory
+- The dashboard, export, README, one-command start
+- Tests, lint, and the release checks in `STATUS.md`
 
-## 3. Out of scope (do NOT touch)
+## 3. Out of scope (do not build, do not present as features)
 
-> Ownership below follows `PROJECT.md` §4, which is the single source of truth.
-> This list was written before the module reshuffle and has been corrected to match it.
+- A/B/C/D evaluation and benchmark runs
+- Categorical-versus-categorical claims (Cramér's V stays unreachable)
+- Bootstrap confidence intervals
+- Celery/Redis and Docker/cloud deployment in the V1 run path
+- Multi-user accounts, more than one run at a time
+- Local-model (Gemma/Ollama) inference, episode selection
 
-- Ingestion, cleaning/profiling, hypothesis generation, benchmark curation (P. Rohith's module)
-- LangGraph orchestration graph, shared state, Celery/Redis plumbing, container setup for the stack (B. Karthikeya's module)
-- ChromaDB schema, lesson abstraction, retrieval, backend services, cloud deployment, dashboard (M. Karthik Reddy's module) — we only own the guard function that gates writes
-- UI / frontend / dashboard
-- Ablation study harness (same owner, but SEPARATE later work item — not this scope)
+## 4. Boundaries that never move
 
-**Docker is tooling, not a person's module.** Nobody "owns Docker": B. Karthikeya
-writes the base images/compose for the dev stack, M. Karthik Reddy deploys that same
-stack to cloud, and this module only specifies the sandbox constraints the executor
-container must satisfy (`AGENTS.md` §4). Treat it like any shared dependency.
+- `memory_write ⟹ verdict == PASS`; fail closed; one BH family per run.
+- No threshold, seed, permutation count, sandbox rule or verdict rule changes without
+  the review required by `AGENTS.md` §8.10.
+- Changes to contracts, `PROJECT.md`, `AGENTS.md`, `pyproject.toml` or shared config are
+  called out in the PR (`AGENTS.md` §8.7).
 
-## 4. Build order (first thing to work on → last)
+## 5. Definition of done
 
-1. **Pydantic models** for CandidateInsight and ProofObject (the contracts). Everything depends on these.
-2. **Statistical tests library** — pure Python, no LLM: `permutation_test()`, `bootstrap_ci()`, with pytest known-answer tests (planted null → high p; planted effect → low p). This is the trust anchor; get it right first.
-3. **BH-FDR module** — `apply_bh(p_values, alpha) -> q_values` + tests against scipy/statsmodels reference output.
-4. **Evidence scorer** — deterministic function of (q_value, effect_size); thresholds from config.
-5. **Sandboxed executor** — run arbitrary test code with timeout + whitelist; fail-closed on crash.
-6. **Falsification code generator** — DeepSeek V4 prompt templates per claim_type (correlation / group_difference / trend); generated code should CALL the vetted stats library, not reimplement stats.
-7. **Gateway orchestrator** — wire 1–6: batch insights → generate → execute → collect p's → BH → score → verdicts → proof objects.
-8. **Memory guard** — thin, heavily tested function; integration point with Rohith.
-9. **Langfuse tracing + structured logging** across the whole gateway.
+- The acceptance journey works end to end, twice, on two datasets, from a clean clone.
+- Every finding has a proof; no rejected claim is shown as a finding.
+- Nothing but PASS reaches memory (test in the suite).
+- Full suite and `ruff` green on `main`.
+- README lets a new person succeed; limitations are visible in the product or README.
 
-Rationale for this order: deterministic, testable pieces first (models, stats, BH, scoring), LLM-dependent and integration pieces last. If steps 2–4 are correct, the whole gate's trustworthiness is provable; the LLM part only generates the harness around them.
+## 6. Limitations to state at review
 
-## 5. Definition of done (per component)
-
-- Type-hinted, Pydantic-validated inputs/outputs
-- Pytest coverage incl. known-answer statistical tests
-- Config-driven (no hardcoded thresholds/seeds)
-- Structured logs with `insight_id`
-- Fail-closed behavior verified (crashed/timed-out test can never yield PASS)
-
-## 6. Acceptance test (end-to-end, mirrors the demo)
-
-Feed the gateway a small dataframe with:
-- 1 planted true relationship (strong known effect)
-- 1 planted false correlation (shuffled/noise column)
-- a few null variables
-
-Expected: true relationship → PASS with sensible effect size; false correlation → REJECT;
-all verdicts carry complete proof objects; nothing REJECTed appears in the memory-guard's
-accepted output.
-
-## 7. Open items (not yet done, carried deliberately)
-
-These are known gaps in this scope, recorded so they are not mistaken for oversights.
-Details and the decision each one needs are in `docs/OPEN_ISSUES.md`.
-
-| # | Item | Blocking what |
-|---|---|---|
-| 1 | **Effect-size bands are PARTLY calibrated.** `spearman_rho` is measured against the demo frame; `kendall_tau_b`, `cliffs_delta`, `epsilon_squared` and `cramers_v` remain convention-based. Thresholds were not tuned to force a PASS or REJECT. | Decided 2026-10-20: keep current floors for V1 (stricter 0.20 tier not adopted). See `docs/CALIBRATION_BANDS.md`. |
-| 2 | **Categorical-vs-categorical claims are OUT OF SCOPE (declared 2026-10-20, per `docs/WP7_PROPOSALS.md` §3 option b).** `EffectMetric.CRAMERS_V` stays implemented, banded and tested but is deliberately unreachable: no `ClaimType` produces a contingency table, so such claims (e.g. area x education) are not testable and must be stated as a limitation. | Revisit adding a `categorical_association` claim type (contract change, needs announcing) after NHANES calibration. |
-| 3 | **`bootstrap_ci` is not wired to any template (deliberately deferred).** Implemented and library-tested, but no template calls it, so no proof object carries a confidence interval and `TestType.BOOTSTRAP` is unreachable. Library tests do not imply template use. | Nothing. Deferred; episode-mode capability. |
-| 4 | **`sens_slope` has an O(n^2) row ceiling.** All pairwise slopes are materialised, so the estimator refuses datasets above a documented row count rather than exhausting the sandbox's memory cap. | Nothing at demo scale (500-2,000 rows). **Disclosed here; carry into the report's limitations section.** |
-| 5 | **Permutation cost: MEASURED** (`scripts/measure_permutation_cost.py`): ~12-21 s per candidate at 10,000 permutations, ~9.8 h sequential for 40 datasets. | Wall time is the constraint: parallelise or cap candidates. Re-measure on CI. |
-| 6 | **DeepSeek default: SWITCHED** (`llm.generator: llm`, D1) after W1 and W2/W3. `template` remains the reference and offline mode. | W13 (generation outside the offline worker) is B. Karthikeya's and is DEFERRED past V1: V1 runs the gateway in-process, so it does not block V1; it blocks only a Celery-distributed deployment. |
-| 7 | **W1 column check and W8 agreement check: BUILT.** W12, the measured DeepSeek-vs-template comparison, has one 9-claim live run only (0 disagreements); not a rate at scale. | Run on the full demo and benchmark before reporting. |
+- A well-powered association that is really a confound can PASS (no held-out split or adjustment).
+- Effect floors do not separate truth from chance; the corrected q-value does. Small real effects PASS.
+- Two-category claims are not testable.
+- No confidence intervals on effect sizes.
+- The trend test refuses datasets above 3,000 rows.
+- One run at a time.
+- The LLM generator has only one small live run (9 claims); its refusal rate at scale is unmeasured.
