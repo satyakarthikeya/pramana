@@ -5,8 +5,8 @@ x and y, and does the association between x and y shrink when rows are compared 
 value of z? Code computes every number from the table (rank-based partial association). The
 output is descriptive caveats and questions for a NEXT run. It never changes a verdict, never
 adds a claim to the run, and never says a column "explains away" anything: a column that
-weakens an association may be a confounder or a step between the two, and this table cannot
-tell which.
+weakens an association may be a confounder, a step between the two, or something that both
+influence, and this table cannot tell which.
 
 Covered: correlation and trend claims, and group-difference claims with numeric controls.
 Anything else is reported as "not checked", not as clean.
@@ -104,8 +104,9 @@ def _sentence(
         f"{control} goes with both {first} and {second} (association {link_first:.2f} and "
         f"{link_second:.2f}). On the {n} rows where all three are recorded, the {what} between "
         f"{first} and {second} is {before:.2f}; comparing rows with a similar {control}, it is "
-        f"{after:.2f}. {control} could be a confounder, or a step between them; this table "
-        "cannot tell which. The verdict above is unchanged."
+        f"{after:.2f}. {control} could be a confounder, a step between them, or something "
+        "that both of them influence; this table cannot tell which. The verdict above "
+        "is unchanged."
     )
 
 

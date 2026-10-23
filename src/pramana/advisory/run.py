@@ -37,9 +37,9 @@ def advise(
         reviews = review_findings(findings, frame, schema, config.skeptic)
         notes.append(
             "The confound check looks at other columns for correlation, trend and "
-            "group-difference findings. A column that weakens an association may be a confounder "
-            "or a step between the two; the table cannot tell which. Findings of other types "
-            "are listed as not checked."
+            "group-difference findings. A column that weakens an association may be a confounder, "
+            "a step between the two, or something both influence; the table cannot tell which. "
+            "Findings of other types are listed as not checked."
         )
     else:
         reviews = []

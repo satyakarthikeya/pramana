@@ -63,7 +63,8 @@ def test_a_planted_confounder_is_flagged_with_its_numbers(config: SkepticConfig)
     assert top.before > 0.4 and top.after < 0.15  # z accounts for nearly all of it
     assert top.link_first > 0.5 and top.link_second > 0.5
     assert [c.control for c in result.caveats] == ["z"]  # the noise column is not flagged
-    assert "could be a confounder, or a step between them" in top.text
+    assert "could be a confounder, a step between them, or something that both of them" in top.text
+    assert "influence; this table cannot tell which" in top.text
     assert "explain" not in top.text.lower() and "caus" not in top.text.lower()
     assert "significan" not in top.text.lower() and "p-value" not in top.text.lower()
     assert {f.claim_type for f in top.follow_ups} == {"correlation"}
