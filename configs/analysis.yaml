@@ -122,3 +122,24 @@ workspace:
     max_tests_per_dataset: 50     # claims chat may send to the gateway on one dataset, ever
     max_messages_per_hour: 60     # per account
     temperature: 0.0
+
+advisory:
+  # After the gate: caveats and plain-language summaries for PASS findings. Nothing here can
+  # change a verdict, add a claim to the run, or write to memory.
+  skeptic:
+    enabled: true
+    min_rows: 30                  # complete rows (claim columns plus the control) needed to check
+    min_link_to_control: 0.25     # the control must go with BOTH claim columns at least this much (rank association)
+    min_drop_fraction: 0.5        # flag when holding the control fixed weakens the association by this fraction or more
+    min_original_rho: 0.10        # skip claims whose own rank correlation is already this small
+    min_original_eta2: 0.01       # same for group claims (rank eta-squared)
+    max_duplicate_rho: 0.9        # a control this close to a claim column is the same measurement; skipped
+    max_controls_checked: 40      # other columns examined per finding
+    max_caveats_per_finding: 3
+    max_levels: 12                # a categorical control may have at most this many levels
+    min_level_rows: 5             # and every level at least this many rows
+  explainer:
+    engine: template              # template (code-written, offline) | api (DeepSeek wording, checked by code)
+    max_summary_chars: 400
+    max_output_tokens: 900
+    temperature: 0.0

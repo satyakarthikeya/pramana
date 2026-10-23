@@ -9,6 +9,10 @@ from threading import BoundedSemaphore
 from typing import Any
 from uuid import UUID
 
+from pramana.advisory.explainer import ChatFn as AdvisoryChatFn
+from pramana.advisory.findings import Finding
+from pramana.advisory.models import AdvisoryReport
+from pramana.advisory.run import advise
 from pramana.analysis.schema_inference import SchemaProfile
 from pramana.analysis.workspace.agent import ChatFn
 from pramana.analysis.workspace.ledger import ExplorationSummary
@@ -59,6 +63,7 @@ class RunService:
         runner: Callable[[UUID, Path, str | None], PramanaState] | None = None,
         chat: ChatFn | None = None,
         chat_verifier: Verifier | None = None,
+        advisory_chat: AdvisoryChatFn | None = None,
     ) -> None:
         self.root = root
         self.settings = settings
@@ -68,6 +73,7 @@ class RunService:
         self.store = store or ChromaLessonStore(settings)
         self._slots = BoundedSemaphore(settings.api.max_active_runs)
         self._runner = runner or self._run_workflow
+        self._advisory_chat = advisory_chat
         self.chat = ChatService(
             root / "api/runs.sqlite3",
             self.datasets,
@@ -190,6 +196,58 @@ class RunService:
             )
             return None
 
+    def _advisory(
+        self, state: PramanaState, rows: list[ResultRow], candidates: dict[str, Any]
+    ) -> AdvisoryReport | None:
+        """Summaries and confound caveats for PASS findings, or None. Never touches a verdict.
+
+        Runs after every proof exists (and after memory was written inside the graph), reads
+        copies of the numbers, and any failure leaves the results exactly as they were.
+        """
+        try:
+            from pramana.verification.config import load_config as load_verification_config
+
+            findings = []
+            alpha = load_verification_config().statistics.alpha
+            for row in rows:
+                proof, candidate = row.proof, candidates[row.insight_id]
+                if proof.verdict is not Verdict.PASS:
+                    continue
+                findings.append(
+                    Finding(
+                        insight_id=row.insight_id,
+                        claim=row.claim,
+                        claim_type=str(candidate.claim_type),
+                        variables=tuple(candidate.variables),
+                        direction=str(candidate.asserted_direction)
+                        if candidate.asserted_direction
+                        else None,
+                        reference_group=candidate.reference_group,
+                        q_value=proof.q_value,
+                        p_value=proof.p_value,
+                        effect_size=proof.effect_size,
+                        effect_metric=proof.effect_metric.value if proof.effect_metric else None,
+                        band=row.effect_strength,
+                        n=row.complete_rows,
+                        family_size=proof.n_hypotheses_in_batch,
+                        alpha=alpha,
+                    )
+                )
+            if not findings or not hasattr(state.dataset, "columns"):
+                return None
+            return advise(
+                findings,
+                state.dataset,
+                SchemaProfile.model_validate(state.schema_profile),
+                run_id=state.run_id,
+                chat=self._advisory_chat,
+            )
+        except Exception as error:
+            get_logger(component="api", run_id=str(state.run_id)).warning(
+                "advisory_failed", error_type=type(error).__name__
+            )
+            return None
+
     @staticmethod
     def _exploration(state: PramanaState) -> ExplorationSummary | None:
         """What the analyst looked at, with how many claims the gateway actually tested."""
@@ -248,6 +306,7 @@ class RunService:
                 candidate_count=len(candidates),
                 unverified_candidate_count=len(candidates) - len(seen),
                 exploration=self._exploration(state),
+                advisory=self._advisory(state, rows, candidates),
             )
             error = (
                 "Some workflow steps failed; inspect the local run logs." if state.errors else None

@@ -8,6 +8,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from pramana.advisory.models import AdvisoryReport
 from pramana.analysis.reader import DataBrief
 from pramana.analysis.workspace.ledger import ExplorationSummary
 from pramana.contracts import ProofObject, Verdict
@@ -159,6 +160,8 @@ class RunResults(Payload):
     candidate_count: int = Field(ge=0)
     unverified_candidate_count: int = Field(ge=0)
     exploration: ExplorationSummary | None = None
+    #: Advisory summaries and confound caveats for the findings; never part of a verdict.
+    advisory: AdvisoryReport | None = None
 
     @model_validator(mode="after")
     def separate_findings_and_rejections(self) -> RunResults:
