@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
-import type { ClaimDisclosure, ResultRow, RunResults } from "../api";
+import type { ClaimDisclosure, Explanation, FindingReview, ResultRow, RunResults } from "../api";
 import { api } from "../api";
 import { claimTypeLabel, fmtEffect, fmtInt, fmtP, metricSymbol } from "../format";
+import { CaveatLine, ConfoundCheck, PlainWords } from "./Advice";
 import { ClaimChart } from "./Charts";
 import { Exploration } from "./Exploration";
 import { Arrow, Close, Download } from "./Icons";
@@ -22,14 +23,21 @@ function variablesOf(row: ResultRow): string[] {
   return c.kind === "scatter" ? [c.x, c.y] : [c.group, c.value];
 }
 
+interface Advice {
+  explanation?: Explanation;
+  review?: FindingReview;
+}
+
 function ClaimCard({
   row,
   selected,
   onOpen,
+  advice,
 }: {
   row: ResultRow;
   selected: boolean;
   onOpen: (id: string) => void;
+  advice?: Advice;
 }) {
   const p = row.proof;
   return (
@@ -63,6 +71,8 @@ function ClaimCard({
           <b>n = {fmtInt(row.complete_rows)}</b>
         </div>
       </div>
+      {advice?.explanation && <PlainWords explanation={advice.explanation} />}
+      {advice?.review && <CaveatLine review={advice.review} />}
       {row.chart && <ClaimChart chart={row.chart} verified inset />}
       <div className="claim-foot">
         <span className="explain">{row.explanation}</span>
@@ -106,11 +116,14 @@ export function ProofDrawer({
   row,
   onClose,
   chat,
+  advice,
 }: {
   row: ResultRow;
   onClose: () => void;
   /** Set for a claim asked in chat: it was tested alone and is not corrected for earlier tests. */
   chat?: ClaimDisclosure;
+  /** Advisory notes for an analysis finding: a plain-language sentence and the confound check. */
+  advice?: Advice;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const p = row.proof;
@@ -200,6 +213,20 @@ export function ProofDrawer({
           )}
         </div>
 
+        {advice?.explanation && (
+          <div className="sec">
+            <span className="label">In plain words</span>
+            <PlainWords explanation={advice.explanation} />
+          </div>
+        )}
+
+        {advice?.review && (
+          <div className="sec">
+            <span className="label">Confound check</span>
+            <ConfoundCheck review={advice.review} />
+          </div>
+        )}
+
         {row.chart && (
           <div className="sec">
             <span className="label">The data</span>
@@ -231,6 +258,15 @@ export function ProofDrawer({
       </div>
     </aside>
   );
+}
+
+function adviceFor(results: RunResults, id: string): Advice | undefined {
+  const a = results.advisory;
+  if (!a) return undefined;
+  return {
+    explanation: a.explanations.find((e) => e.insight_id === id),
+    review: a.reviews.find((r) => r.insight_id === id),
+  };
 }
 
 export function Results({
@@ -308,6 +344,7 @@ export function Results({
                   row={row}
                   selected={selected === row.insight_id}
                   onOpen={onSelect}
+                  advice={adviceFor(results, row.insight_id)}
                 />
               ))}
             </div>
@@ -337,7 +374,13 @@ export function Results({
 
       </div>
 
-      {open && <ProofDrawer row={open} onClose={() => onSelect(null)} />}
+      {open && (
+        <ProofDrawer
+          row={open}
+          onClose={() => onSelect(null)}
+          advice={adviceFor(results, open.insight_id)}
+        />
+      )}
     </>
   );
 }

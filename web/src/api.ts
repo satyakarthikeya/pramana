@@ -107,6 +107,43 @@ export interface DataOverview {
   columns: ColumnOverview[];
   correlations: { columns: string[]; values: (number | null)[][] } | null;
 }
+export interface FollowUp {
+  sentence: string;
+  claim_type: "correlation" | "group_difference";
+  variables: string[];
+}
+export interface Caveat {
+  insight_id: string;
+  control: string;
+  control_kind: "numeric" | "categorical";
+  measure: "spearman_rho" | "rank_eta_squared";
+  link_first: number;
+  link_second: number;
+  before: number;
+  after: number;
+  n: number;
+  text: string;
+  follow_ups: FollowUp[];
+}
+export interface FindingReview {
+  insight_id: string;
+  status: "flagged" | "none_found" | "not_checked";
+  reason: string | null;
+  controls_checked: number;
+  skipped_near_duplicates: number;
+  caveats: Caveat[];
+}
+export interface Explanation {
+  insight_id: string;
+  text: string;
+  source: "template" | "model";
+  fallback_reason: string | null;
+}
+export interface AdvisoryReport {
+  explanations: Explanation[];
+  reviews: FindingReview[];
+  notes: string[];
+}
 export interface RunResults {
   run: RunView;
   verified_insights: ResultRow[];
@@ -114,6 +151,7 @@ export interface RunResults {
   candidate_count: number;
   unverified_candidate_count: number;
   exploration: ExplorationSummary | null;
+  advisory?: AdvisoryReport | null;
 }
 export interface ColumnNote {
   kind: string;

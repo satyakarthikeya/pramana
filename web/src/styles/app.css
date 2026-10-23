@@ -1273,3 +1273,39 @@ details summary {
     align-items: stretch;
   }
 }
+
+/* ---------- advisory notes: neutral, never verdict styling ---------- */
+.advice {
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-panel);
+  padding: var(--s4);
+  display: grid;
+  gap: var(--s2);
+  min-width: 0;
+}
+.advice-text {
+  font: 400 14px/20px var(--font-sans);
+  color: var(--text-1);
+  overflow-wrap: anywhere;
+}
+.caveats,
+.followups {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s3);
+}
+.caveats > li {
+  display: grid;
+  gap: var(--s2);
+  padding-top: var(--s3);
+  border-top: 1px solid var(--border-soft);
+}
+.followups {
+  gap: var(--s1);
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text-2);
+}
