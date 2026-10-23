@@ -42,6 +42,8 @@ function Routes() {
   const hash = useHash();
   const findings = new RegExp(`^#/d/${UUID}/findings(?:/${UUID})?$`, "i").exec(hash);
   if (findings) return <DatasetPage id={findings[1]} tab="findings" runId={findings[2] ?? null} />;
+  const ask = new RegExp(`^#/d/${UUID}/ask$`, "i").exec(hash);
+  if (ask) return <DatasetPage id={ask[1]} tab="ask" runId={null} />;
   const dataset = new RegExp(`^#/d/${UUID}$`, "i").exec(hash);
   if (dataset) return <DatasetPage id={dataset[1]} tab="overview" runId={null} />;
   const run = new RegExp(`^#/run/${UUID}$`, "i").exec(hash);

@@ -172,6 +172,75 @@ export interface SystemStatus {
     max_total_tokens: number;
     max_hypotheses_examined: number;
   };
+  chat_ready: boolean;
+  chat_blockers: string[];
+}
+export type AnswerKind =
+  | "descriptive"
+  | "exploratory"
+  | "verified"
+  | "rejected"
+  | "not_testable"
+  | "not_tested"
+  | "unanswered";
+export interface Evidence {
+  entry_id: string;
+  tool: string;
+  args: Record<string, unknown>;
+  output: Record<string, unknown> | null;
+}
+export interface ClaimDisclosure {
+  test_number: number;
+  earlier_chat_tests: number;
+  earlier_run_tests: number;
+  family_size: number;
+  asked_after_seeing_results: boolean;
+  corrected_for_earlier_tests: boolean;
+}
+export interface ClaimOutcome {
+  label: "verified" | "rejected" | "not_testable";
+  row: ResultRow;
+  disclosure: ClaimDisclosure;
+}
+export interface ChatWork {
+  turns: number;
+  tool_calls: number;
+  examined: number;
+  input_tokens: number;
+  output_tokens: number;
+}
+export interface ChatAnswer {
+  kind: AnswerKind;
+  text: string;
+  evidence: Evidence[];
+  tested: ClaimOutcome | null;
+  notes: string[];
+  work: ChatWork;
+}
+export interface ChatExchange {
+  message_id: string;
+  dataset_id: string;
+  created_at: string;
+  question: string;
+  answer: ChatAnswer;
+}
+export interface LedgerRecord {
+  test_number: number;
+  message_id: string;
+  created_at: string;
+  question: string;
+  claim: string;
+  label: "verified" | "rejected" | "not_testable";
+  q_value: number | null;
+  effect_size: number | null;
+  effect_metric: string | null;
+  n: number | null;
+}
+export interface ChatLedger {
+  chat_tests: number;
+  run_tests: number;
+  limit: number;
+  records: LedgerRecord[];
 }
 export interface DatasetView {
   dataset_id: string;
@@ -271,6 +340,15 @@ export const api = {
   },
   results(id: string): Promise<RunResults> {
     return fetch(`/api/runs/${id}/results`).then((r) => json<RunResults>(r));
+  },
+  chat(id: string): Promise<ChatExchange[]> {
+    return fetch(`/api/datasets/${id}/chat`).then((r) => json<ChatExchange[]>(r));
+  },
+  ask(id: string, question: string): Promise<ChatExchange> {
+    return post(`/api/datasets/${id}/chat`, { question }).then((r) => json<ChatExchange>(r));
+  },
+  chatLedger(id: string): Promise<ChatLedger> {
+    return fetch(`/api/datasets/${id}/chat/tests`).then((r) => json<ChatLedger>(r));
   },
   system(): Promise<SystemStatus> {
     return fetch("/api/system").then((r) => json<SystemStatus>(r));

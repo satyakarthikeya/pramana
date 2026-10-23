@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { ResultRow, RunResults } from "../api";
+import type { ClaimDisclosure, ResultRow, RunResults } from "../api";
 import { api } from "../api";
 import { claimTypeLabel, fmtEffect, fmtInt, fmtP, metricSymbol } from "../format";
 import { ClaimChart } from "./Charts";
@@ -102,12 +102,15 @@ function RejectedRow({
   );
 }
 
-function ProofDrawer({
+export function ProofDrawer({
   row,
   onClose,
+  chat,
 }: {
   row: ResultRow;
   onClose: () => void;
+  /** Set for a claim asked in chat: it was tested alone and is not corrected for earlier tests. */
+  chat?: ClaimDisclosure;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const p = row.proof;
@@ -124,7 +127,7 @@ function ProofDrawer({
     <aside className="drawer" aria-label="Proof">
       <div className="drawer-head">
         <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-          <Badge proof={p} />
+          <Badge proof={p} single={Boolean(chat)} />
           <span className="label" style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
             {p.insight_id}
           </span>
@@ -144,7 +147,7 @@ function ProofDrawer({
             <span className="chip">n={fmtInt(row.complete_rows)}</span>
             {p.test_type && <span className="chip">{p.test_type} test</span>}
             {p.seed !== null && <span className="chip">seed {p.seed}</span>}
-            <span className="chip">BH FDR</span>
+            <span className="chip">{chat ? "single test, uncorrected" : "BH FDR"}</span>
           </div>
           <h3>{row.claim}</h3>
           <p className="explain" style={{ marginTop: 8 }}>
@@ -152,19 +155,35 @@ function ProofDrawer({
           </p>
         </div>
 
+        {chat && (
+          <div className="sec">
+            <span className="label">How this was tested</span>
+            <p className="explain">
+              Asked in chat after seeing results, and tested on its own (test {chat.test_number} on
+              this dataset: {chat.earlier_chat_tests} earlier in chat, {chat.earlier_run_tests} in
+              analysis runs). Its q-value equals its raw p-value and is not corrected for those
+              earlier tests, so a chance result is more likely than in an analysis run.
+            </p>
+          </div>
+        )}
+
         <div className="sec">
           <span className="label">Numbers</span>
           <dl className="kv" style={{ margin: 0 }}>
             <dt>Raw p-value (permutation)</dt>
             <dd>{fmtP(p.p_value)}</dd>
-            <dt>q-value after correction</dt>
+            <dt>{chat ? "q-value (family of 1, equals the raw p)" : "q-value after correction"}</dt>
             <dd>{fmtP(p.q_value)}</dd>
             <dt>Effect size ({metricSymbol(p.effect_metric)})</dt>
             <dd>{fmtEffect(p.effect_size)}</dd>
             <dt>Effect band</dt>
             <dd>{row.effect_strength ?? "n/a"}</dd>
-            <dt>Claims in the correction family</dt>
-            <dd>{fmtInt(p.n_hypotheses_in_batch)}</dd>
+            <dt>{chat ? "Tests it was not corrected for" : "Claims in the correction family"}</dt>
+            <dd>
+              {chat
+                ? fmtInt(chat.earlier_chat_tests + chat.earlier_run_tests)
+                : fmtInt(p.n_hypotheses_in_batch)}
+            </dd>
             <dt>Permutations</dt>
             <dd>{fmtInt(row.n_permutations)}</dd>
             <dt>Asserted / observed direction</dt>

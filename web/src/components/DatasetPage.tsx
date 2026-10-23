@@ -4,13 +4,14 @@ import { useRun } from "../hooks";
 import { fmtInt } from "../format";
 import { useWorkspace } from "../store";
 import { AppShell } from "./AppShell";
+import { Ask } from "./Ask";
 import { Brief } from "./Brief";
 import { Overview } from "./Charts";
 import { Arrow } from "./Icons";
 import { Processing } from "./Processing";
 import { Results } from "./Results";
 
-type Tab = "overview" | "findings";
+type Tab = "overview" | "findings" | "ask";
 
 function bytes(n: number): string {
   if (n >= 1048576) return `${(n / 1048576).toFixed(1)} MB`;
@@ -332,10 +333,15 @@ export function DatasetPage({ id, tab, runId }: { id: string; tab: Tab; runId: s
             <a role="tab" aria-selected={tab === "findings"} href={`#/d/${id}/findings`}>
               Findings{runs.length > 0 ? ` (${runs.length})` : ""}
             </a>
+            <a role="tab" aria-selected={tab === "ask"} href={`#/d/${id}/ask`}>
+              Ask
+            </a>
           </div>
 
           {tab === "overview" ? (
             <Overviewtab dataset={dataset} />
+          ) : tab === "ask" ? (
+            <Ask key={id} dataset={dataset} system={system} />
           ) : (
             <FindingsTab dataset={dataset} runs={runs} runId={shownRun} onRunFinished={finished} />
           )}
