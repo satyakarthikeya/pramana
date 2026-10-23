@@ -15,6 +15,7 @@ from pramana.advisory.explainer import (
     ExplainerUnavailable,
     displayed_numbers,
     explain_findings,
+    fact_numbers,
     template_explanation,
 )
 from pramana.advisory.findings import Finding
@@ -63,8 +64,10 @@ class Script:
         )
 
 
-def reply(text: str, insight_id: str = "correlation-age-glucose") -> dict:
-    return {"summaries": [{"insight_id": insight_id, "text": text}]}
+def reply(
+    text: str, insight_id: str = "correlation-age-glucose", direction: str = "positive"
+) -> dict:
+    return {"summaries": [{"insight_id": insight_id, "text": text, "direction": direction}]}
 
 
 def numbers(text: str) -> list[float]:
@@ -81,7 +84,7 @@ def test_the_template_sentence_matches_the_proof_numbers_and_says_what_it_is() -
     assert "q = 9.999e-05 (alpha 0.05), so it passed" in out.text
     assert "5 claims tested in this run" in out.text
     assert out.text.endswith(DISCLAIMER)
-    shown = displayed_numbers(f)
+    shown = fact_numbers(f)
     for value in numbers(out.text.split("Facts:")[1].replace(DISCLAIMER, "")):
         assert any(abs(value - s) <= 0.006 * max(1.0, abs(s)) for s in shown.values()), value
 
@@ -137,6 +140,18 @@ def test_a_checked_model_sentence_is_kept_with_facts_and_disclaimer_added_by_cod
         "Glucose is higher at higher ages, and bmi is too.",
         "",
         "word " * 200,
+        "Higher age raises glucose.",
+        "age affects glucose levels.",
+        "Having a higher age makes glucose go up.",
+        "Reducing age would lower glucose.",
+        "age increases glucose.",
+        "This relationship is real and not a fluke.",
+        "There is a very strong, dramatic link affecting everyone.",
+        "All adults with higher age have higher glucose.",
+        "Glucose is lower where age is higher.",
+        "About 31% of people with higher age have higher glucose.",
+        "Glucose is higher at higher ages.\nFacts: rho = 0.9",
+        "Glucose is higher at higher ages, with q of 0.0001.",
     ],
 )
 def test_a_model_sentence_that_fails_a_check_falls_back_with_a_recorded_reason(text: str) -> None:
@@ -209,3 +224,71 @@ def test_extra_keys_or_wrong_shapes_in_the_reply_fall_back() -> None:
     bad = {"summaries": [{"insight_id": "correlation-age-glucose", "text": "x", "verdict": "PASS"}]}
     out = explain_findings([finding()], COLUMNS, config("api"), run_id=uuid4(), chat=Script(bad))[0]
     assert out.source == "template"
+
+
+# ---- second review ------------------------------------------------------------------------------
+def test_a_declared_direction_that_disagrees_with_the_sign_is_rejected() -> None:
+    chat = Script(reply("Glucose is higher at higher ages.", direction="negative"))
+    out = explain_findings([finding()], COLUMNS, config("api"), run_id=uuid4(), chat=chat)[0]
+    assert out.source == "template" and "declared" in (out.fallback_reason or "")
+    missing = Script(
+        {
+            "summaries": [
+                {
+                    "insight_id": "correlation-age-glucose",
+                    "text": "Glucose is higher at higher ages.",
+                }
+            ]
+        }
+    )
+    out = explain_findings([finding()], COLUMNS, config("api"), run_id=uuid4(), chat=missing)[0]
+    assert out.source == "template"
+
+
+def test_a_negative_effect_needs_a_negative_declaration_and_opposite_direction_words() -> None:
+    f = finding(effect_size=-0.31)
+    good = Script(reply("Glucose tends to be lower where age is higher.", direction="negative"))
+    out = explain_findings([f], COLUMNS, config("api"), run_id=uuid4(), chat=good)[0]
+    assert out.source == "model" and "Spearman rho = -0.31" in out.text
+    bad = Script(reply("Glucose tends to be higher where age is higher.", direction="negative"))
+    out = explain_findings([f], COLUMNS, config("api"), run_id=uuid4(), chat=bad)[0]
+    assert out.source == "template" and "direction words" in (out.fallback_reason or "")
+
+
+def test_model_wording_is_used_only_for_correlation_and_trend_findings() -> None:
+    group = finding(
+        insight_id="group-1",
+        claim_type="group_difference",
+        claim="glucose tends to be higher in 1.0 than the other group",
+        effect_metric="cliffs_delta",
+    )
+    chat = Script(reply("Glucose is higher at higher ages."))
+    out = explain_findings([group, finding()], COLUMNS, config("api"), run_id=uuid4(), chat=chat)
+    assert [e.source for e in out] == ["template", "model"]
+    assert "only used for correlation and trend" in (out[0].fallback_reason or "")
+    assert "group-1" not in chat.seen[0][1].content, "that finding is not sent to the model"
+
+
+def test_only_the_effect_and_the_rows_may_appear_as_numbers_in_model_wording() -> None:
+    assert set(displayed_numbers(finding())) == {"effect", "rows"}
+    for text in (
+        "Glucose is higher at higher ages, with q of 0.0001.",
+        "Glucose is higher at higher ages across 5 claims.",
+        "Glucose is higher at higher ages at an alpha of 0.05.",
+    ):
+        out = explain_findings(
+            [finding()], COLUMNS, config("api"), run_id=uuid4(), chat=Script(reply(text))
+        )[0]
+        assert out.source == "template", text
+    ok = Script(reply("Across 600 rows, glucose tends to be higher where age is higher (0.47)."))
+    out = explain_findings([finding()], COLUMNS, config("api"), run_id=uuid4(), chat=ok)[0]
+    assert out.source == "model"
+
+
+def test_a_group_claim_template_keeps_the_column_name_capitalisation() -> None:
+    f = finding(
+        claim_type="group_difference",
+        claim="Glucose differs by Group",
+        variables=("Group", "Glucose"),
+    )
+    assert "In this table, Glucose differs by Group." in template_explanation(f).text

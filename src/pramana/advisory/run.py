@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Sequence
 from uuid import UUID
 
@@ -34,7 +35,13 @@ def advise(
         "claim to this run, or reach verified memory.",
     ]
     if config.skeptic.enabled:
-        reviews = review_findings(findings, frame, schema, config.skeptic)
+        deadline = time.monotonic() + config.skeptic.time_budget_seconds
+        reviews = review_findings(findings, frame, schema, config.skeptic, deadline)
+        if any("time budget" in (r.reason or "") for r in reviews):
+            notes.append(
+                "The confound check reached its time budget; findings or columns it did "
+                "not reach are listed as not checked."
+            )
         notes.append(
             "The confound check looks at other columns for correlation, trend and "
             "group-difference findings. A column that weakens an association may be a confounder, "

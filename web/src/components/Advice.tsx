@@ -7,7 +7,7 @@ export function PlainWords({ explanation }: { explanation: Explanation }) {
       <div className="chips">
         <span className="chip">
           {explanation.source === "model"
-            ? "WORDED BY A MODEL · NUMBERS CHECKED BY CODE"
+            ? "MODEL WORDING, CHECKED BY CODE · THE FACTS LINE IS THE RECORD"
             : "WRITTEN BY CODE FROM THE PROOF"}
         </span>
       </div>
@@ -63,6 +63,7 @@ export function ConfoundCheck({ review }: { review: FindingReview }) {
           <p className="explain">
             Checked {review.controls_checked} other columns{skipped}. These may account for part of
             this finding. The verdict is unchanged.
+            {review.reason ? ` Note: ${review.reason}.` : ""}
           </p>
           <ul className="caveats">
             {review.caveats.map((c) => (

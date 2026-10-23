@@ -5,16 +5,18 @@ x and y, and does the association between x and y shrink when rows are compared 
 value of z? Code computes every number from the table (rank-based partial association). The
 output is descriptive caveats and questions for a NEXT run. It never changes a verdict, never
 adds a claim to the run, and never says a column "explains away" anything: a column that
-weakens an association may be a confounder, a step between the two, or something that both
+weakens an association may be a confounder, a step between the two, or something both
 influence, and this table cannot tell which.
 
 Covered: correlation and trend claims, and group-difference claims with numeric controls.
-Anything else is reported as "not checked", not as clean.
+Anything else, and any finding where no other column could actually be compared, is reported
+as "not checked" with the reason, never as clean. A wall-clock budget bounds the work.
 """
 
 from __future__ import annotations
 
 import math
+import time
 from collections.abc import Sequence
 
 import numpy as np
@@ -64,9 +66,24 @@ def _link_numeric(a: pd.Series, z: pd.Series) -> float | None:
 
 
 def _link_group(a: pd.Series, z: pd.Series) -> float | None:
-    """How strongly a categorical control goes with a numeric column: sqrt of rank eta-squared."""
+    """How strongly a categorical column goes with a numeric one, from 0 to 1.
+
+    Rank eta-squared cannot reach 1 even when the groups are perfectly separated: with k equal
+    groups its ceiling is 1 - 1/k squared (0.75 for two groups). Dividing by that ceiling makes
+    a column that fully separates the groups score 1, which the near-duplicate rule relies on.
+    """
     share = _eta2(a.rank(), z)
-    return None if share is None else math.sqrt(max(0.0, share))
+    if share is None:
+        return None
+    k = int(z.nunique())
+    ceiling = 1 - 1 / (k * k) if k > 1 else 1.0
+    return math.sqrt(min(1.0, max(0.0, share) / ceiling))
+
+
+def _levels_ok(z: pd.Series, config: SkepticConfig) -> bool:
+    """Enough levels, each with enough rows, on the rows actually used."""
+    counts = z.value_counts()
+    return 2 <= len(counts) <= config.max_levels and int(counts.min()) >= config.min_level_rows
 
 
 def _usable_controls(
@@ -90,7 +107,6 @@ def _usable_controls(
 def _sentence(
     finding: Finding,
     control: str,
-    kind: str,
     link_first: float,
     link_second: float,
     before: float,
@@ -134,6 +150,18 @@ def _follow_ups(finding: Finding, control: str, kind: str, numeric_pair: bool) -
     return out[:2]
 
 
+def _not_checked(
+    finding: Finding, reason: str, *, duplicates: int = 0, checked: int = 0
+) -> FindingReview:
+    return FindingReview(
+        insight_id=finding.insight_id,
+        status="not_checked",
+        reason=reason,
+        controls_checked=checked,
+        skipped_near_duplicates=duplicates,
+    )
+
+
 def _check_pair(
     finding: Finding,
     frame: pd.DataFrame,
@@ -143,36 +171,46 @@ def _check_pair(
     y: pd.Series,
     measure: str,
     group: pd.Series | None,
+    deadline: float | None,
 ) -> FindingReview:
     caveats: list[Caveat] = []
     checked = duplicates = 0
-    exclude = set(finding.variables)
-    for control, categorical in _usable_controls(frame, schema, exclude, config):
+    unmet: set[str] = set()
+    timed_out = False
+    controls = _usable_controls(frame, schema, set(finding.variables), config)
+    for control, categorical in controls:
+        if deadline is not None and time.monotonic() > deadline:
+            timed_out = True
+            break
         if group is not None and categorical:
-            continue  # a categorical control for a group claim is not covered
-        z = frame[control]
-        data = pd.DataFrame({"x": x, "y": y, "z": z}).dropna()
+            unmet.add("categorical columns are not covered for group-difference claims")
+            continue
+        data = pd.DataFrame({"x": x, "y": y, "z": frame[control]}).dropna()
         if group is not None:
             data["g"] = group.reindex(data.index)
             data = data.dropna()
         if len(data) < config.min_rows:
+            unmet.add("no other usable column had enough complete rows")
             continue
-        checked += 1
         zc = data["z"].astype(str) if categorical else pd.to_numeric(data["z"], errors="coerce")
+        if categorical and not _levels_ok(zc, config):
+            unmet.add("a categorical column had too few rows per level on the rows used")
+            continue
         if not categorical and zc.nunique() < 2:
+            unmet.add("no other usable column varied on the rows used")
             continue
         if group is None:
             link_x = _link_group(data["x"], zc) if categorical else _link_numeric(data["x"], zc)
             link_y = _link_group(data["y"], zc) if categorical else _link_numeric(data["y"], zc)
             raw = _corr(data["x"].rank(), data["y"].rank())
-            if (
-                raw is None
-                or link_x is None
-                or link_y is None
-                or abs(raw) < config.min_original_rho
-            ):
+            if raw is None or link_x is None or link_y is None:
+                unmet.add("the comparison could not be computed on the rows used")
                 continue
-            if max(link_x, link_y) >= config.max_duplicate_rho and not categorical:
+            if abs(raw) < config.min_original_rho:
+                unmet.add("the association on these rows is too small to compare")
+                continue
+            limit = config.max_duplicate_group_link if categorical else config.max_duplicate_rho
+            if max(link_x, link_y) >= limit:
                 duplicates += 1
                 continue
             part = _corr(
@@ -185,21 +223,19 @@ def _check_pair(
             before_value = _eta2(ranks, data["g"])
             link_x = _link_group(zc, data["g"])
             link_y = _link_numeric(data["y"], zc)
-            if (
-                before_value is None
-                or link_x is None
-                or link_y is None
-                or before_value < config.min_original_eta2
-            ):
+            if before_value is None or link_x is None or link_y is None:
+                unmet.add("the comparison could not be computed on the rows used")
                 continue
-            if link_y >= config.max_duplicate_rho:
-                duplicates += 1
+            if before_value < config.min_original_eta2:
+                unmet.add("the group difference on these rows is too small to compare")
+                continue
+            if link_x >= config.max_duplicate_group_link or link_y >= config.max_duplicate_rho:
+                duplicates += 1  # a column that encodes the group, or the outcome, is a proxy
                 continue
             after_value = _eta2(_residual(ranks, zc, False), data["g"])
             before, after, kind_measure = before_value, after_value, "rank_eta_squared"
-        if after is None:
-            continue
-        if min(link_x, link_y) < config.min_link_to_control:
+        checked += 1
+        if after is None or min(link_x, link_y) < config.min_link_to_control:
             continue
         if after > (1 - config.min_drop_fraction) * before:
             continue
@@ -216,42 +252,61 @@ def _check_pair(
                 after=round(after, 4),
                 n=len(data),
                 text=_sentence(
-                    finding, control, kind, link_x, link_y, before, after, len(data), kind_measure
+                    finding, control, link_x, link_y, before, after, len(data), kind_measure
                 ),
                 follow_ups=_follow_ups(finding, control, kind, group is None),
             )
         )
     caveats.sort(key=lambda c: (c.after / c.before if c.before else 1.0, c.control))
     caveats = caveats[: config.max_caveats_per_finding]
+    budget = f"the time budget ran out after {checked} of {len(controls)} other columns"
+    if caveats:
+        return FindingReview(
+            insight_id=finding.insight_id,
+            status="flagged",
+            reason=budget if timed_out else None,
+            controls_checked=checked,
+            skipped_near_duplicates=duplicates,
+            caveats=caveats,
+        )
+    if timed_out:
+        return _not_checked(finding, budget, duplicates=duplicates, checked=checked)
+    if checked == 0:
+        if duplicates and not unmet:
+            reason = "the only other columns look like the same measurement as a claim column"
+        else:
+            reason = "; ".join(sorted(unmet)) or "there was no other usable column to compare"
+        return _not_checked(finding, reason, duplicates=duplicates)
     return FindingReview(
         insight_id=finding.insight_id,
-        status="flagged" if caveats else "none_found",
+        status="none_found",
         controls_checked=checked,
         skipped_near_duplicates=duplicates,
-        caveats=caveats,
     )
 
 
 def review_finding(
-    finding: Finding, frame: pd.DataFrame, schema: SchemaProfile, config: SkepticConfig
+    finding: Finding,
+    frame: pd.DataFrame,
+    schema: SchemaProfile,
+    config: SkepticConfig,
+    deadline: float | None = None,
 ) -> FindingReview:
     """Check one PASS finding. Never raises for odd data: that is reported as not checked."""
-
-    def not_checked(reason: str) -> FindingReview:
-        return FindingReview(insight_id=finding.insight_id, status="not_checked", reason=reason)
-
     if len(finding.variables) != 2 or any(v not in frame.columns for v in finding.variables):
-        return not_checked("the claim's columns are not in the cleaned table")
+        return _not_checked(finding, "the claim's columns are not in the cleaned table")
+    if deadline is not None and time.monotonic() > deadline:
+        return _not_checked(finding, "the time budget ran out before this finding")
     a, b = finding.variables
     try:
         if finding.claim_type == "correlation":
             x = pd.to_numeric(frame[a], errors="coerce")
             y = pd.to_numeric(frame[b], errors="coerce")
-            return _check_pair(finding, frame, schema, config, x, y, "spearman_rho", None)
+            return _check_pair(finding, frame, schema, config, x, y, "spearman_rho", None, deadline)
         if finding.claim_type == "trend":
             x = _as_ordered_numeric(frame[a])
             y = pd.to_numeric(frame[b], errors="coerce")
-            return _check_pair(finding, frame, schema, config, x, y, "spearman_rho", None)
+            return _check_pair(finding, frame, schema, config, x, y, "spearman_rho", None, deadline)
         if finding.claim_type == "group_difference":
             y = pd.to_numeric(frame[b], errors="coerce")
             group = frame[a].astype("string")
@@ -264,13 +319,18 @@ def review_finding(
                 y,
                 "rank_eta_squared",
                 group,
+                deadline,
             )
     except Exception:
-        return not_checked("the check could not run on this data")
-    return not_checked(f"{finding.claim_type} claims are not covered by this check")
+        return _not_checked(finding, "the check could not run on this data")
+    return _not_checked(finding, f"{finding.claim_type} claims are not covered by this check")
 
 
 def review_findings(
-    findings: Sequence[Finding], frame: pd.DataFrame, schema: SchemaProfile, config: SkepticConfig
+    findings: Sequence[Finding],
+    frame: pd.DataFrame,
+    schema: SchemaProfile,
+    config: SkepticConfig,
+    deadline: float | None = None,
 ) -> list[FindingReview]:
-    return [review_finding(f, frame, schema, config) for f in findings]
+    return [review_finding(f, frame, schema, config, deadline) for f in findings]

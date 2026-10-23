@@ -134,12 +134,15 @@ advisory:
     min_original_rho: 0.10        # skip claims whose own rank correlation is already this small
     min_original_eta2: 0.01       # same for group claims (rank eta-squared)
     max_duplicate_rho: 0.9        # a control this close to a claim column is the same measurement; skipped
+    max_duplicate_group_link: 0.97  # the same idea for column-versus-group links (normalised rank eta; a real confounder can reach 0.9)
     max_controls_checked: 40      # other columns examined per finding
     max_caveats_per_finding: 3
     max_levels: 12                # a categorical control may have at most this many levels
     min_level_rows: 5             # and every level at least this many rows
+    time_budget_seconds: 20       # wall clock for the whole confound check of one run; the rest is 'not checked'
   explainer:
     engine: template              # template (code-written, offline) | api (DeepSeek wording, checked by code)
     max_summary_chars: 400
     max_output_tokens: 900
+    timeout_seconds: 45           # one model call per run, no retry
     temperature: 0.0

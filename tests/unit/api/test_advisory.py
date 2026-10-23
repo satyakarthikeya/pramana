@@ -171,7 +171,11 @@ def test_a_configured_model_wording_is_checked_through_the_service(
             json.dumps(
                 {
                     "summaries": [
-                        {"insight_id": "ok", "text": "Where x is higher, y tends to be higher."}
+                        {
+                            "insight_id": "ok",
+                            "text": "Where x is higher, y tends to be higher.",
+                            "direction": "positive",
+                        }
                     ]
                 }
             )
@@ -189,3 +193,25 @@ def test_a_configured_model_wording_is_checked_through_the_service(
     assert explanation["text"].startswith("Where x is higher, y tends to be higher.")
     assert "q = 0.004" in explanation["text"]
     assert results["verified_insights"][0]["proof"]["verdict"] == "PASS"
+
+
+def test_importing_the_advisory_package_does_not_load_memory_or_chroma() -> None:
+    """A real import check: the advisory step has no way to reach verified memory."""
+    import os
+    import subprocess
+    import sys
+
+    code = (
+        "import sys, pramana.advisory.run;"
+        "bad=[m for m in sys.modules if m.startswith(('pramana.memory','chromadb'))];"
+        "print(','.join(bad))"
+    )
+    out = subprocess.run(
+        [sys.executable, "-I", "-c", code],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=Path(__file__).resolve().parents[3],
+        env={"PYTHONPATH": "src", "SYSTEMROOT": os.environ.get("SYSTEMROOT", "")},
+    )
+    assert out.stdout.strip() == ""

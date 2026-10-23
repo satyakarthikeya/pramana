@@ -22,10 +22,12 @@ class SkepticConfig(BaseModel):
     min_original_rho: float = Field(ge=0, lt=1)
     min_original_eta2: float = Field(ge=0, lt=1)
     max_duplicate_rho: float = Field(gt=0, le=1)
+    max_duplicate_group_link: float = Field(gt=0, le=1)
     max_controls_checked: int = Field(ge=1, le=500)
     max_caveats_per_finding: int = Field(ge=1, le=10)
     max_levels: int = Field(ge=2, le=100)
     min_level_rows: int = Field(ge=2, le=1000)
+    time_budget_seconds: float = Field(gt=0, le=600)
 
 
 class ExplainerConfig(BaseModel):
@@ -34,6 +36,7 @@ class ExplainerConfig(BaseModel):
     engine: Literal["template", "api"]
     max_summary_chars: int = Field(ge=100, le=2000)
     max_output_tokens: int = Field(ge=200, le=4096)
+    timeout_seconds: float = Field(ge=5, le=300)
     temperature: float = Field(ge=0, le=1)
 
 
