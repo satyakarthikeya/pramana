@@ -140,19 +140,41 @@ class ChatRepository:
         dataset_id: UUID,
         owner_id: UUID,
     ) -> LedgerRecord:
-        """Record a test under the next free number, retrying if another writer took it.
+        """Record a test under the next free number, chosen inside one write transaction.
 
-        The unique (dataset, number) key makes a duplicate impossible; the retry makes sure a
-        test that already ran is still counted instead of failing after the fact.
+        `BEGIN IMMEDIATE` takes the database's write lock before the number is read, so two
+        writers can never pick the same number and a test that already ran is always counted.
         """
-        for _ in range(8):
-            record = make(self.test_count(dataset_id, owner_id) + 1)
-            try:
-                self.add_test(record, dataset_id, owner_id)
-                return record
-            except sqlite3.IntegrityError:
-                continue
-        raise RuntimeError("could not allocate a ledger number")
+        connection = self._connect()
+        connection.isolation_level = None  # explicit transaction control
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT COALESCE(MAX(test_number), 0) FROM chat_tests WHERE dataset_id = ?",
+                (str(dataset_id),),
+            ).fetchone()
+            record = make(int(row[0]) + 1)
+            connection.execute(
+                "INSERT INTO chat_tests "
+                "(message_id, dataset_id, owner_id, test_number, created_at, record_json) "
+                "VALUES (?,?,?,?,?,?)",
+                (
+                    str(record.message_id),
+                    str(dataset_id),
+                    str(owner_id),
+                    record.test_number,
+                    record.created_at.isoformat(),
+                    record.model_dump_json(),
+                ),
+            )
+            connection.execute("COMMIT")
+            return record
+        except BaseException:
+            if connection.in_transaction:
+                connection.execute("ROLLBACK")
+            raise
+        finally:
+            connection.close()
 
     def tests(self, dataset_id: UUID, owner_id: UUID) -> list[LedgerRecord]:
         with self._connect() as connection:
