@@ -13,8 +13,10 @@ from uuid import UUID
 import pandas as pd
 from pydantic import ValidationError
 
+from pramana.analysis.computed import ComputedAnalysis, compute_analysis
 from pramana.analysis.reader import DataBrief, read_data
 from pramana.analysis.schema_inference import SchemaProfile
+from pramana.analysis.sectors import load_packs
 from pramana.api.charts import data_overview
 from pramana.api.models import (
     ColumnPreview,
@@ -23,6 +25,9 @@ from pramana.api.models import (
     DatasetView,
     RunView,
 )
+from pramana.common.logging import get_logger
+
+logger = get_logger(component="datasets")
 
 MAX_PREVIEW_COLUMNS = 40
 MAX_LISTED_COLUMNS = 100
@@ -67,6 +72,36 @@ def build_preview(
     )
 
 
+def exact_tier(
+    frame: pd.DataFrame, schema: SchemaProfile, sector: str | None = None
+) -> ComputedAnalysis | None:
+    """The Exact tier for a cleaned table, or None if it cannot be built at all.
+
+    Each analysis inside already fails on its own; this only guards detection and
+    shape, so a strange table can lose the section but never the upload.
+    """
+    try:
+        return compute_analysis(frame, schema, sector=sector)
+    except Exception:
+        logger.exception("exact_tier_failed")
+        return None
+
+
+def compute_exact_tier(path: Path, sector: str | None = None) -> ComputedAnalysis | None:
+    """Rebuild the Exact tier for a stored file. Raises ValueError for an unknown sector."""
+    from pramana.analysis import clean_dataset, infer_schema, load_config, load_dataset
+
+    if sector is not None and sector not in {"general", *load_packs()}:
+        raise ValueError(f"unknown sector {sector!r}")
+
+    try:
+        cleaned, _ = clean_dataset(load_dataset(path))
+        schema = infer_schema(cleaned, load_config().schema_inference)
+    except Exception:
+        return None
+    return exact_tier(cleaned, schema, sector)
+
+
 def compute_brief(path: Path) -> DataBrief | None:
     """Rebuild the Data Reader's brief for a stored file, or None if it cannot be read."""
     from pramana.analysis import clean_dataset, infer_schema, load_config, load_dataset
@@ -106,6 +141,7 @@ def profile_file(
         brief = read_data(cleaned, schema)
     except Exception:
         brief = None
+    computed = exact_tier(cleaned, schema)
     return DatasetView(
         dataset_id=dataset_id,
         name=name,
@@ -115,6 +151,7 @@ def profile_file(
         preview=preview,
         overview=overview,
         brief=brief,
+        computed=computed,
     )
 
 
@@ -135,16 +172,21 @@ class DatasetRepository:
 
     @staticmethod
     def _load(raw: str) -> DatasetView:
-        """Read a stored view; a brief written by an older version is dropped, not fatal.
+        """Read a stored view; a brief or Exact tier from an older version is dropped.
 
-        The brief is derived data and is rebuilt from the stored file on next open, so a
-        format change must never make a saved dataset unreadable.
+        Both are derived data, rebuilt from the stored file on next open, so a format
+        change must never make a saved dataset unreadable.
         """
         try:
             return DatasetView.model_validate_json(raw)
         except ValidationError:
             data = json.loads(raw)
-            data.pop("brief", None)
+            for derived in ("brief", "computed"):
+                try:
+                    DatasetView.model_validate({**data, "brief": None, "computed": None,
+                                                derived: data.get(derived)})
+                except ValidationError:
+                    data.pop(derived, None)
             return DatasetView.model_validate(data)
 
     def add(self, view: DatasetView, file_path: Path, owner_id: UUID | None = None) -> None:
@@ -191,6 +233,36 @@ class DatasetRepository:
                 "UPDATE datasets SET view_json = ? WHERE dataset_id = ?",
                 (updated.model_dump_json(), str(view.dataset_id)),
             )
+        return updated
+
+    def _save(self, view: DatasetView) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                "UPDATE datasets SET view_json = ? WHERE dataset_id = ?",
+                (view.model_dump_json(), str(view.dataset_id)),
+            )
+
+    def backfill_computed(self, view: DatasetView, owner_id: UUID | None = None) -> DatasetView:
+        """Add the Exact tier to a dataset stored before it existed (or with a stale one)."""
+        if view.computed is not None:
+            return view
+        computed = compute_exact_tier(self.file_path(view.dataset_id, owner_id))
+        if computed is None:
+            return view
+        updated = view.model_copy(update={"computed": computed})
+        self._save(updated)
+        return updated
+
+    def set_sector(
+        self, view: DatasetView, sector: str | None, owner_id: UUID | None = None
+    ) -> DatasetView:
+        """Recompute the Exact tier under the user's sector; None means detect again.
+
+        Raises ValueError for a sector no pack defines.
+        """
+        computed = compute_exact_tier(self.file_path(view.dataset_id, owner_id), sector)
+        updated = view.model_copy(update={"computed": computed})
+        self._save(updated)
         return updated
 
     def claim_unowned(self, owner_id: UUID) -> None:

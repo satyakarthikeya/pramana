@@ -9,7 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 from pramana.api.auth import User
 from pramana.api.datasets import DatasetReadError, profile_file
 from pramana.api.deps import current_user, get_service
-from pramana.api.models import DatasetSummary, DatasetView, RunView
+from pramana.api.models import DatasetSummary, DatasetView, RunView, SectorChoice
 from pramana.api.service import RunService
 from pramana.api.v1 import v1_settings
 
@@ -74,9 +74,24 @@ def list_datasets(service: Service, user: Owner) -> list[DatasetSummary]:
 def get_dataset(dataset_id: UUID, service: Service, user: Owner) -> DatasetView:
     try:
         view = service.datasets.get(dataset_id, user.user_id)
-        return service.datasets.backfill_brief(view, user.user_id)
+        view = service.datasets.backfill_brief(view, user.user_id)
+        return service.datasets.backfill_computed(view, user.user_id)
     except KeyError:
         raise HTTPException(404, "Dataset not found.") from None
+
+
+@router.put("/{dataset_id}/sector", response_model=DatasetView)
+def set_sector(
+    dataset_id: UUID, choice: SectorChoice, service: Service, user: Owner
+) -> DatasetView:
+    """Re-read the table as another sector (or detect again with null). Code only."""
+    try:
+        view = service.datasets.get(dataset_id, user.user_id)
+        return service.datasets.set_sector(view, choice.sector, user.user_id)
+    except KeyError:
+        raise HTTPException(404, "Dataset not found.") from None
+    except ValueError:
+        raise HTTPException(422, "That sector is not available.") from None
 
 
 @router.get("/{dataset_id}/runs", response_model=list[RunView])

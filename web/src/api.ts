@@ -280,6 +280,44 @@ export interface ChatLedger {
   limit: number;
   records: LedgerRecord[];
 }
+export type Scalar = number | string | boolean | null;
+export interface ExactItem {
+  id: string;
+  kind: string;
+  level: "exact";
+  status: "ok" | "not_run";
+  title: string;
+  sentence: string;
+  reason: string | null;
+  formula: string;
+  columns: string[];
+  filters: string[];
+  n_rows: number;
+  values: Record<string, Scalar>;
+  table: Record<string, Scalar>[];
+}
+export interface SectorMatch {
+  sector: string;
+  label: string;
+  score: number;
+  roles: Record<string, string>;
+  reasons: string[];
+}
+export interface ShapeProfile {
+  shape: "cross_section" | "time_series" | "panel" | "transactions";
+  time_column: string | null;
+  entity_column: string | null;
+  period: string | null;
+  n_periods: number;
+  full_cycles: number;
+  reasons: string[];
+}
+export interface ComputedAnalysis {
+  sector: SectorMatch;
+  shape: ShapeProfile;
+  scope_note: string;
+  items: ExactItem[];
+}
 export interface DatasetView {
   dataset_id: string;
   name: string;
@@ -289,6 +327,7 @@ export interface DatasetView {
   preview: DataPreview;
   overview: DataOverview | null;
   brief: DataBrief | null;
+  computed: ComputedAnalysis | null;
 }
 export interface DatasetSummary {
   dataset_id: string;
@@ -362,6 +401,13 @@ export const api = {
   },
   dataset(id: string): Promise<DatasetView> {
     return fetch(`/api/datasets/${id}`).then((r) => json<DatasetView>(r));
+  },
+  setSector(id: string, sector: string | null): Promise<DatasetView> {
+    return fetch(`/api/datasets/${id}/sector`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sector }),
+    }).then((r) => json<DatasetView>(r));
   },
   datasetRuns(id: string): Promise<RunView[]> {
     return fetch(`/api/datasets/${id}/runs`).then((r) => json<RunView[]>(r));

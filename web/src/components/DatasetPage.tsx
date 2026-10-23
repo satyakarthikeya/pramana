@@ -6,6 +6,7 @@ import { useWorkspace } from "../store";
 import { AppShell } from "./AppShell";
 import { Ask } from "./Ask";
 import { Brief } from "./Brief";
+import { Computed } from "./Computed";
 import { Overview } from "./Charts";
 import { Arrow } from "./Icons";
 import { Processing } from "./Processing";
@@ -18,10 +19,18 @@ function bytes(n: number): string {
   return `${Math.max(1, Math.round(n / 1024))} KB`;
 }
 
-function Overviewtab({ dataset }: { dataset: DatasetView }) {
+function Overviewtab({
+  dataset,
+  onSector,
+}: {
+  dataset: DatasetView;
+  onSector: (sector: string | null) => Promise<void>;
+}) {
   const p = dataset.preview;
   const heads = p.sample_rows[0] ? Object.keys(p.sample_rows[0]) : [];
   return (
+    <>
+    {dataset.computed && <Computed computed={dataset.computed} onSector={onSector} />}
     <div className="results split">
       <div className="col-stack">
         {dataset.brief && <Brief brief={dataset.brief} />}
@@ -101,6 +110,7 @@ function Overviewtab({ dataset }: { dataset: DatasetView }) {
         )}
       </div>
     </div>
+    </>
   );
 }
 
@@ -339,7 +349,10 @@ export function DatasetPage({ id, tab, runId }: { id: string; tab: Tab; runId: s
           </div>
 
           {tab === "overview" ? (
-            <Overviewtab dataset={dataset} />
+            <Overviewtab
+              dataset={dataset}
+              onSector={async (sector) => setDataset(await api.setSector(id, sector))}
+            />
           ) : tab === "ask" ? (
             <Ask key={id} dataset={dataset} system={system} />
           ) : (

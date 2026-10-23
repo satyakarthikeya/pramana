@@ -115,6 +115,55 @@ def test_upload_includes_the_data_readers_brief_and_old_datasets_get_one(tmp_pat
         assert again["brief"] == brief
 
 
+def _finance_csv() -> bytes:
+    from tests.unit.analysis.computed_fixtures import finance_year
+
+    return finance_year().to_csv(index=False).encode()
+
+
+def test_upload_includes_the_exact_tier_with_sector_and_shape(tmp_path: Path) -> None:
+    with TestClient(create_app(service=service_for(tmp_path))) as client:
+        sign_in(client)
+        view = client.post("/api/datasets", files={"file": ("pl.csv", _finance_csv())}).json()
+        computed = view["computed"]
+        assert computed["sector"]["sector"] == "finance"
+        assert computed["shape"]["shape"] == "panel"
+        kinds = {item["kind"] for item in computed["items"]}
+        assert {"period_change", "variance_decomposition", "identity"} <= kinds
+        assert all(item["level"] == "exact" for item in computed["items"])
+
+
+def test_the_user_can_change_the_sector_and_unknown_sectors_are_refused(tmp_path: Path) -> None:
+    with TestClient(create_app(service=service_for(tmp_path))) as client:
+        sign_in(client)
+        view = client.post("/api/datasets", files={"file": ("pl.csv", _finance_csv())}).json()
+        url = f"/api/datasets/{view['dataset_id']}/sector"
+        changed = client.put(url, json={"sector": "general"})
+        assert changed.status_code == 200
+        assert changed.json()["computed"]["sector"]["sector"] == "general"
+        assert client.get(f"/api/datasets/{view['dataset_id']}").json()["computed"]["sector"][
+            "sector"] == "general"
+        assert client.put(url, json={"sector": "astrology"}).status_code == 422
+        restored = client.put(url, json={"sector": None}).json()
+        assert restored["computed"]["sector"]["sector"] == "finance"
+
+
+def test_old_datasets_get_the_exact_tier_and_a_stale_one_never_breaks_them(tmp_path: Path) -> None:
+    import json
+    import sqlite3
+
+    with TestClient(create_app(service=service_for(tmp_path))) as client:
+        sign_in(client)
+        view = client.post("/api/datasets", files={"file": ("pl.csv", _finance_csv())}).json()
+        with sqlite3.connect(tmp_path / "api/runs.sqlite3") as connection:
+            stored = json.loads(connection.execute("SELECT view_json FROM datasets").fetchone()[0])
+            stored["computed"] = {"an_old_format": True}
+            connection.execute("UPDATE datasets SET view_json = ?", (json.dumps(stored),))
+        reopened = client.get(f"/api/datasets/{view['dataset_id']}")
+        assert reopened.status_code == 200
+        assert reopened.json()["computed"] == view["computed"]
+
+
 def test_a_brief_written_by_an_older_version_never_breaks_a_saved_dataset(tmp_path: Path) -> None:
     import json
     import sqlite3

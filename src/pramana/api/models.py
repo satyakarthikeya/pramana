@@ -9,6 +9,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from pramana.advisory.models import AdvisoryReport
+from pramana.analysis.computed import ComputedAnalysis
 from pramana.analysis.reader import DataBrief
 from pramana.analysis.workspace.ledger import ExplorationSummary
 from pramana.contracts import ProofObject, Verdict
@@ -130,6 +131,14 @@ class DatasetView(Payload):
     preview: DataPreview
     overview: DataOverview | None = None
     brief: DataBrief | None = None
+    #: The Exact tier: arithmetic with its formulas. Shown to the user, never to a model.
+    computed: ComputedAnalysis | None = None
+
+
+class SectorChoice(Payload):
+    """The user's sector for a dataset; null returns to automatic detection."""
+
+    sector: str | None = Field(default=None, max_length=40)
 
 
 class DatasetSummary(Payload):

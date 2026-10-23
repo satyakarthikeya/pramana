@@ -1,0 +1,64 @@
+# configs/sectors/health.yaml -- a sector pack (PLAN §14). DATA ONLY.
+
+name: health
+label: Health
+description: Survey and clinical-measure tables (NHANES-style respondents, district indicators).
+
+roles:
+  age: [age, ageyr, ageyears]
+  sex: [sex, gender]
+  bmi: [bmi]
+  body_weight: [bodyweight, weightkg]
+  height: [height, heightcm]
+  systolic_bp: [systolic, sbp]
+  diastolic_bp: [diastolic, dbp]
+  glucose: [glucose]
+  hba1c: [hba1c, a1c, glycohemoglobin]
+  cholesterol: [cholesterol]
+  survey_weight: [wtmec2yr, wtint2yr, wtsaf2yr, wtmecprp, wtintprp, surveyweight, sampleweight, samplingweight]
+  cases: [cases, deaths, admissions, visits]
+  population: [population, pop, enrolled]
+  entity: [region, state, district, hospital, clinic, country, facility]
+
+# Exact column names from the NHANES codebook (`analysis/codebook.py`) -> role.
+# Labels, units and codings come from the codebook itself; they are not repeated here.
+codebook_roles:
+  RIDAGEYR: age
+  RIAGENDR: sex
+  BMXBMI: bmi
+  BMXWT: body_weight
+  BMXHT: height
+  BPXSY1: systolic_bp
+  BPXDI1: diastolic_bp
+  LBXGLU: glucose
+  LBXGH: hba1c
+  LBXTC: cholesterol
+  SMQ020: smoker
+  WTMEC2YR: survey_weight
+  WTINT2YR: survey_weight
+
+measures: [bmi, systolic_bp, diastolic_bp, glucose, hba1c, cholesterol]
+additive_measures: false   # a BMI total means nothing; segments are compared by average
+nonnegative: [age, bmi, body_weight, height, systolic_bp, diastolic_bp, glucose, hba1c, cholesterol, cases, population]
+
+identities:
+  - {result: bmi, op: bmi, inputs: [body_weight, height]}
+
+# Share of respondents meeting a published clinical cut-off. Cut-offs are the standard
+# adult definitions (WHO / ACC-AHA / ADA); they describe the measurement, not a diagnosis.
+prevalence:
+  - {role: bmi, label: obesity, op: ">=", value: 30, unit: "kg/m2"}
+  - {role: systolic_bp, label: "a systolic reading of 130 mm Hg or higher", op: ">=", value: 130, unit: "mm Hg"}
+  - {role: hba1c, label: "an HbA1c in the diabetes range", op: ">=", value: 6.5, unit: "%"}
+  - {role: glucose, label: "a fasting glucose in the diabetes range", op: ">=", value: 126, unit: "mg/dL"}
+  - {role: smoker, label: "smoked at least 100 cigarettes", op: "==", value: 1, unit: null}
+
+# Breakdowns shown under each prevalence: by sex and by these age bands (lower edges).
+breakdowns: [sex, age]
+age_bands: [20, 40, 60, 80]
+
+analyses: [prevalence, weighted_means, rates, segment_ranking, outliers, identity, data_quality]
+
+wording:
+  scope_note: Figures describe this table. Without survey weights they are shares of the sample, not population estimates.
+  refusal: PRAMANA does not give medical advice or diagnoses.
