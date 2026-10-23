@@ -400,3 +400,55 @@ def test_tool_use_is_capped(setup) -> None:
     script = Script(*[tool("describe", column="LBXGLU") for _ in range(cap + 1)] + [answer("ok")])
     result = ask(setup, script)
     assert result.work.tool_calls <= cap
+
+
+# ---- second review ------------------------------------------------------------------------------
+def test_relationship_prose_cannot_hide_behind_an_unrelated_describe(setup) -> None:
+    """F1: number-free prose about a relationship, citing a describe of a different column."""
+    for text in (
+        "Glucose is strongly increasing with age.",
+        "Older people have higher glucose than younger people.",
+        "Values rise over time and differ between groups.",
+    ):
+        script = Script(tool("describe", column="noise"), answer(text, "x1"))
+        result = ask(setup, script, question="Does age affect glucose?")
+        assert text not in result.text, text
+        assert any("withheld" in n for n in result.notes), text
+        assert result.kind == "descriptive" and result.evidence[0].tool == "describe"
+
+
+def test_a_sentence_may_name_only_columns_its_cited_results_cover(setup) -> None:
+    script = Script(tool("describe", column="noise"), answer("LBXGLU has 300 values.", "x1"))
+    result = ask(setup, script)
+    assert "LBXGLU has" not in result.text
+    assert any("LBXGLU" in n for n in result.notes)
+    ok = Script(tool("describe", column="LBXGLU"), answer("LBXGLU has 300 values.", "x1"))
+    assert ask(setup, ok).text == "LBXGLU has 300 values."
+
+
+def test_the_assistants_own_tool_calls_cannot_make_an_unrelated_claim_relevant(setup) -> None:
+    """F6: describing two unrelated columns first must not get them tested."""
+    verifier = Verifier()
+    script = Script(
+        tool("describe", column="noise"),
+        tool("describe", column="LBXGLU"),
+        test_claim("noise", "LBXGLU"),
+    )
+    result = ask(setup, script, verifier, question="What is the average age?")
+    assert result.kind == "not_tested" and verifier.calls == []
+
+
+def test_one_named_column_may_be_paired_with_one_looked_at_column(setup) -> None:
+    verifier = Verifier()
+    script = Script(tool("describe", column="LBXGLU"), test_claim("RIDAGEYR", "LBXGLU"))
+    result = ask(setup, script, verifier, question="Does RIDAGEYR matter for blood sugar?")
+    assert result.kind == "verified" and len(verifier.calls) == 1
+
+
+def test_descriptive_answers_about_one_column_still_work(setup) -> None:
+    script = Script(
+        tool("describe", column="LBXGLU"),
+        answer("LBXGLU has 300 values and none are missing.", "x1"),
+    )
+    result = ask(setup, script)
+    assert result.kind == "descriptive" and result.notes == []

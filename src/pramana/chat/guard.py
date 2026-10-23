@@ -27,7 +27,8 @@ _NUMBER_WORDS = re.compile(
     r"\b(?:zero|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen"
     r"|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy"
     r"|eighty|ninety|hundred|thousand|million|billion|half|halves|third|thirds|quarter"
-    r"|quarters|dozen|double|triple|twice|thrice)\b",
+    r"|quarters|dozen|double|triple|twice|thrice|one|once|first|fourth|fifth|sixth"
+    r"|seventh|eighth|ninth|tenth|hundredth|thousandth)\b",
     re.IGNORECASE,
 )
 
@@ -37,7 +38,10 @@ _FORBIDDEN = re.compile(
     r"|verif\w*|reject\w*|confirm\w*|pass(?:es|ed)?|prov(?:e|es|ed|en|ing)|proof|caus\w+"
     r"|because|due to|lead(?:s|ing)? to|led to|result(?:s|ing|ed)? in|drives?|driven by"
     r"|driving|responsible for|impact(?:s|ed)? on|influenc\w*|determin\w*|reliabl\w*"
-    r"|establish\w*|gateway|tested)\b|\b[pq]\s*[<=>≤≥]",
+    r"|establish\w*|gateway|contribut\w*|boost\w*|trigger\w*|explain\w*|owing to"
+    r"|thanks to|stem\w* from|as a result|consequently|therefore|genuine\w*|evidence"
+    r"|robust\w*|validat\w*|definite\w*|surely|certain\w*|chance)\b"
+    r"|\b[pq]\s*[<=>≤≥]",
     re.IGNORECASE,
 )
 
@@ -45,15 +49,16 @@ _FORBIDDEN = re.compile(
 _STEMS = (
     "significan",
     "statistical",
-    "pval",
-    "qval",
+    "signific",
+    "signifc",
+    "signfic",
+    "statstical",
     "verified",
     "confirmed",
     "rejected",
     "causal",
     "causation",
     "gateway",
-    "proved",
 )
 
 _CONFUSABLES = str.maketrans(
@@ -76,9 +81,12 @@ def normalise(text: str) -> str:
     return re.sub(r"\s+", " ", folded)
 
 
-def forbidden_words(text: str) -> list[str]:
-    """Verdict or causal vocabulary found in `text` (empty when the wording is acceptable)."""
-    folded = normalise(text)
+def forbidden_words(text: str, names: Iterable[str] = ()) -> list[str]:
+    """Verdict or causal vocabulary found in `text` (empty when the wording is acceptable).
+
+    Column names are blanked first: a column called "Cause of death" or "Passed" may be named.
+    """
+    folded = _blank_names(normalise(text), names)
     found = {match.group(0).lower() for match in _FORBIDDEN.finditer(folded)}
     letters = re.sub(r"[^a-z]", "", folded.lower())
     found.update(stem for stem in _STEMS if stem in letters)
@@ -134,7 +142,7 @@ def _matches(shown: str, value: float) -> bool:
 
 _UNIT_SQUARED = re.compile(r"(?<=[A-Za-z])[²³¹]")
 _UNIT_EXPONENT = re.compile(
-    r"(?<=/)([ckm]?m)(?:\^|\*\*)?[23]\b|\b([ckm]?m)(?:\^|\*\*)?[23]\b(?=[\s.,;)]|$)"
+    r"(?<=/)([ckm]?m)(?:\^|\*\*)?[23]\b|(?<=\d\s)([ckm]?m)(?:\^|\*\*)?[23]\b(?=[\s.,;)]|$)"
 )
 
 
@@ -175,13 +183,16 @@ def unsupported_numbers(
     supported: set[float] = set()
     for output in outputs:
         _numbers_in(output, supported)
+    text = re.sub(r"(\d)\s*(?:percent|per cent|%)", r"\1%", text, flags=re.IGNORECASE)
     text = _drop_unit_exponents(text)
+    versions = re.findall(r"\d+\.\d+\.\d+(?:\.\d+)*", normalise(text))
     problems = [
         ch
         for ch in text
         if ch.isnumeric() and not ch.isdecimal() and unicodedata.numeric(ch, None) is not None
     ]
     cleaned = _blank_names(normalise(text), names)
+    problems += versions
     problems += [m.group(0).lower() for m in _NUMBER_WORDS.finditer(cleaned)]
     for token in _NUMBER.findall(cleaned):
         percent = token.endswith("%")

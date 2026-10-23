@@ -87,7 +87,7 @@ def test_leading_dot_and_glued_numbers_are_still_numbers() -> None:
 
 def test_spelled_out_numbers_and_fraction_glyphs_are_refused() -> None:
     assert check("forty people") == ["forty"]
-    assert check("one hundred rows") == ["hundred"]
+    assert check("one hundred rows") == ["one", "hundred"]
     assert check("about thirty") == ["thirty"]
     assert check("about ½") != []
     assert check("a ⅓ share") != []
@@ -172,3 +172,66 @@ def test_unit_exponents_are_not_numbers_but_stray_digits_still_are() -> None:
     assert unsupported_numbers("area 5 m^2", out) == ["5"]
     assert unsupported_numbers("x^2 rows", out) == ["2"]
     assert unsupported_numbers("the 2 groups", out) == ["2"]
+
+
+# ---- second review: gaps, false positives and the new rules -----------------------------------
+def test_one_and_ordinals_are_spelled_out_numbers_too() -> None:
+    out = [{"mean": 0.55, "n": 120}]
+    for text in ("the correlation is one", "a tenth of rows", "a fifth", "a fourth", "an eighth"):
+        assert unsupported_numbers(text, out) != [], text
+
+
+def test_more_causal_and_verdict_like_phrasing_is_found() -> None:
+    for text in (
+        "x contributes to y",
+        "x boosts y",
+        "x triggers y",
+        "x explains y",
+        "as a result of x",
+        "thanks to x",
+        "owing to x",
+        "stems from x",
+        "consequently y",
+        "therefore y",
+        "a real genuine effect",
+        "strong evidence",
+        "a robust result",
+        "validated",
+        "definitely",
+        "unlikely to be due to chance",
+        "signficant",
+        "signifcant",
+    ):
+        assert forbidden_words(text) != [], text
+
+
+def test_ordinary_words_that_contain_a_stem_are_not_blocked() -> None:
+    for text in (
+        "The top value is high",
+        "group values differ in size",
+        "The step value",
+        "Scores improved",
+        "the approved group",
+        "The data were tested",
+        "Unip valuable",
+    ):
+        assert forbidden_words(text) == [], text
+
+
+def test_a_columns_own_name_may_contain_a_blocked_word() -> None:
+    assert forbidden_words("Cause of death has 12 missing values", names=["Cause of death"]) == []
+    assert forbidden_words("Passed has 12 values", names=["Passed"]) == []
+    assert forbidden_words("Cause of death has 12 missing values") != []
+
+
+def test_version_like_runs_and_bare_unit_tokens_do_not_hide_numbers() -> None:
+    out = [{"a": 5.2, "b": 1.5}]
+    assert unsupported_numbers("range 1.5.7 date 5.2.9", out) != []
+    # A bare "m2"/"m3" is not stripped; only an exponent straight after a number or a slash is.
+    assert unsupported_numbers("the mean is m2", [{"n": 5}]) == ["2"]
+    assert unsupported_numbers("sample m3 m2 cm3", [{"n": 5}]) != []
+
+
+def test_percent_written_with_a_space_or_a_word_is_still_a_percent() -> None:
+    assert unsupported_numbers("12.5 % missing", [{"missing_pct": 12.5}]) == []
+    assert unsupported_numbers("12.5 percent missing", [{"missing_pct": 12.5}]) == []

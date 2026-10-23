@@ -26,7 +26,7 @@ function KindLabel({ answer }: { answer: ChatAnswer }) {
         </span>
       );
     case "descriptive":
-      return <span className="chip">DESCRIPTIVE · COMPUTED FROM THE TABLE</span>;
+      return <span className="chip">DESCRIPTIVE · NUMBERS CHECKED AGAINST THE TABLE</span>;
     case "not_tested":
       return (
         <span className="badge badge-nt" aria-label="Not tested: nothing was marked verified">

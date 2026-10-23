@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
@@ -302,7 +302,8 @@ def run_chat_turn(
                 limit=budget.max_tests_per_dataset,
                 work=work,
                 log=log,
-                mentioned=_mentioned(question, allowed, workspace),
+                named=_named_by_question(question, allowed, brief),
+                looked_at=_looked_at(workspace, allowed),
             )
 
         relationship = any(e.ok and e.name in _RELATIONSHIP_TOOLS for e in workspace.ledger.entries)
@@ -332,7 +333,8 @@ def _test(
     limit: int,
     work: Callable[[], ChatWork],
     log: Any,
-    mentioned: set[str],
+    named: set[str],
+    looked_at: set[str],
 ) -> ChatAnswer:
     def not_tested(text: str, note: str) -> ChatAnswer:
         return ChatAnswer(kind="not_tested", text=text, notes=[note], work=work())
@@ -353,7 +355,7 @@ def _test(
             "verified.",
             "not_a_testable_claim",
         )
-    unrelated = sorted(set(candidate.variables) - mentioned)
+    unrelated = _tied_to_question(candidate.variables, named, looked_at)
     if unrelated:
         return not_tested(
             "Not tested: the question did not name "
@@ -376,16 +378,134 @@ def _test(
     )
 
 
-def _mentioned(question: str, allowed: set[str], workspace: Workspace) -> set[str]:
-    """Columns the question names, plus those the assistant has already looked at."""
-    text = normalise(question).lower()
-    named = {
-        c for c in allowed if re.search(rf"(?<![\w]){re.escape(normalise(c).lower())}(?!\w)", text)
+_STOP = frozenset(
+    {
+        "the",
+        "and",
+        "for",
+        "with",
+        "per",
+        "are",
+        "was",
+        "were",
+        "from",
+        "that",
+        "this",
+        "what",
+        "which",
+        "does",
+        "how",
+        "many",
+        "much",
+        "not",
+        "all",
+        "any",
+        "can",
+        "has",
+        "have",
+        "its",
+        "into",
+        "than",
+        "then",
+        "them",
+        "they",
+        "you",
+        "your",
+        "our",
+        "out",
+        "who",
+        "why",
+        "when",
+        "where",
+        "mean",
+        "average",
+        "value",
+        "values",
+        "data",
+        "table",
+        "column",
+        "columns",
+        "rows",
+        "row",
+        "number",
+        "total",
+        "level",
     }
-    for entry in workspace.ledger.entries:
-        if entry.ok:
-            named.update(v for v in entry.args.values() if isinstance(v, str) and v in allowed)
+)
+
+
+def _named_by_question(question: str, allowed: set[str], brief: DataBrief | None) -> set[str]:
+    """Columns the question refers to: by exact name, or by a word of the column's label."""
+    text = normalise(question).lower()
+    words = {w for w in re.findall(r"[a-z]{3,}", text) if w not in _STOP}
+    labels = {c.name: (c.label or "") for c in brief.columns} if brief else {}
+    named = set()
+    for column in allowed:
+        if re.search(rf"(?<![\w]){re.escape(normalise(column).lower())}(?!\w)", text):
+            named.add(column)
+            continue
+        label_words = {
+            w for w in re.findall(r"[a-z]{3,}", normalise(labels.get(column, "")).lower())
+        } - _STOP
+        if label_words & words:
+            named.add(column)
     return named
+
+
+def _looked_at(workspace: Workspace, allowed: set[str]) -> set[str]:
+    """Columns the assistant has already inspected with a successful tool call."""
+    return {
+        v
+        for entry in workspace.ledger.entries
+        if entry.ok
+        for v in entry.args.values()
+        if isinstance(v, str) and v in allowed
+    }
+
+
+def _tied_to_question(variables: Sequence[str], named: set[str], looked_at: set[str]) -> list[str]:
+    """Columns of a claim that the question does not account for (empty when it is tied).
+
+    The assistant's own tool calls cannot make an unrelated claim relevant: at least one
+    column must come from the question, and the others must be named or already looked at.
+    """
+    if not any(v in named for v in variables):
+        return sorted(variables)
+    return sorted(v for v in variables if v not in named and v not in looked_at)
+
+
+_RELATIONAL = re.compile(
+    r"\b(?:increas\w*|decreas\w*|higher|lower|greater|larger|smaller|bigger|stronger|weaker"
+    r"|more|less|fewer|associat\w*|relat\w*|correlat\w*|differ\w*|trend\w*|ris(?:e|es|ing)"
+    r"|fall\w*|grow\w*|declin\w*|tend\w*|predict\w*|link\w*|compar\w*|versus|than)\b",
+    re.IGNORECASE,
+)
+
+
+def _strings_in(value: Any) -> Iterator[str]:
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            yield str(key)
+            yield from _strings_in(item)
+    elif isinstance(value, list | tuple):
+        for item in value:
+            yield from _strings_in(item)
+
+
+def _uncovered_columns(text: str, names: set[str], shown: Sequence[Evidence]) -> list[str]:
+    """Columns the sentence names that none of the cited results looked at."""
+    covered = {
+        s for e in shown for s in (*_strings_in(e.args), *_strings_in(e.output)) if s in names
+    }
+    folded = normalise(text).lower()
+    return sorted(
+        c
+        for c in names
+        if c not in covered
+        and re.search(rf"(?<![\w]){re.escape(normalise(c).lower())}(?!\w)", folded)
+    )
 
 
 def _answer(
@@ -430,10 +550,14 @@ def _answer(
         reason = "empty"
     elif len(text) > max_chars:
         reason = "too long"
-    elif words := forbidden_words(text):
+    elif words := forbidden_words(text, names):
         reason = "it used the words " + ", ".join(repr(w) for w in words)
     elif unsupported_numbers(text, [e.output for e in shown], names=names):
         reason = "it contained numbers that no cited tool result contains"
+    elif uncovered := _uncovered_columns(text, names, shown):
+        reason = "it mentioned " + ", ".join(uncovered) + " but no cited result covers that column"
+    elif kind == "descriptive" and _RELATIONAL.search(normalise(text)):
+        reason = "it described a relationship or comparison but cited only single-column results"
     if reason is not None:
         notes.append(f"The model's wording was withheld ({reason}). The exact results are below.")
         text = (
