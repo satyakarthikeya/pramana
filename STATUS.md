@@ -49,6 +49,35 @@ Not yet committed. Code comments and the `OWNERSHIP.md` files under `src/`, `con
 `docker/` and `requirements/` still cite the old scope files and are untouched.
 `AGENTS.md` §8.10 still speaks of module owners.
 
+## Workspace UI and chat branches (23 October 2026, not on `main`)
+
+Two branches, to be merged in this order (the second branches from the first):
+
+| Branch | Commits | What |
+|---|---|---|
+| `feat/team/workspace-ui` | `a09f89a` `4aff983` `78011fd` `675e42f` `65c5d8e` | accounts, datasets, Data Reader, analysis workspace and agent, web UI, Docker + nginx |
+| `feat/team/chat-agent` | `2c96a8a` `7d45c10` `914a99d` `dd51937` `3e3fd3b` `45a24f7` | Phase 4: "talk to your data" backend, Ask tab, two review rounds of fixes |
+
+`7d45c10` is not green on its own (its ledger-numbering test failed under contention); `dd51937` fixes it.
+
+**Verified by running:** full suite exit 0 at `45a24f7` (0 failures), `ruff` clean, web build clean;
+in Docker (offline profile, chat on live DeepSeek + Langfuse EU): the analysis journey gives
+3 verified and 2 rejected, the Findings screen keeps its ordinary wording, chat answers about 15
+real questions, a second account gets 404 on every chat route; two independent read-only reviews.
+
+**Not verified:** keyboard-only pass, 800 px width and grayscale pass of the Ask tab; mypy on the new
+modules; any web unit tests (none exist); chat cost (no token prices are configured; one question
+is roughly 2,500 to 5,800 tokens). Live chat has been tried on a small number of questions only.
+
+**Needs a decision / the verification owner (AGENTS.md section 8.10):**
+- The chat bullet added to AGENTS.md section 2, and chat's statistics: each chat claim is a family of one
+  (q equals p), disclosed as asked after seeing results; whether chat claims should ever join a BH family is open.
+- For "differs by" questions the model chooses the direction, so a real difference can come back Rejected
+  because the guess was wrong. Fixing it means choosing direction after seeing the data.
+- Group labels show raw codes ("1.0") where the Data Reader knows the meaning.
+- Verified memory is still shared across accounts; a QA run's lessons must be removed from Chroma by run id.
+- The chat hourly cap and in-flight counter are per server process.
+
 ## Known limitations
 
 See `SCOPE.md` §6.

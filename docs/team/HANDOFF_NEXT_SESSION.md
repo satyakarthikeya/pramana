@@ -198,3 +198,35 @@ Goal: on a dataset, a user asks questions in plain language and gets answers the
 - [ ] No horizontal scroll at 390 and 800 px; keyboard reaches every control.
 - [ ] Throwaway accounts and their data removed; the real account untouched.
 - [ ] An independent review (subagent, read-only) of the new code, with exploits reproduced.
+
+## 9. Update (23 Oct 2026, later session): Phase 4 is built
+
+Everything in sections 3 and 4 is now committed on `feat/team/workspace-ui` (5 commits). Phase 4 is on
+`feat/team/chat-agent`, branched from it (6 commits; see `STATUS.md` for hashes and merge order). Nothing is
+pushed and no PR is open.
+
+**What Phase 4 is.** `src/pramana/chat/` (guard, engine, store, service, models), `src/pramana/api/routes/chat.py`,
+`web/src/components/Ask.tsx`, `workspace.chat` budgets in `configs/analysis.yaml`, a chat bullet in AGENTS.md section 2.
+The model looks with the descriptive tools and either answers or proposes ONE structured claim. Code labels every
+answer. Model wording is shown only if it cites a successful tool result, every number matches a cited result,
+no verdict or causal vocabulary is used, it names only columns the cited results cover, and (for descriptive answers)
+it uses no relationship vocabulary. A relationship question goes through the real gateway as its own test and is
+rendered by code from the proof. Chat never writes memory. Fails closed without DeepSeek and Langfuse (HTTP 503).
+
+**Decision taken with the user:** each chat claim is "tested alone, disclosed" (family of one, ledger, disclosure).
+
+**Known limits to state, not hide:** see the "Needs a decision" list in `STATUS.md`. The guard is a net, not a proof:
+a blocklist plus a numeric check cannot catch every sentence, which is why exploratory answers carry
+"Exploratory, not verified". Two independent reviews found no way to attach a Verified label or a memory write to
+an untested claim.
+
+**Practices learned this session:**
+- Gate every commit on the full suite's exit status inside the same command (a commit was once made after a failure).
+- QA cleanup must also delete the QA run's lessons from Chroma (by `run_id`), not only database rows.
+- Write regex-heavy edit scripts to a file with the Write tool; `\b` inside a normal Python string becomes a backspace character.
+- Docker Desktop once failed to start on stale socket files in `%LOCALAPPDATA%\Docker
+un`; a "Reset to factory
+  defaults" was recorded in its log. Data volumes survived. Leftover `/tmp/cleanup_qa*.py` files in the API container are harmless.
+
+**Phase 5 (Skeptic, Explainer) is not started.** Per-user memory (section 5.2) should come before a curator agent.
+
