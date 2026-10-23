@@ -64,13 +64,14 @@ def native_analysis_adapters(
     from pramana.analysis import (
         SchemaProfile,
         clean_dataset,
-        generate_candidates,
         get_dataset_metadata,
         infer_schema,
         load_config,
         load_dataset,
         profile_dataset,
     )
+    from pramana.analysis.exploration import explore_and_propose
+    from pramana.analysis.reader import read_data
 
     artifact_root = (data_dir or DATA_DIR).resolve()
     analysis_config = load_config()
@@ -118,15 +119,19 @@ def native_analysis_adapters(
         if not state.dataset_ref:
             raise ValueError("cleaned dataset_ref is required before candidate generation")
         schema = SchemaProfile.model_validate(state.schema_profile)
-        candidates = generate_candidates(
+        candidates, exploration = explore_and_propose(
             frame,
             schema,
             hypotheses,
             dataset_ref=state.dataset_ref,
             run_id=state.run_id,
+            brief=read_data(frame, schema),
             user_query=state.user_query,
             lesson_hints=state.lesson_hints,
         )
-        return {"candidate_insights": candidates}
+        return {
+            "candidate_insights": candidates,
+            "exploration": exploration.model_dump(mode="json"),
+        }
 
     return AnalysisNodeAdapters(ingest=ingest, prepare=prepare, analyze=analyze)

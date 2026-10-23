@@ -58,6 +58,7 @@ class PramanaState(BaseModel):
     dataset_profile: dict[str, Any] = Field(default_factory=dict)
     schema_profile: dict[str, Any] = Field(default_factory=dict)
     candidate_insights: list[CandidateInsight] = Field(default_factory=list)
+    exploration: dict[str, Any] | None = None
     proof_objects: list[ProofObject] = Field(default_factory=list)
     verification_summary: BatchSummary | None = None
     memory_receipts: list[Any] = Field(default_factory=list)

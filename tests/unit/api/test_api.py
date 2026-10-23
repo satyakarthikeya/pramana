@@ -30,19 +30,28 @@ def finished(run_id: UUID, path: Path, query: str | None) -> PramanaState:
     return state
 
 
-def service_for(root: Path, runner=finished) -> RunService:
+def sign_in(client: TestClient, email: str = "owner@example.com") -> None:
+    """Create the account (or sign back in on a restarted server); the cookie is kept."""
+    body = {"email": email, "password": "correct horse battery"}
+    if client.post("/api/auth/signup", json=body).status_code != 201:
+        assert client.post("/api/auth/login", json=body).status_code == 200
+
+
+def service_for(root: Path, runner=finished, **extra) -> RunService:
     settings = settings_for(root / "chroma")
     return RunService(
         root,
         settings,
         store=ChromaLessonStore(settings, embedding_function=TestEmbedding()),
         runner=runner,
+        **extra,
     )
 
 
 def test_upload_results_status_and_restart_persistence(tmp_path: Path) -> None:
     service = service_for(tmp_path)
     with TestClient(create_app(service=service)) as client:
+        sign_in(client)
         response = client.post("/api/runs", files={"file": ("../../toy.csv", b"a,b\n1,2\n")})
         assert response.status_code == 202
         run_id = response.json()["run_id"]
@@ -54,11 +63,11 @@ def test_upload_results_status_and_restart_persistence(tmp_path: Path) -> None:
         assert [row["insight_id"] for row in result["rejected_claims"]] == ["bad"]
         assert result["rejected_claims"][0]["proof"]["verdict"] == "REJECT"
         assert client.post("/api/memory", json={"verdict": "PASS"}).status_code == 405
-        assert client.get("/").status_code == 200
-        assert client.get("/static/app.js").status_code == 200
+        assert client.get("/health").json() == {"status": "ok"}
         assert client.get("/api/runs/not-a-uuid").status_code == 422
         assert client.get(f"/api/runs/{uuid4()}").status_code == 404
     with TestClient(create_app(service=service_for(tmp_path))) as client:
+        sign_in(client)
         assert client.get(f"/api/runs/{run_id}/results").json() == result
 
 
@@ -67,6 +76,7 @@ def test_runner_failure_does_not_expose_secret_exception_or_claims(tmp_path: Pat
         raise RuntimeError("sk-secret-key participant-name")
 
     with TestClient(create_app(service=service_for(tmp_path, broken))) as client:
+        sign_in(client)
         run_id = client.post("/api/runs", files={"file": ("toy.csv", b"a\n1\n")}).json()["run_id"]
         response = client.get(f"/api/runs/{run_id}")
         assert response.json()["status"] == "failed"
@@ -82,6 +92,7 @@ def test_unverified_candidates_are_withheld_on_degraded_run(tmp_path: Path) -> N
         return state
 
     with TestClient(create_app(service=service_for(tmp_path, partial))) as client:
+        sign_in(client)
         run_id = client.post("/api/runs", files={"file": ("toy.csv", b"a\n1\n")}).json()["run_id"]
         response = client.get(f"/api/runs/{run_id}/results")
         assert response.json()["verified_insights"] == []
@@ -93,13 +104,16 @@ def test_unverified_candidates_are_withheld_on_degraded_run(tmp_path: Path) -> N
 def test_upload_limits_busy_slot_and_interrupted_recovery(tmp_path: Path) -> None:
     service = service_for(tmp_path)
     with TestClient(create_app(service=service)) as client:
+        sign_in(client)
         assert client.post("/api/runs", files={"file": ("toy.csv", b"")}).status_code == 422
         assert client.post("/api/runs", files={"file": ("x.py", b"code")}).status_code == 415
         assert service.reserve()
         assert client.post("/api/runs", files={"file": ("toy.csv", b"a\n")}).status_code == 429
         service.release()
-        interrupted = service.repository.create(uuid4(), "interrupted.csv")
+        owner = UUID(client.get("/api/auth/me").json()["user_id"])
+        interrupted = service.repository.create(uuid4(), "interrupted.csv", None, owner)
     with TestClient(create_app(service=service_for(tmp_path))) as client:
+        sign_in(client)
         assert client.get(f"/api/runs/{interrupted.run_id}").json()["status"] == "failed"
 
 
@@ -113,6 +127,7 @@ def test_failed_memory_connection_returns_503(
 
     monkeypatch.setattr(service.store, "browse", unavailable)
     with TestClient(create_app(service=service)) as client:
+        sign_in(client)
         response = client.get("/api/memory")
         assert response.status_code == 503
         assert "sensitive" not in response.text
@@ -146,6 +161,7 @@ def test_real_graph_gateway_memory_and_results(
     store = ChromaLessonStore(settings, embedding_function=TestEmbedding())
     service = RunService(tmp_path, settings, store=store)
     with TestClient(create_app(service=service)) as client:
+        sign_in(client)
         response = client.post(
             "/api/runs", files={"file": ("toy.csv", toy_frame().to_csv(index=False).encode())}
         )

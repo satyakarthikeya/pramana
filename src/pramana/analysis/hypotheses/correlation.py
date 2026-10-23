@@ -23,7 +23,7 @@ from typing import Final
 import pandas as pd
 
 from pramana.analysis.config import HypothesesConfig
-from pramana.analysis.hypotheses.base import ClaimScreen, emit, usable_pair
+from pramana.analysis.hypotheses.base import ClaimScreen, emit, note_examined, usable_pair
 from pramana.analysis.schema_inference import ColumnRole, SchemaProfile
 from pramana.contracts.candidate_insight import CandidateInsight
 from pramana.contracts.enums import ClaimType, Direction
@@ -58,6 +58,7 @@ def propose(
 
     for left_index, x_column in enumerate(numeric):
         for y_column in numeric[left_index + 1 :]:
+            note_examined(STRATEGY_NAME)
             pair = usable_pair(frame, x_column, y_column, config.min_observations)
             if pair is None:
                 continue

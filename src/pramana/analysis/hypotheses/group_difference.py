@@ -27,7 +27,7 @@ from typing import Final
 import pandas as pd
 
 from pramana.analysis.config import HypothesesConfig
-from pramana.analysis.hypotheses.base import ClaimScreen, emit
+from pramana.analysis.hypotheses.base import ClaimScreen, emit, note_examined
 from pramana.analysis.schema_inference import ColumnRole, SchemaProfile
 from pramana.contracts.candidate_insight import CandidateInsight
 from pramana.contracts.enums import ClaimType, Direction
@@ -88,6 +88,7 @@ def propose(
         for y_column in measures:
             if x_column == y_column:
                 continue
+            note_examined(STRATEGY_NAME)
             candidate = _propose_one(
                 frame,
                 x_column,

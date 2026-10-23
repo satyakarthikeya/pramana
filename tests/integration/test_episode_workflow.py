@@ -40,7 +40,8 @@ def test_two_runs_store_and_retrieve_real_guarded_lessons(
         seen.append(kwargs)
         return generate_candidates(*args, **kwargs)
 
-    monkeypatch.setattr("pramana.analysis.generate_candidates", capture)
+    # Candidate generation is reached through the exploration entry point.
+    monkeypatch.setattr("pramana.analysis.exploration.generate_candidates", capture)
 
     def verify(state: Any) -> Any:
         verification_runs.append(str(state.run_id))

@@ -9,10 +9,20 @@ from threading import BoundedSemaphore
 from typing import Any
 from uuid import UUID
 
+from pramana.advisory.explainer import ChatFn as AdvisoryChatFn
+from pramana.advisory.findings import Finding
+from pramana.advisory.models import AdvisoryReport
+from pramana.advisory.run import advise
 from pramana.analysis.schema_inference import SchemaProfile
-from pramana.api.models import ColumnPreview, DataPreview, ResultRow, RunResults
+from pramana.analysis.workspace.agent import ChatFn
+from pramana.analysis.workspace.ledger import ExplorationSummary
+from pramana.api.auth import AuthService
+from pramana.api.charts import claim_chart
+from pramana.api.datasets import DatasetRepository, build_preview
+from pramana.api.models import DataPreview, ResultRow, RunResults
 from pramana.api.repository import RunRepository
 from pramana.api.v1 import effect_strength, permutation_count, rejection_reason, v1_settings
+from pramana.chat.service import ChatService, Verifier
 from pramana.common.logging import get_logger
 from pramana.contracts import ProofObject, Verdict
 from pramana.memory.config import MemorySettings
@@ -37,32 +47,8 @@ class DataInputError(ValueError):
 def data_preview(state: PramanaState) -> DataPreview:
     """Expose a bounded cleaned-data preview, not proposed or verified insights."""
     schema = SchemaProfile.model_validate(state.schema_profile)
-    columns = [
-        ColumnPreview(
-            name=name,
-            role=column.role.value,
-            usable=column.usable_for_hypotheses,
-            reasons=column.reasons,
-        )
-        for name, column in schema.columns.items()
-    ]
-    columns.extend(
-        ColumnPreview(name=item["column"], role="excluded", usable=False, reasons=[item["reason"]])
-        for item in state.cleaning_report.get("columns_removed", [])
-    )
-    source = state.dataset.iloc[: v1_settings().preview_rows, :40].astype(object)
-    frame = source.where(source.notna(), "").astype(str)
-    rows = [
-        {str(key): str(value)[:160] for key, value in row.items()}
-        for row in frame.to_dict(orient="records")
-    ]
-    return DataPreview(
-        rows=len(state.dataset),
-        columns=len(state.dataset.columns),
-        detected_columns=columns[:100],
-        sample_rows=rows,
-        omitted_columns=max(0, len(columns) - 100),
-    )
+    removed = state.cleaning_report.get("columns_removed", [])
+    return build_preview(state.dataset, schema, removed, v1_settings().preview_rows)
 
 
 class RunService:
@@ -75,13 +61,28 @@ class RunService:
         *,
         store: ChromaLessonStore | None = None,
         runner: Callable[[UUID, Path, str | None], PramanaState] | None = None,
+        chat: ChatFn | None = None,
+        chat_verifier: Verifier | None = None,
+        advisory_chat: AdvisoryChatFn | None = None,
     ) -> None:
         self.root = root
         self.settings = settings
         self.repository = RunRepository(root / "api/runs.sqlite3")
+        self.datasets = DatasetRepository(root / "api/runs.sqlite3")
+        self.auth = AuthService(root / "api/runs.sqlite3")
         self.store = store or ChromaLessonStore(settings)
         self._slots = BoundedSemaphore(settings.api.max_active_runs)
         self._runner = runner or self._run_workflow
+        self._advisory_chat = advisory_chat
+        self.chat = ChatService(
+            root / "api/runs.sqlite3",
+            self.datasets,
+            self.repository,
+            reserve=self.reserve,
+            release=self.release,
+            chat=chat,
+            verifier=chat_verifier,
+        )
 
     def reserve(self) -> bool:
         """Refuse excess local execution instead of starting unbounded background jobs."""
@@ -184,6 +185,80 @@ class RunService:
         )
         return run_graph(state, build_graph(selected))
 
+    @staticmethod
+    def _chart(candidate: Any, state: PramanaState) -> Any:
+        """Draw a claim's data; a charting problem must never fail or alter a verified run."""
+        try:
+            return claim_chart(candidate, state.dataset)
+        except Exception as error:
+            get_logger(component="api", run_id=str(state.run_id)).warning(
+                "chart_failed", error_type=type(error).__name__
+            )
+            return None
+
+    def _advisory(
+        self, state: PramanaState, rows: list[ResultRow], candidates: dict[str, Any]
+    ) -> AdvisoryReport | None:
+        """Summaries and confound caveats for PASS findings, or None. Never touches a verdict.
+
+        Runs after every proof exists (and after memory was written inside the graph), reads
+        copies of the numbers, and any failure leaves the results exactly as they were.
+        """
+        try:
+            from pramana.verification.config import load_config as load_verification_config
+
+            findings = []
+            alpha = load_verification_config().statistics.alpha
+            for row in rows:
+                proof, candidate = row.proof, candidates[row.insight_id]
+                if proof.verdict is not Verdict.PASS:
+                    continue
+                findings.append(
+                    Finding(
+                        insight_id=row.insight_id,
+                        claim=row.claim,
+                        claim_type=str(candidate.claim_type),
+                        variables=tuple(candidate.variables),
+                        direction=str(candidate.asserted_direction)
+                        if candidate.asserted_direction
+                        else None,
+                        reference_group=candidate.reference_group,
+                        q_value=proof.q_value,
+                        p_value=proof.p_value,
+                        effect_size=proof.effect_size,
+                        effect_metric=proof.effect_metric.value if proof.effect_metric else None,
+                        band=row.effect_strength,
+                        n=row.complete_rows,
+                        family_size=proof.n_hypotheses_in_batch,
+                        alpha=alpha,
+                    )
+                )
+            if not findings or not hasattr(state.dataset, "columns"):
+                return None
+            return advise(
+                findings,
+                state.dataset,
+                SchemaProfile.model_validate(state.schema_profile),
+                run_id=state.run_id,
+                chat=self._advisory_chat,
+            )
+        except Exception as error:
+            get_logger(component="api", run_id=str(state.run_id)).warning(
+                "advisory_failed", error_type=type(error).__name__
+            )
+            return None
+
+    @staticmethod
+    def _exploration(state: PramanaState) -> ExplorationSummary | None:
+        """What the analyst looked at, with how many claims the gateway actually tested."""
+        if not state.exploration:
+            return None
+        summary = ExplorationSummary.model_validate(state.exploration)
+        tested = state.verification_summary.n_tested if state.verification_summary else 0
+        return summary.model_copy(
+            update={"proposed": len(state.candidate_insights), "tested": tested}
+        )
+
     def execute(self, run_id: UUID, path: Path, query: str | None) -> None:
         """Record failures as failures; never publish candidates that lack a proof."""
         try:
@@ -212,6 +287,7 @@ class RunService:
                         explanation=rejection_reason(proof),
                         effect_strength=effect_strength(proof),
                         n_permutations=permutation_count(proof),
+                        chart=self._chart(candidate, state),
                         complete_rows=(
                             int(state.dataset.dropna(subset=candidate.variables).shape[0])
                             if hasattr(state.dataset, "dropna")
@@ -229,6 +305,8 @@ class RunService:
                 rejected_claims=[row for row in rows if row.proof.verdict is Verdict.REJECT],
                 candidate_count=len(candidates),
                 unverified_candidate_count=len(candidates) - len(seen),
+                exploration=self._exploration(state),
+                advisory=self._advisory(state, rows, candidates),
             )
             error = (
                 "Some workflow steps failed; inspect the local run logs." if state.errors else None
@@ -243,8 +321,9 @@ class RunService:
                         error = failure.message
                     elif failure.node == "analysis" and failure.error_type == "ProposerUnavailable":
                         error = (
-                            "Analysis model unavailable. Check DEEPSEEK_API_KEY and Langfuse "
-                            "configuration; no unverified findings were published."
+                            f"Analysis model unavailable: {failure.message.rstrip('.')}. "
+                            "Check DEEPSEEK_API_KEY and Langfuse configuration; "
+                            "no unverified findings were published."
                         )
                     elif failure.node == "ingest":
                         error = (

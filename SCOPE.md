@@ -49,7 +49,7 @@ memory → upload a second dataset and see a past lesson offered as a hint → d
 
 ## 6. Limitations to state at review
 
-- A well-powered association that is really a confound can PASS (no held-out split or adjustment).
+- A well-powered association that is really a confound can PASS (no held-out split or adjustment). The Skeptic now flags a likely confound with descriptive caveats for correlation, trend and group-difference findings (numeric controls for group claims); it does not change the verdict, and findings of other types are shown as not checked.
 - Effect floors do not separate truth from chance; the corrected q-value does. Small real effects PASS.
 - Two-category claims are not testable.
 - No confidence intervals on effect sizes.

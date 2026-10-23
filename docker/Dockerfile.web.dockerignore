@@ -1,0 +1,5 @@
+*
+!web
+!docker/nginx.conf
+web/node_modules
+web/dist

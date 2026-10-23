@@ -12,8 +12,13 @@ import httpx
 import numpy as np
 
 from pramana.api.models import RunResults
-from pramana.api.v1 import sample_frame, v1_settings
 from pramana.memory.lesson import Lesson
+from tests.fixtures.sample_data import (
+    SAMPLE_DECOY_RHO,
+    SAMPLE_PILOT_ROWS,
+    SAMPLE_SEED,
+    sample_frame,
+)
 
 
 def main() -> None:
@@ -23,9 +28,8 @@ def main() -> None:
     args = parser.parse_args()
     if urlsplit(args.url).hostname not in {"localhost", "127.0.0.1"}:
         raise ValueError("This synthetic acceptance script is for a local app only")
-    settings = v1_settings()
-    frame = sample_frame()[["age_years", "systolic_bp"]].head(settings.sample_pilot_rows).copy()
-    rng = np.random.default_rng(settings.sample_seed)
+    frame = sample_frame()[["age_years", "systolic_bp"]].head(SAMPLE_PILOT_ROWS).copy()
+    rng = np.random.default_rng(SAMPLE_SEED)
     # Choose a weak exploratory correlation before running the gate; no p-value or
     # verdict is used to select the permutation. This is a demo, not FDR evaluation.
     shuffled = [rng.permutation(frame["age_years"].to_numpy()) for _ in range(200)]
@@ -36,7 +40,7 @@ def main() -> None:
         shuffled,
         key=lambda values: abs(
             pd.Series(values, index=source.index).corr(source, method="spearman")
-            - settings.sample_decoy_rho
+            - SAMPLE_DECOY_RHO
         ),
     )
     with httpx.Client(base_url=args.url, timeout=30) as client:
@@ -73,7 +77,7 @@ def main() -> None:
             "synthetic": True,
             "purpose": "selected weak shuffled decoy demo, not FDR study",
             "run_id": run_id,
-            "build_seed": settings.sample_seed,
+            "build_seed": SAMPLE_SEED,
             "pass_only_memory": True,
             "results": result.model_dump(mode="json"),
         }

@@ -1,0 +1,12 @@
+# What the API image imports at runtime (in-process verification). Verified against src/:
+# no statsmodels (tests only), scikit-learn, openai, pyarrow, celery or redis imports there.
+# The queue path (celery, redis, pyarrow) lives in requirements/orchestration.txt and is
+# installed only by the worker image or `--build-arg QUEUE=1`.
+-r base.txt
+openpyxl>=3.1            # XLSX upload
+scipy>=1.13              # used inside pramana.verification.stats and analysis profiling
+langgraph>=0.2
+chromadb>=0.5
+fastapi>=0.112
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9

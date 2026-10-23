@@ -12,7 +12,7 @@ class ProposerSettings(BaseModel):
     """Bound resources and refuse non-DeepSeek models or credential-bearing URLs."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
-    engine: Literal["deterministic", "api"]
+    engine: Literal["deterministic", "api", "agent"]
     trace_backend: Literal["local", "langfuse"]
     model: str
     base_url: str
@@ -28,7 +28,7 @@ class ProposerSettings(BaseModel):
     max_output_tokens: int = Field(ge=128, le=4096)
     context_tokens: int = Field(ge=2048, le=8192)
     num_threads: int = Field(ge=1, le=16)
-    # DeepSeek's OpenAI-compatible endpoint, used only when engine == "api".
+    # DeepSeek's OpenAI-compatible endpoint, used when engine is "api" or "agent".
     # The key is read from the environment variable named here, never from config.
     api_base_url: str = "https://api.deepseek.com"
     api_model: str = "deepseek-flash"
@@ -37,7 +37,7 @@ class ProposerSettings(BaseModel):
     @property
     def active_model(self) -> str:
         """The model name the configured engine will actually call."""
-        return self.api_model if self.engine == "api" else self.model
+        return self.api_model if self.engine in {"api", "agent"} else self.model
 
     @model_validator(mode="after")
     def deepseek_only(self) -> Self:
@@ -56,7 +56,7 @@ class ProposerSettings(BaseModel):
             raise ValueError("analysis requires the official DeepSeek HTTPS endpoint")
         if self.api_model not in {"deepseek-flash", "deepseek-v4-pro"}:
             raise ValueError("analysis requires an explicit supported DeepSeek model")
-        if self.engine == "api" and self.trace_backend != "langfuse":
+        if self.engine in {"api", "agent"} and self.trace_backend != "langfuse":
             raise ValueError("DeepSeek analysis requires Langfuse tracing")
         # Validate retained aliases too: stale Gemma/Ollama settings must fail visibly.
         if self.model not in {"deepseek-flash", "deepseek-v4-pro"}:

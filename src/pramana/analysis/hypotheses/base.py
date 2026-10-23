@@ -39,6 +39,10 @@ Scope: scope/SCOPE_P_Rohith.md 2, component 4
 from __future__ import annotations
 
 import re
+from collections import Counter
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any, Protocol
 
 import pandas as pd
@@ -51,6 +55,43 @@ from pramana.contracts.enums import ClaimType, Direction
 #: Characters an `insight_id` may keep. Anything else becomes `-`, so an id built from
 #: a column called `BMI (kg/m^2)` is still a readable, log-safe token.
 _ID_UNSAFE = re.compile(r"[^a-z0-9]+")
+
+
+class ScanLog:
+    """How many column pairs each strategy looked at, so a run can say what it screened.
+
+    Strategies pre-filter on the same data they then propose from. That is allowed, but
+    the number looked at versus the number proposed is part of an honest account of the
+    run, so it is counted here and shown with the results. Counting changes no outcome.
+    """
+
+    def __init__(self) -> None:
+        self.examined: Counter[str] = Counter()
+
+    @property
+    def total(self) -> int:
+        return sum(self.examined.values())
+
+
+_SCAN: ContextVar[ScanLog | None] = ContextVar("pramana_scan_log", default=None)
+
+
+@contextmanager
+def record_scan() -> Iterator[ScanLog]:
+    """Collect `note_examined` calls made by strategies while the block runs."""
+    log = ScanLog()
+    token = _SCAN.set(log)
+    try:
+        yield log
+    finally:
+        _SCAN.reset(token)
+
+
+def note_examined(strategy: str) -> None:
+    """Record that one pair was looked at; a no-op when nobody is recording."""
+    log = _SCAN.get()
+    if log is not None:
+        log.examined[strategy] += 1
 
 
 class ClaimScreen(Protocol):

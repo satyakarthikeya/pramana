@@ -1,0 +1,62 @@
+/* PRAMANA tokens — source of truth is .claude/skills/pramana-ui/SKILL.md */
+:root {
+  --bg-canvas: #f3efe8;
+  --bg-alt: #eae4da;
+  --surface: #fbf9f5;
+  --surface-sunken: #f3efe8;
+  --hero: #14201f;
+  --footer: #0f1817;
+
+  --border: #d9d1c4;
+  --border-soft: #e4ddd1;
+  --border-strong: #bfb5a5;
+
+  --text-1: #1f1c17;
+  --text-2: #4a443a;
+  --text-3: #6b6458;
+  --on-dark-1: #edeae2;
+  --on-dark-2: #c9c4b8;
+  --on-dark-3: #9a9488;
+
+  --accent: #0f5c58;
+  --accent-hover: #0b4744;
+  --accent-press: #083937;
+  --accent-tint: #d6e8e4;
+  --accent-on-dark: #5fc4b5;
+
+  --pass: #0f5c58;
+  --reject: #b3411b;
+  --reject-tint: #f6e3db;
+  --reject-ink: #8e2f0f;
+  --neutral: #6b6458;
+
+  --c1: #0f5c58;
+  --c2: #c47a1e;
+  --c3: #3f6fb5;
+  --c4: #a64d79;
+  --c5: #6b6458;
+  --c6: #7fb8ae;
+
+  --font-sans: "Inter Variable", system-ui, sans-serif;
+  --font-serif: "Source Serif 4 Variable", Georgia, serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Mono", monospace;
+
+  --r-input: 8px;
+  --r-panel: 12px;
+  --r-card: 24px;
+  --r-pill: 999px;
+
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+  --s8: 64px;
+  --s9: 96px;
+
+  --page: 1120px;
+  --reading: 720px;
+  --drawer: 520px;
+}

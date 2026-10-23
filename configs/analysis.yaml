@@ -84,3 +84,65 @@ benchmark:
     decoy_target: hba1c_pct
     decoy_pilot_rows: 40
     decoy_target_rho: 0.30
+
+# The analyst's workspace and its hard budgets. Nothing here is a statistical threshold:
+# the gate lives in configs/verification.yaml. These only bound how much the analyst may
+# explore and spend before it must stop and hand claims to the gateway.
+workspace:
+  sandbox:
+    # Free-form Python for the analyst. OFF by default: it has static checks and a runtime
+    # audit hook, but in the in-process API container it shares a filesystem with every
+    # user's data. Turn on only for a single-user install. The fixed tools need no Python.
+    enabled: false
+    timeout_seconds: 20
+    max_memory_mb: 1024
+    max_output_chars: 4000
+    allowed_imports: [numpy, pandas, math, statistics]
+  agent:
+    max_turns: 6                  # model calls per run
+    max_tool_calls: 12            # tool and Python steps per run
+    max_python_runs: 4            # free-form steps among them
+    max_output_tokens: 800        # per model reply
+    max_total_tokens: 24000       # input plus output across the whole run, hard stop
+    max_result_chars: 3000        # a tool result is cut to this before the model reads it
+    max_claims: 8                 # claims the analyst may hand to the gateway
+    max_hypotheses_examined: 300  # pairs the analyst's tools may look at in one run
+    temperature: 0.0
+  chat:
+    # "Talk to your data": limits for one question. Nothing here changes a verdict.
+    max_turns: 5                  # model calls per question
+    max_tool_calls: 8             # tool steps per question
+    max_output_tokens: 700        # per model reply
+    max_total_tokens: 20000       # input plus output for one question, hard stop
+    max_result_chars: 3000        # a tool result is cut to this before the model reads it
+    max_question_chars: 1000
+    max_answer_chars: 1500        # longer model wording is withheld, not trimmed
+    history_questions: 4          # earlier questions (never earlier answers) sent as context
+    max_hypotheses_examined: 40   # column pairs the chat tools may look at per question
+    max_tests_per_dataset: 50     # claims chat may send to the gateway on one dataset, ever
+    max_messages_per_hour: 60     # per account
+    temperature: 0.0
+
+advisory:
+  # After the gate: caveats and plain-language summaries for PASS findings. Nothing here can
+  # change a verdict, add a claim to the run, or write to memory.
+  skeptic:
+    enabled: true
+    min_rows: 30                  # complete rows (claim columns plus the control) needed to check
+    min_link_to_control: 0.25     # the control must go with BOTH claim columns at least this much (rank association)
+    min_drop_fraction: 0.5        # flag when holding the control fixed weakens the association by this fraction or more
+    min_original_rho: 0.10        # skip claims whose own rank correlation is already this small
+    min_original_eta2: 0.01       # same for group claims (rank eta-squared)
+    max_duplicate_rho: 0.9        # a control this close to a claim column is the same measurement; skipped
+    max_duplicate_group_link: 0.97  # the same idea for column-versus-group links (normalised rank eta; a real confounder can reach 0.9)
+    max_controls_checked: 40      # other columns examined per finding
+    max_caveats_per_finding: 3
+    max_levels: 12                # a categorical control may have at most this many levels
+    min_level_rows: 5             # and every level at least this many rows
+    time_budget_seconds: 20       # wall clock for the whole confound check of one run; the rest is 'not checked'
+  explainer:
+    engine: template              # template (code-written, offline) | api (DeepSeek wording, checked by code)
+    max_summary_chars: 400
+    max_output_tokens: 900
+    timeout_seconds: 45           # one model call per run, no retry
+    temperature: 0.0

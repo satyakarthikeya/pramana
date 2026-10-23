@@ -1,8 +1,4 @@
-"""POST upload/run, GET run status. Wires to the orchestration run lifecycle.
-
-Owner: M. Karthik Reddy
-Scope: scope/SCOPE_M_Karthik_Reddy.md
-"""
+"""POST upload/run, GET run status. Every run belongs to the signed-in user."""
 
 from __future__ import annotations
 
@@ -21,38 +17,21 @@ from fastapi import (
     UploadFile,
 )
 
-from pramana.api.deps import get_service
+from pramana.api.auth import User
+from pramana.api.deps import current_user, get_service
 from pramana.api.models import RunView
 from pramana.api.service import RunService
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 Service = Annotated[RunService, Depends(get_service)]
-
-
-@router.post("/sample", response_model=RunView, status_code=202)
-def create_sample_run(background: BackgroundTasks, service: Service) -> RunView:
-    """Generate the committed synthetic sample recipe locally and run it normally."""
-    from pramana.api.v1 import sample_frame
-
-    if not service.reserve():
-        raise HTTPException(429, "A run is already active; try again after it finishes.")
-    path = service.root / "api/uploads" / f"{uuid4()}.csv"
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        sample_frame().to_csv(path, index=False)
-        view = service.repository.create(uuid4(), "synthetic-sample.csv")
-        background.add_task(service.execute, view.run_id, path, None)
-        return view
-    except Exception:
-        path.unlink(missing_ok=True)
-        service.release()
-        raise
+Owner = Annotated[User, Depends(current_user)]
 
 
 @router.post("", response_model=RunView, status_code=202)
 async def create_run(
     background: BackgroundTasks,
     service: Service,
+    user: Owner,
     file: Annotated[UploadFile, File()],
     user_query: Annotated[str | None, Form(max_length=4000)] = None,
 ) -> RunView:
@@ -78,7 +57,7 @@ async def create_run(
                 target.write(chunk)
         if total == 0:
             raise HTTPException(422, "The uploaded file is empty.")
-        view = service.repository.create(uuid4(), file_name)
+        view = service.repository.create(uuid4(), file_name, None, user.user_id)
         background.add_task(service.execute, view.run_id, path, user_query)
         created = True
         return view
@@ -92,17 +71,18 @@ async def create_run(
 @router.get("", response_model=list[RunView])
 def list_runs(
     service: Service,
+    user: Owner,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[RunView]:
     """List persisted run metadata; no candidate claims are exposed here."""
-    return service.repository.list_runs(limit, offset)
+    return service.repository.list_runs(limit, offset, user.user_id)
 
 
 @router.get("/{run_id}", response_model=RunView)
-def get_run(run_id: UUID, service: Service) -> RunView:
+def get_run(run_id: UUID, service: Service, user: Owner) -> RunView:
     """Return a run's persisted status without rerunning its analysis."""
     try:
-        return service.repository.get(run_id)
+        return service.repository.get(run_id, user.user_id)
     except KeyError:
         raise HTTPException(404, "Run not found.") from None
