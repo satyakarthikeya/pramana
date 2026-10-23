@@ -16,6 +16,7 @@ services:
       PRAMANA_API_VERIFICATION_MODE: ${PRAMANA_API_VERIFICATION_MODE:-inprocess}
       PRAMANA_VERIFICATION_GENERATOR: ${PRAMANA_VERIFICATION_GENERATOR:-llm}
       PRAMANA_ANALYSIS_ENGINE: ${PRAMANA_ANALYSIS_ENGINE:-api}
+      PRAMANA_EXPLAINER_ENGINE: ${PRAMANA_EXPLAINER_ENGINE:-template}
       PRAMANA_DATA_DIR: /data/pramana
       # The API is reachable only through the web container's nginx (no published port), so
       # its X-Forwarded-For header can be trusted for sign-in rate limits.

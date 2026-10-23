@@ -292,3 +292,12 @@ def test_a_group_claim_template_keeps_the_column_name_capitalisation() -> None:
         variables=("Group", "Glucose"),
     )
     assert "In this table, Glucose differs by Group." in template_explanation(f).text
+
+
+def test_the_model_is_given_a_readable_rounded_effect_and_its_rounded_copy_is_accepted() -> None:
+    chat = Script(reply("Across 600 rows, glucose tends to be higher where age is higher (0.47)."))
+    out = explain_findings([finding()], COLUMNS, config("api"), run_id=uuid4(), chat=chat)[0]
+    sent = json.loads(chat.seen[0][1].content.removeprefix("INPUT_DATA_JSON:\n"))
+    assert sent["findings"][0]["facts"] == {"effect": 0.47, "rows": 600}
+    assert "0.466" not in chat.seen[0][1].content
+    assert out.source == "model"

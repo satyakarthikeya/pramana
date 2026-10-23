@@ -284,6 +284,16 @@ def default_chat(run_id: UUID, config: ExplainerConfig) -> ChatFn:
     return chat
 
 
+def _prompt_facts(f: Finding) -> dict[str, float]:
+    """The facts as shown to the model: the effect to two places and the row count.
+
+    Rounded so the model copies a readable number. The check still accepts it because a
+    number is supported when it is the displayed value rounded to the digits written.
+    """
+    facts = displayed_numbers(f)
+    return {k: (round(v, 2) if k == "effect" else int(v)) for k, v in facts.items()}
+
+
 def _payload(findings: Sequence[Finding]) -> str:
     return json.dumps(
         {
@@ -293,7 +303,7 @@ def _payload(findings: Sequence[Finding]) -> str:
                     "claim": f.claim,
                     "columns": list(f.variables),
                     "observed_direction": expected_direction(f),
-                    "facts": displayed_numbers(f),
+                    "facts": _prompt_facts(f),
                 }
                 for f in findings
             ]
