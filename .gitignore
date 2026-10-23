@@ -42,3 +42,7 @@ htmlcov/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Frontend
+node_modules/
+web/dist/

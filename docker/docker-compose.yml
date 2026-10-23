@@ -17,8 +17,9 @@ services:
       PRAMANA_VERIFICATION_GENERATOR: ${PRAMANA_VERIFICATION_GENERATOR:-llm}
       PRAMANA_ANALYSIS_ENGINE: ${PRAMANA_ANALYSIS_ENGINE:-api}
       PRAMANA_DATA_DIR: /data/pramana
-    ports:
-      - "8080:8080"
+      # The API is reachable only through the web container's nginx (no published port), so
+      # its X-Forwarded-For header can be trusted for sign-in rate limits.
+      PRAMANA_TRUST_PROXY: "1"
     depends_on:
       redis:
         condition: service_healthy
@@ -31,6 +32,19 @@ services:
     volumes:
       - run-data:/data/pramana
     init: true
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.web
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    networks:
+      - queue
+      - egress
     restart: unless-stopped
 
   worker:

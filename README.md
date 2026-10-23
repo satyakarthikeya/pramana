@@ -77,8 +77,8 @@ python -m venv .venv
 .venv\Scripts\python.exe -m pramana
 ```
 
-The last line is the **one start command**. Open **http://127.0.0.1:8080**.
-On Linux/macOS, use `.venv/bin/python` instead. No Docker, Redis, Celery worker or
+The last line is the **one start command**. Open **http://127.0.0.1:8080** (run `npm run build` in `web/` first, see below).
+On Linux/macOS, use `.venv/bin/python` instead. No Redis, Celery worker or
 local generative model is needed. The live profile requires DeepSeek and Langfuse
 credentials in the ignored `.env` file; no keys belong in browser JavaScript.
 Internet is needed for package installation and the first local MiniLM embedding
@@ -86,22 +86,72 @@ model download; allow that first-use download to finish. Memory persists locally
 If port 8080 is already used (for example by the Docker API), start with
 `--port 8081` and visit that port. The app binds to loopback, not a public interface.
 
-### Use V1
+### Run with Docker (recommended)
 
-1. Click **Try the sample**, or upload CSV/XLSX and optionally enter a question.
-   The sample is generated from a seeded recipe in the repository; no participant
-   data is committed. DeepSeek proposes supported structured relationships rather
-   than promising free-form question answering.
-2. Watch the stage and elapsed time. Inspect detected column roles, exclusions and
-   the bounded cleaned-row preview. These are data descriptions, not findings.
-3. Read **Verified findings**, then **Rejected claims / Not a finding**. Open the
-   readable proof and its stored code; raw proof JSON remains available separately.
-4. Download JSON or CSV results. Only proof-bearing claims are exported, with their
-   PASS/REJECT labels; CSV cells are protected against spreadsheet formulas.
-5. Browse/search verified memory. Start a second upload: relevant historical lessons
-   appear as **hints to re-test**, not current findings. Each links to its source run.
-6. **New analysis** resets the form; it does not cancel or silently restart an active
-   statistical family. Only one run is allowed at a time.
+Docker runs the API, ChromaDB and the web UI together; nothing else is installed on your
+machine. Copy `.env.example` to `.env` first (keep existing keys), then:
+
+```bash
+docker compose -f docker/docker-compose.yml up --build -d
+```
+
+Open **http://localhost:3000**. Without Langfuse keys the model-driven parts cannot run,
+so use the offline profile (rule scan and built-in test templates, no model):
+
+```bash
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.offline.yml up --build -d
+```
+
+The embedding model is baked into the API image, so a run never waits on a download.
+
+### Accounts
+
+The first screen is sign-in. On a new server, "Create the first account" appears; that
+account also takes any datasets already stored. Passwords are stored only as salted
+scrypt hashes, sessions are server-side behind an HttpOnly cookie, and each user sees only
+their own datasets and runs. Verified memory is still shared between accounts for now.
+Set `PRAMANA_ALLOW_SIGNUP=0` to close sign-up once your accounts exist.
+
+### Use it
+
+1. Add a dataset (CSV or XLSX). It is stored and profiled by code immediately: detected
+   column types, a **Data reader** brief (what each column holds, missing codes, outliers,
+   things worth checking) and charts of every analysable column. Nothing is analysed yet.
+2. Press **Analyse**, optionally with a question. Watch the stages and elapsed time.
+3. Read **Verified findings**, then **Not a finding** (rejected, with the reason). Each
+   finding shows its chart; open the proof for the numbers, seed and the code that ran.
+   **How these claims were found** states how many column pairs were looked at versus
+   tested, because the correction covers only the tested ones.
+4. Download JSON or CSV. Only proof-bearing claims are exported, with PASS/REJECT labels.
+5. Verified memory lists what passed; on a later dataset relevant lessons appear as
+   **hints to re-test**, never as findings.
+
+### Analyst engines
+
+`PRAMANA_ANALYSIS_ENGINE` chooses who proposes claims; the gateway tests every claim the
+same way regardless.
+
+| Engine | What it does | Needs |
+|---|---|---|
+| `deterministic` | Rule scan over every eligible column pair | nothing |
+| `api` | A model proposes claims from column summaries only | DeepSeek key, Langfuse |
+| `agent` | A model explores with tested tools and a bounded Python workspace, then proposes claims | DeepSeek key, Langfuse |
+
+The agent never computes a number or writes a claim sentence, and its spending is capped by
+hard budgets in `configs/analysis.yaml` (`workspace.agent`). Design and limits:
+[docs/ANALYSIS_AGENT.md](docs/ANALYSIS_AGENT.md).
+
+### Without Docker
+
+```powershell
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+.venv\Scripts\python.exe -m pip install -e .
+cd web; npm ci; npm run build; cd ..
+.venv\Scripts\python.exe -m pramana
+```
+
+`python -m pramana` serves the built UI from `web/dist` on http://127.0.0.1:8080.
 
 ### DeepSeek-only model configuration
 

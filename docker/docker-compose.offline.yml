@@ -1,0 +1,10 @@
+# Offline reference profile: deterministic claim proposals, template tests, no Langfuse.
+# Not DeepSeek acceptance evidence (README). Use with the base file:
+#   docker compose -f docker/docker-compose.yml -f docker/docker-compose.offline.yml up --build
+
+services:
+  api:
+    environment:
+      PRAMANA_ANALYSIS_ENGINE: deterministic
+      PRAMANA_VERIFICATION_GENERATOR: template
+      PRAMANA_LANGFUSE_ENABLED: "false"

@@ -1,18 +1,30 @@
+# syntax=docker/dockerfile:1.7
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
+# Runtime dependencies only (requirements/runtime.txt). The pip cache is a BuildKit cache
+# mount, so a changed requirement re-downloads only what changed, not the whole stack.
+# `--build-arg QUEUE=1` adds the Celery/Redis path for PRAMANA_API_VERIFICATION_MODE=celery.
+ARG QUEUE=0
 COPY requirements /app/requirements
-RUN pip install \
-    -r requirements/analysis.txt \
-    -r requirements/verification.txt \
-    -r requirements/orchestration.txt \
-    -r requirements/memory.txt \
-    chromadb==1.5.9
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements/runtime.txt chromadb==1.5.9 \
+    && if [ "$QUEUE" = "1" ]; then pip install celery redis pyarrow; fi
+
+# Bake the memory embedding model into the image so a run never waits on a download.
+# It lands where ChromaLessonStore expects it: <data dir>/memory/models/<model name>.
+# Only the extracted files are needed afterwards, so the 83 MB archive is removed.
+RUN mkdir -p /data/pramana/memory/models/all-MiniLM-L6-v2 \
+    && python -c "from pathlib import Path; from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2 as E; e = E(); e.DOWNLOAD_PATH = Path('/data/pramana/memory/models/all-MiniLM-L6-v2'); e._download_model_if_not_exists()" \
+    && rm /data/pramana/memory/models/all-MiniLM-L6-v2/onnx.tar.gz
+
+# In-process verification starts sandboxed children under a 1 GB address-space cap. Without
+# one-thread BLAS pools they time out on many-core hosts, exactly as in the worker image.
+COPY docker/worker_sitecustomize.py /usr/local/lib/python3.11/site-packages/sitecustomize.py
 
 COPY pyproject.toml README.md /app/
 COPY src /app/src
