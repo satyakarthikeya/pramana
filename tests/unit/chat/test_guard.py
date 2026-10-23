@@ -162,9 +162,13 @@ def test_unit_exponents_are_not_numbers_but_stray_digits_still_are() -> None:
         "The mean is 29.1 kg/m².",
         "The mean is 29.1 kg/m2.",
         "About 29.1 cm2 here.",
+        "The mean is 29.096833 kg/m^2 across 600 values.",
+        "The mean is 29.1 kg/m**2.",
     ):
         assert unsupported_numbers(text, out) == [], text
     assert unsupported_numbers("mean 29.1, and 7 m²", out) == ["7"]
     assert unsupported_numbers("area 5 m2", out) == ["5"]
     assert unsupported_numbers("x2 rows", out) == ["2"]
+    assert unsupported_numbers("area 5 m^2", out) == ["5"]
+    assert unsupported_numbers("x^2 rows", out) == ["2"]
     assert unsupported_numbers("the 2 groups", out) == ["2"]

@@ -133,7 +133,9 @@ def _matches(shown: str, value: float) -> bool:
 
 
 _UNIT_SQUARED = re.compile(r"(?<=[A-Za-z])[²³¹]")
-_UNIT_EXPONENT = re.compile(r"(?<=/)([ckm]?m)[23]\b|\b([ckm]?m)[23]\b(?=[\s.,;)]|$)")
+_UNIT_EXPONENT = re.compile(
+    r"(?<=/)([ckm]?m)(?:\^|\*\*)?[23]\b|\b([ckm]?m)(?:\^|\*\*)?[23]\b(?=[\s.,;)]|$)"
+)
 
 
 def _drop_unit_exponents(text: str) -> str:
