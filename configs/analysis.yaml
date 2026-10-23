@@ -84,3 +84,27 @@ benchmark:
     decoy_target: hba1c_pct
     decoy_pilot_rows: 40
     decoy_target_rho: 0.30
+
+# The analyst's workspace and its hard budgets. Nothing here is a statistical threshold:
+# the gate lives in configs/verification.yaml. These only bound how much the analyst may
+# explore and spend before it must stop and hand claims to the gateway.
+workspace:
+  sandbox:
+    # Free-form Python for the analyst. OFF by default: it has static checks and a runtime
+    # audit hook, but in the in-process API container it shares a filesystem with every
+    # user's data. Turn on only for a single-user install. The fixed tools need no Python.
+    enabled: false
+    timeout_seconds: 20
+    max_memory_mb: 1024
+    max_output_chars: 4000
+    allowed_imports: [numpy, pandas, math, statistics]
+  agent:
+    max_turns: 6                  # model calls per run
+    max_tool_calls: 12            # tool and Python steps per run
+    max_python_runs: 4            # free-form steps among them
+    max_output_tokens: 800        # per model reply
+    max_total_tokens: 24000       # input plus output across the whole run, hard stop
+    max_result_chars: 3000        # a tool result is cut to this before the model reads it
+    max_claims: 8                 # claims the analyst may hand to the gateway
+    max_hypotheses_examined: 300  # pairs the analyst's tools may look at in one run
+    temperature: 0.0
