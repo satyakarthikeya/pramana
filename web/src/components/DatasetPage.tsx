@@ -19,18 +19,12 @@ function bytes(n: number): string {
   return `${Math.max(1, Math.round(n / 1024))} KB`;
 }
 
-function Overviewtab({
-  dataset,
-  onSector,
-}: {
-  dataset: DatasetView;
-  onSector: (sector: string | null) => Promise<void>;
-}) {
+function Overviewtab({ dataset }: { dataset: DatasetView }) {
   const p = dataset.preview;
   const heads = p.sample_rows[0] ? Object.keys(p.sample_rows[0]) : [];
   return (
     <>
-    {dataset.computed && <Computed computed={dataset.computed} onSector={onSector} />}
+    {dataset.computed && <Computed computed={dataset.computed} />}
     <div className="results split">
       <div className="col-stack">
         {dataset.brief && <Brief brief={dataset.brief} />}
@@ -349,10 +343,7 @@ export function DatasetPage({ id, tab, runId }: { id: string; tab: Tab; runId: s
           </div>
 
           {tab === "overview" ? (
-            <Overviewtab
-              dataset={dataset}
-              onSector={async (sector) => setDataset(await api.setSector(id, sector))}
-            />
+            <Overviewtab dataset={dataset} />
           ) : tab === "ask" ? (
             <Ask key={id} dataset={dataset} system={system} />
           ) : (

@@ -13,7 +13,13 @@ from uuid import UUID
 import pandas as pd
 from pydantic import ValidationError
 
-from pramana.analysis.computed import ComputedAnalysis, compute_analysis, load_computed_config
+from pramana.analysis.computed import (
+    COMPUTED_VERSION,
+    ComputedAnalysis,
+    compute_analysis,
+    load_computed_config,
+)
+from pramana.analysis.computed.summary import summarise
 from pramana.analysis.reader import DataBrief, read_data
 from pramana.analysis.schema_inference import SchemaProfile
 from pramana.analysis.sector_model import detect_sector_with_model
@@ -248,8 +254,9 @@ class DatasetRepository:
             )
 
     def backfill_computed(self, view: DatasetView, owner_id: UUID | None = None) -> DatasetView:
-        """Add the Exact tier to a dataset stored before it existed (or with a stale one)."""
-        if view.computed is not None:
+        """Add the Exact tier to a dataset stored before it existed, or built by an older
+        `COMPUTED_VERSION` (new figures or chart data), or stored in a stale format."""
+        if view.computed is not None and view.computed.version >= COMPUTED_VERSION:
             return view
         computed = compute_exact_tier(
             self.file_path(view.dataset_id, owner_id), trace_id=view.dataset_id
@@ -259,6 +266,33 @@ class DatasetRepository:
         updated = view.model_copy(update={"computed": computed})
         self._save(updated)
         return updated
+
+    @staticmethod
+    def needs_model_summary(view: DatasetView) -> bool:
+        """A code summary that the model has not tried to reword yet, with the model on."""
+        summary = view.computed.summary if view.computed else None
+        return (
+            summary is not None
+            and summary.source == "template"
+            and summary.fallback_reason is None
+            and load_computed_config().summary_engine == "api"
+        )
+
+    def refine_summary(self, dataset_id: UUID, owner_id: UUID | None = None) -> None:
+        """Replace the code summary with DeepSeek's wording, or record why it was not used.
+
+        Runs after the response (a background task), so the upload never waits on it.
+        The attempt is stored either way, so a failing model is not asked on every open.
+        """
+        try:
+            view = self.get(dataset_id, owner_id)
+        except KeyError:
+            return
+        if not self.needs_model_summary(view) or view.computed is None:
+            return
+        summary = summarise(view.computed, engine="api", trace_id=dataset_id)
+        computed = view.computed.model_copy(update={"summary": summary})
+        self._save(view.model_copy(update={"computed": computed}))
 
     def claim_unowned(self, owner_id: UUID) -> None:
         """Hand datasets stored before accounts existed to the first account."""

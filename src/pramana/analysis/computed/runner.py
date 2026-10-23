@@ -11,15 +11,27 @@ from __future__ import annotations
 
 import calendar
 import math
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
 
 from pramana.analysis import codebook
+from pramana.analysis.computed.charts import (
+    Bar,
+    BarChart,
+    HeatCell,
+    HeatStrip,
+    LineChart,
+    ParetoBar,
+    ParetoChart,
+    WaterfallChart,
+    WaterfallStep,
+)
 from pramana.analysis.computed.config import ComputedConfig, load_computed_config
-from pramana.analysis.computed.models import ComputedAnalysis, ExactItem, Scalar
+from pramana.analysis.computed.models import COMPUTED_VERSION, ComputedAnalysis, ExactItem, Scalar
+from pramana.analysis.computed.summary import template_summary
 from pramana.analysis.schema_inference import ColumnRole, SchemaProfile
 from pramana.analysis.sectors import (
     GENERAL,
@@ -124,8 +136,8 @@ def _windows(ctx: Context) -> tuple[list[object], list[object], str, str] | None
         return (
             current,
             previous,
-            f"{current[0]} to {current[-1]}",
-            f"{previous[0]} to {previous[-1]}",
+            f"the 12 months to {current[-1]}",
+            f"the 12 months to {previous[-1]}",
         )
     return [periods[-1]], [periods[-2]], str(periods[-1]), str(periods[-2])
 
@@ -134,6 +146,22 @@ def _weights(ctx: Context) -> pd.Series | None:
     if ctx.weight is None:
         return None
     return _num(ctx.frame[ctx.weight])
+
+
+def _period_totals(ctx: Context, values: pd.Series) -> pd.Series:
+    assert ctx.keys is not None
+    return values.groupby(ctx.keys).sum(min_count=1).dropna().sort_index()
+
+
+def _line(ctx: Context, column: str, totals: pd.Series, marks: Sequence[str] = ()) -> LineChart:
+    """Period totals as a line, the most recent `max_chart_points` periods."""
+    shown = totals.iloc[-ctx.config.max_chart_points :]
+    return LineChart(
+        x_label=ctx.shape.time_column or "period",
+        y_label=f"total {column}",
+        points=[(str(k), float(v)) for k, v in shown.items()],
+        marks=[m for m in marks if m in set(map(str, shown.index))],
+    )
 
 
 # --- analyses -----------------------------------------------------------------------
@@ -183,6 +211,7 @@ def period_change(ctx: Context) -> list[ExactItem]:
                 filters=[f"{time} in {cur_label}", f"{time} in {prev_label}"],
                 n_rows=int(in_cur.sum() + in_prev.sum()),
                 values=values_out,
+                chart=_line(ctx, column, _period_totals(ctx, values)),
             )
         )
     return items
@@ -224,14 +253,28 @@ def variance_decomposition(ctx: Context) -> list[ExactItem]:
             table = pd.concat([head, rest.to_frame("other").T])
         top, top_row = str(table.index[0]), table.iloc[0]
         direction = "rise" if total > 0 else "fall"
+        top_change, share = float(top_row["change"]), float(top_row["share_of_change"])
+        if share <= 1:
+            sentence = (
+                f"{top} accounts for {100 * share:.1f}% of the {direction} in total {column} "
+                f"from {prev_label} to {cur_label} ({_fmt(top_change)} of {_fmt(total)})."
+            )
+        else:
+            # One segment moved more than the total: the others moved the opposite way.
+            def moved(x: float) -> str:
+                return f"{'rose' if x > 0 else 'fell'} by {_fmt(abs(x))}"
+
+            sentence = (
+                f"From {prev_label} to {cur_label}, {top} {moved(top_change)} while total "
+                f"{column} {moved(total)}; the other {ctx.group} values together "
+                f"{moved(total - top_change)}."
+            )
         items.append(
             ExactItem(
                 id=f"variance_decomposition:{column}",
                 kind="variance_decomposition",
                 title=TITLES["variance_decomposition"],
-                sentence=f"{top} accounts for {100 * float(top_row['share_of_change']):.1f}% "
-                f"of the {direction} in total {column} between {prev_label} and {cur_label} "
-                f"({_fmt(float(top_row['change']))} of {_fmt(total)}).",
+                sentence=sentence,
                 formula="total change = Σ segment change; "
                 "share of change = segment change ÷ total change",
                 columns=[column, ctx.group, time],
@@ -252,6 +295,18 @@ def variance_decomposition(ctx: Context) -> list[ExactItem]:
                     )
                     for name, r in table.iterrows()
                 ],
+                chart=WaterfallChart(
+                    y_label=f"total {column}",
+                    # short axis labels: the last period of each window
+                    start_label=f"to {previous[-1]}" if len(previous) > 1 else prev_label,
+                    end_label=f"to {current[-1]}" if len(current) > 1 else cur_label,
+                    start=float(table["previous"].sum()),
+                    end=float(table["current"].sum()),
+                    steps=[
+                        WaterfallStep(label=str(name), value=float(r["change"]))
+                        for name, r in table.iterrows()
+                    ],
+                ),
             )
         )
     return items
@@ -292,9 +347,24 @@ def concentration(ctx: Context) -> list[ExactItem]:
                 columns=[column, ctx.group],
                 n_rows=int(valid.sum()),
                 values=out,
+                chart=_pareto(ctx, column, totals, grand),
             )
         )
     return items
+
+
+def _pareto(ctx: Context, column: str, totals: pd.Series, grand: float) -> ParetoChart:
+    """Segments largest first with the running share; the tail is grouped as "other"."""
+    keep = ctx.config.max_segments - 1
+    head = totals.iloc[:keep] if len(totals) > ctx.config.max_segments else totals
+    bars = [(str(k), float(v)) for k, v in head.items()]
+    if len(head) < len(totals):
+        bars.append(("other", float(totals.iloc[keep:].sum())))
+    running, out = 0.0, []
+    for label, value in bars:
+        running += value
+        out.append(ParetoBar(label=label, value=value, cumulative_share=running / grand))
+    return ParetoChart(y_label=f"total {column}", bars=out)
 
 
 def segment_ranking(ctx: Context) -> list[ExactItem]:
@@ -335,6 +405,14 @@ def segment_ranking(ctx: Context) -> list[ExactItem]:
                 )
                 for name, r in shown.iterrows()
             ],
+            chart=BarChart(
+                x_label=ctx.group,
+                y_label=f"{word} {column}",
+                bars=[
+                    Bar(label=str(name), value=float(r[key]), n=int(r["n"]))
+                    for name, r in shown.iterrows()
+                ],
+            ),
         )
     ]
 
@@ -396,6 +474,11 @@ def outliers(ctx: Context) -> list[ExactItem]:
                 table=[
                     _row(where=where[i], value=float(x[i]), robust_z=float(z[i])) for i in listed
                 ],
+                chart=(
+                    _line(ctx, column, series, [where[i] for i in order])
+                    if ctx.keys is not None
+                    else None
+                ),
             )
         )
     return items
@@ -466,6 +549,12 @@ def seasonality(ctx: Context) -> list[ExactItem]:
                     )
                     for p in means.index
                 ],
+                chart=HeatStrip(
+                    label=column,
+                    cells=[
+                        HeatCell(label=name(int(p)), index=float(index[p])) for p in means.index
+                    ],
+                ),
             )
         )
     return items
@@ -727,6 +816,23 @@ def prevalence(ctx: Context) -> list[ExactItem]:
                     "threshold": rule.value,
                 },
                 table=table,
+                chart=(
+                    BarChart(
+                        x_label="group",
+                        y_label=f"share with {rule.label}",
+                        value_format="percent",
+                        bars=[
+                            Bar(
+                                label=str(r["group"]),
+                                value=float(r["share"] or 0),
+                                n=int(r["n"] or 0),
+                            )
+                            for r in table
+                        ],
+                    )
+                    if table
+                    else None
+                ),
             )
         )
     return items
@@ -913,6 +1019,12 @@ def compute_analysis(
         except Exception:
             logger.exception("computed_analysis_failed", analysis=name)
             items.append(_not_run(name, _FAILED))
-    return ComputedAnalysis(
-        sector=match, shape=shape, scope_note=pack.wording.scope_note, items=items
+    result = ComputedAnalysis(
+        version=COMPUTED_VERSION,
+        sector=match,
+        shape=shape,
+        scope_note=pack.wording.scope_note,
+        items=items,
     )
+    # The code-written summary is always there; a model rewording may replace it later.
+    return result.model_copy(update={"summary": template_summary(result)})

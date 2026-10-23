@@ -48,9 +48,8 @@ export function AppShell({
   active: { dataset?: string; memory?: boolean };
   children: ReactNode;
 }) {
-  const { datasets, upload, uploading, notice, dismiss } = useWorkspace();
+  const { datasets, stage, notice, dismiss } = useWorkspace();
   const { user, signOut } = useAuth();
-  const picker = useFilePicker(upload);
   const [dragging, setDragging] = useState(false);
 
   useEffect(() => {
@@ -74,7 +73,7 @@ export function AppShell({
       depth = 0;
       setDragging(false);
       const file = event.dataTransfer?.files[0];
-      if (file) upload(file);
+      if (file) stage(file);
     };
     window.addEventListener("dragenter", enter);
     window.addEventListener("dragleave", leave);
@@ -86,7 +85,7 @@ export function AppShell({
       window.removeEventListener("dragover", over);
       window.removeEventListener("drop", drop);
     };
-  }, [upload]);
+  }, [stage]);
 
   return (
     <div className="app">
@@ -97,10 +96,9 @@ export function AppShell({
         <a className="wordmark" href="#/" aria-label="PRAMANA home">
           <Logo /> PRAMANA
         </a>
-        <button type="button" className="btn btn-primary rail-new" disabled={uploading} onClick={picker.open}>
-          <Upload /> {uploading ? "Reading…" : "New dataset"}
-        </button>
-        {picker.element}
+        <a className="btn btn-primary rail-new" href="#/" onClick={() => stage(null)}>
+          <Upload /> New analysis
+        </a>
 
         <nav className="rail-section" aria-label="Datasets">
           <span className="label">Datasets</span>
@@ -149,7 +147,7 @@ export function AppShell({
 
       {dragging && (
         <div className="drop-overlay" role="presentation">
-          <p>Drop a CSV or XLSX to add it as a dataset</p>
+          <p>Drop a CSV or XLSX to start a new analysis</p>
         </div>
       )}
       {notice && (

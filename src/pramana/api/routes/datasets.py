@@ -22,6 +22,7 @@ Owner = Annotated[User, Depends(current_user)]
 async def upload_dataset(
     service: Service,
     user: Owner,
+    background: BackgroundTasks,
     file: Annotated[UploadFile, File()],
     name: Annotated[str | None, Form(max_length=120)] = None,
 ) -> DatasetView:
@@ -62,6 +63,8 @@ async def upload_dataset(
             raise HTTPException(422, str(error)) from None
         service.datasets.add(view, path, user.user_id)
         stored = True
+        if service.datasets.needs_model_summary(view):
+            background.add_task(service.datasets.refine_summary, dataset_id, user.user_id)
         return view
     finally:
         await file.close()
@@ -78,11 +81,16 @@ def list_datasets(service: Service, user: Owner) -> list[DatasetSummary]:
 
 
 @router.get("/{dataset_id}", response_model=DatasetView)
-def get_dataset(dataset_id: UUID, service: Service, user: Owner) -> DatasetView:
+def get_dataset(
+    dataset_id: UUID, service: Service, user: Owner, background: BackgroundTasks
+) -> DatasetView:
     try:
         view = service.datasets.get(dataset_id, user.user_id)
         view = service.datasets.backfill_brief(view, user.user_id)
-        return service.datasets.backfill_computed(view, user.user_id)
+        view = service.datasets.backfill_computed(view, user.user_id)
+        if service.datasets.needs_model_summary(view):
+            background.add_task(service.datasets.refine_summary, dataset_id, user.user_id)
+        return view
     except KeyError:
         raise HTTPException(404, "Dataset not found.") from None
 

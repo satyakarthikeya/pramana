@@ -133,6 +133,50 @@ def test_upload_includes_the_exact_tier_with_sector_and_shape(tmp_path: Path) ->
         assert all(item["level"] == "exact" for item in computed["items"])
 
 
+def test_the_model_summary_is_written_after_upload_without_blocking_it(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from pramana.analysis.computed.models import ReportSummary, SummaryLine
+    from pramana.api import datasets
+
+    monkeypatch.setenv("PRAMANA_SUMMARY_ENGINE", "api")
+    calls = []
+
+    def fake(result, *, engine, trace_id, chat=None):
+        calls.append((engine, trace_id))
+        first = result.items[0]
+        return ReportSummary(source="model", lines=[SummaryLine(item_id=first.id, text="x")])
+
+    monkeypatch.setattr(datasets, "summarise", fake)
+    with TestClient(create_app(service=service_for(tmp_path))) as client:
+        sign_in(client)
+        view = client.post("/api/datasets", files={"file": ("pl.csv", _finance_csv())}).json()
+        assert view["computed"]["summary"]["source"] == "template"  # the upload reply
+        again = client.get(f"/api/datasets/{view['dataset_id']}").json()
+        assert again["computed"]["summary"]["source"] == "model"
+        assert calls == [("api", __import__("uuid").UUID(view["dataset_id"]))]
+        client.get(f"/api/datasets/{view['dataset_id']}")
+        assert len(calls) == 1  # never re-asked once a model summary is stored
+
+
+def test_an_older_analysis_version_is_rebuilt_on_open(tmp_path: Path) -> None:
+    import json
+    import sqlite3
+
+    with TestClient(create_app(service=service_for(tmp_path))) as client:
+        sign_in(client)
+        view = client.post("/api/datasets", files={"file": ("pl.csv", _finance_csv())}).json()
+        with sqlite3.connect(tmp_path / "api/runs.sqlite3") as connection:
+            stored = json.loads(connection.execute("SELECT view_json FROM datasets").fetchone()[0])
+            stored["computed"]["version"] = 1
+            for item in stored["computed"]["items"]:
+                item.pop("chart", None)
+            connection.execute("UPDATE datasets SET view_json = ?", (json.dumps(stored),))
+        reopened = client.get(f"/api/datasets/{view['dataset_id']}").json()
+        assert reopened["computed"]["version"] == view["computed"]["version"]
+        assert any(item["chart"] for item in reopened["computed"]["items"])
+
+
 def test_the_sector_is_decided_by_the_system_with_no_user_switch(tmp_path: Path) -> None:
     with TestClient(create_app(service=service_for(tmp_path))) as client:
         sign_in(client)

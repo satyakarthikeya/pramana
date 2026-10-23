@@ -23,3 +23,4 @@ def _offline_template_generator(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PRAMANA_VERIFICATION_GENERATOR", "template")
     monkeypatch.setenv("PRAMANA_ANALYSIS_ENGINE", "deterministic")
     monkeypatch.setenv("PRAMANA_SECTOR_ENGINE", "rules")
+    monkeypatch.setenv("PRAMANA_SUMMARY_ENGINE", "template")

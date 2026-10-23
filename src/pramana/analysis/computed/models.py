@@ -6,10 +6,15 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from pramana.analysis.computed.charts import ChartSpec
 from pramana.analysis.sectors import SectorMatch
 from pramana.analysis.shape import ShapeProfile
 
 Scalar = float | int | str | bool | None
+
+#: Bumped whenever stored analyses should be rebuilt (new figures or chart data).
+#: 2 = chart data on figures and the report summary; 3 = clearer change wording.
+COMPUTED_VERSION = 3
 
 
 class ExactItem(BaseModel):
@@ -35,6 +40,22 @@ class ExactItem(BaseModel):
     n_rows: int = Field(default=0, ge=0)
     values: dict[str, Scalar] = Field(default_factory=dict)
     table: list[dict[str, Scalar]] = Field(default_factory=list)
+    chart: ChartSpec | None = None
+
+
+class SummaryLine(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    item_id: str
+    text: str
+
+
+class ReportSummary(BaseModel):
+    """The summary shown first on the report, with where its wording came from."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    source: Literal["template", "model"]
+    lines: list[SummaryLine]
+    fallback_reason: str | None = None
 
 
 class ComputedAnalysis(BaseModel):
@@ -42,7 +63,9 @@ class ComputedAnalysis(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    version: int = Field(default=0, ge=0, description="COMPUTED_VERSION that built it.")
     sector: SectorMatch
     shape: ShapeProfile
     scope_note: str = ""
     items: list[ExactItem]
+    summary: ReportSummary | None = None

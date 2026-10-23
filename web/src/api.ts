@@ -281,6 +281,31 @@ export interface ChatLedger {
   records: LedgerRecord[];
 }
 export type Scalar = number | string | boolean | null;
+export type ExactChart =
+  | { kind: "line"; x_label: string; y_label: string; points: [string, number][]; marks: string[] }
+  | {
+      kind: "bar";
+      x_label: string;
+      y_label: string;
+      value_format: "number" | "percent";
+      bars: { label: string; value: number; n: number | null }[];
+    }
+  | {
+      kind: "waterfall";
+      y_label: string;
+      start_label: string;
+      end_label: string;
+      start: number;
+      end: number;
+      steps: { label: string; value: number }[];
+    }
+  | { kind: "pareto"; y_label: string; bars: { label: string; value: number; cumulative_share: number }[] }
+  | { kind: "heat_strip"; label: string; cells: { label: string; index: number }[] };
+export interface ReportSummary {
+  source: "template" | "model";
+  lines: { item_id: string; text: string }[];
+  fallback_reason: string | null;
+}
 export interface ExactItem {
   id: string;
   kind: string;
@@ -295,6 +320,7 @@ export interface ExactItem {
   n_rows: number;
   values: Record<string, Scalar>;
   table: Record<string, Scalar>[];
+  chart: ExactChart | null;
 }
 export interface SectorMatch {
   sector: string;
@@ -313,10 +339,12 @@ export interface ShapeProfile {
   reasons: string[];
 }
 export interface ComputedAnalysis {
+  version: number;
   sector: SectorMatch;
   shape: ShapeProfile;
   scope_note: string;
   items: ExactItem[];
+  summary: ReportSummary | null;
 }
 export interface DatasetView {
   dataset_id: string;
@@ -391,9 +419,10 @@ export const api = {
   logout(): Promise<void> {
     return fetch("/api/auth/logout", { method: "POST" }).then(() => undefined);
   },
-  uploadDataset(file: File): Promise<DatasetView> {
+  uploadDataset(file: File, name: string): Promise<DatasetView> {
     const form = new FormData();
     form.append("file", file);
+    if (name.trim()) form.append("name", name.trim());
     return fetch("/api/datasets", { method: "POST", body: form }).then((r) => json<DatasetView>(r));
   },
   datasets(): Promise<DatasetSummary[]> {
@@ -401,13 +430,6 @@ export const api = {
   },
   dataset(id: string): Promise<DatasetView> {
     return fetch(`/api/datasets/${id}`).then((r) => json<DatasetView>(r));
-  },
-  setSector(id: string, sector: string | null): Promise<DatasetView> {
-    return fetch(`/api/datasets/${id}/sector`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sector }),
-    }).then((r) => json<DatasetView>(r));
   },
   datasetRuns(id: string): Promise<RunView[]> {
     return fetch(`/api/datasets/${id}/runs`).then((r) => json<RunView[]>(r));
