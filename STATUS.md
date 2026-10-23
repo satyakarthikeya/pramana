@@ -60,6 +60,42 @@ Two branches, to be merged in this order (the second branches from the first):
 
 `7d45c10` is not green on its own (its ledger-numbering test failed under contention); `dd51937` fixes it.
 
+| Branch | What |
+|---|---|
+| `feat/team/skeptic-explainer` (from `chat-agent`; merge third) | Phase 5: the Skeptic and the Explainer for PASS findings. `1271065` `2a89ec7` `8c67e6f` `75c6d20`, then the rounding/compose commit and a docs commit (see `git log`) |
+
+**Phase 5 in one paragraph.** After the gate, each PASS finding gets a plain-language sentence (the
+Explainer) and a confound check (the Skeptic). Both run after every proof exists, read copies, and cannot
+change a verdict, the status, the correction family or memory; a crash leaves the results unchanged. The
+Skeptic is code only (rank partial associations; descriptive caveats and questions for a NEXT run; "not
+checked" is never shown as clean; 20 s wall-clock budget). The Explainer writes the sentence by code from
+the proof by default; `PRAMANA_EXPLAINER_ENGINE=api` (now exposed in `docker/docker-compose.yml`, default
+`template`) lets DeepSeek word it for correlation and trend findings only, checked by code (effect and rows
+as the only numbers, declared direction must match the sign, no causal or verdict wording), with the facts
+line and the disclaimer added by code and every fallback recorded and shown.
+
+**Verified by running (Phase 5):** full suite exit 0 at `75c6d20`; in Docker the analysis journey gives
+3 verified and 2 rejected offline and 3 verified and 1 rejected on the live model profile (DeepSeek proposals
+and test code, traced in Langfuse); the Findings screen keeps its ordinary wording; the model-worded
+Explainer was tried live under the stricter rules and all three sentences were accepted; two independent
+read-only reviews (no critical issue; their high and medium findings were fixed and tested).
+
+**Not verified (Phase 5):** keyboard-only, 800 px and grayscale passes; mypy; web unit tests (none exist);
+the Skeptic's time budget only with a fake clock (not on a very large table end to end); live-run cost (a
+live run took about 112 s and tokens were not priced); one live run failed closed once with "Langfuse
+authentication is unavailable" right after a container restart and passed on retry (transient, nothing was
+published).
+
+**Needs the verification owner:** the Skeptic's statistics and every threshold under `advisory.skeptic`
+(including `max_duplicate_group_link` and `time_budget_seconds`), the Explainer bullet in AGENTS.md section 2,
+and whether model-worded sentences should ever be on by default.
+
+**Not built:** a lesson-curator agent, per-user verified memory (still shared across accounts), a hold-out split,
+and counting chat or exploration in the BH family.
+
+**The Docker stack is left on the live profile** (engine `api`, generator `llm`, Explainer `template`). The
+offline overlay (`docker-compose.offline.yml`) is only for testing without keys and shows "rule scan, no model".
+
 **Verified by running:** full suite exit 0 at `45a24f7` (0 failures), `ruff` clean, web build clean;
 in Docker (offline profile, chat on live DeepSeek + Langfuse EU): the analysis journey gives
 3 verified and 2 rejected, the Findings screen keeps its ordinary wording, chat answers about 15

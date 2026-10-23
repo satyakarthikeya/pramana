@@ -228,5 +228,32 @@ an untested claim.
 un`; a "Reset to factory
   defaults" was recorded in its log. Data volumes survived. Leftover `/tmp/cleanup_qa*.py` files in the API container are harmless.
 
-**Phase 5 (Skeptic, Explainer) is not started.** Per-user memory (section 5.2) should come before a curator agent.
+**Phase 5 (Skeptic, Explainer) was built afterwards; see section 10.** Per-user memory (section 5.2) should come before a curator agent.
+
+## 10. Update (23 Oct 2026, last session): Phase 5 is built
+
+Branch `feat/team/skeptic-explainer` (from `feat/team/chat-agent`; merge order workspace-ui, chat-agent, then this).
+Nothing is pushed. `STATUS.md` has the commit list, what was and was not verified, and the open decisions.
+
+**What it is.** `src/pramana/advisory/` (config, findings, models, skeptic, explainer, run), wired in
+`RunService._advisory` and `RunResults.advisory` (optional; old saved results still load), thresholds in
+`configs/analysis.yaml` under `advisory`, UI in `web/src/components/Advice.tsx` and `Results.tsx`, an Explainer
+bullet in AGENTS.md section 2, and the SCOPE.md section 6 confound limitation updated.
+
+**Rules it keeps.** Runs after the gate; reads copies; no path to a proof, the verdict, the status, the BH family
+or memory (a test imports the package in a fresh interpreter and asserts memory and Chroma are not loaded).
+Skeptic: code only, descriptive wording ("a confounder, a step between them, or something both influence"),
+never "causes" or "explains away", "not checked" is never shown as clean, near-duplicate and proxy columns are
+skipped, a wall-clock budget bounds it. Explainer: code sentence by default; model wording only for correlation
+and trend, only the effect and the rows as numbers, declared direction must match the sign.
+
+**Lessons from building it.** Rank eta-squared tops out at 1 - 1/k^2 (0.75 for two groups), so group links must be
+normalised before comparing them with a cutoff. Run the Docker stack on the live profile (no offline overlay) when
+showing the product: the overlay shows "rule scan, no model". After any QA run delete the QA account AND the
+run's Chroma lessons by `run_id`. Do not text-edit the user's `.env` with Python's `write_text` on Windows (it
+rewrites line endings); the keys were intact but its line endings became CRLF once.
+
+**Open for the next session:** the verification owner's review of the Skeptic and the chat statistics; the keyboard,
+800 px and grayscale passes; mypy; per-user memory; a hold-out split decision; optionally switching the
+model-worded Explainer on by default after more live runs.
 
