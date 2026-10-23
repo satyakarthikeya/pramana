@@ -867,6 +867,7 @@ def compute_analysis(
     config: ComputedConfig | None = None,
     packs: Mapping[str, SectorPack] | None = None,
     sector: str | None = None,
+    detected: SectorMatch | None = None,
 ) -> ComputedAnalysis:
     """Run the Exact tier on a cleaned table.
 
@@ -876,7 +877,8 @@ def compute_analysis(
     """
     config = config or load_computed_config()
     packs = load_packs() if packs is None else packs
-    match = detect_sector(list(map(str, frame.columns)), packs, override=sector)
+    # `detected` is a match already made (by the sector model); otherwise the rules decide.
+    match = detected or detect_sector(list(map(str, frame.columns)), packs, override=sector)
     pack = pack_for(match, packs)
     shape = classify_shape(frame, schema, match.roles)
     keys = None

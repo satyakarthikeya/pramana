@@ -9,7 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 from pramana.api.auth import User
 from pramana.api.datasets import DatasetReadError, profile_file
 from pramana.api.deps import current_user, get_service
-from pramana.api.models import DatasetSummary, DatasetView, RunView, SectorChoice
+from pramana.api.models import DatasetSummary, DatasetView, RunView
 from pramana.api.service import RunService
 from pramana.api.v1 import v1_settings
 
@@ -20,11 +20,18 @@ Owner = Annotated[User, Depends(current_user)]
 
 @router.post("", response_model=DatasetView, status_code=201)
 async def upload_dataset(
-    service: Service, user: Owner, file: Annotated[UploadFile, File()]
+    service: Service,
+    user: Owner,
+    file: Annotated[UploadFile, File()],
+    name: Annotated[str | None, Form(max_length=120)] = None,
 ) -> DatasetView:
-    """Store a bounded CSV/XLSX under a server-generated ID and profile it with code only."""
-    name = (file.filename or "").replace("\\", "/").rsplit("/", 1)[-1]
-    suffix = Path(name).suffix.lower()
+    """Store a bounded CSV/XLSX under a server-generated ID and profile it.
+
+    `name` is the user's label for the dataset; without one the file name is used.
+    """
+    filename = (file.filename or "").replace("\\", "/").rsplit("/", 1)[-1]
+    suffix = Path(filename).suffix.lower()
+    name = " ".join((name or "").split()) or filename
     if suffix not in {".csv", ".xlsx"}:
         await file.close()
         raise HTTPException(415, "Upload a CSV or XLSX file.")
@@ -78,20 +85,6 @@ def get_dataset(dataset_id: UUID, service: Service, user: Owner) -> DatasetView:
         return service.datasets.backfill_computed(view, user.user_id)
     except KeyError:
         raise HTTPException(404, "Dataset not found.") from None
-
-
-@router.put("/{dataset_id}/sector", response_model=DatasetView)
-def set_sector(
-    dataset_id: UUID, choice: SectorChoice, service: Service, user: Owner
-) -> DatasetView:
-    """Re-read the table as another sector (or detect again with null). Code only."""
-    try:
-        view = service.datasets.get(dataset_id, user.user_id)
-        return service.datasets.set_sector(view, choice.sector, user.user_id)
-    except KeyError:
-        raise HTTPException(404, "Dataset not found.") from None
-    except ValueError:
-        raise HTTPException(422, "That sector is not available.") from None
 
 
 @router.get("/{dataset_id}/runs", response_model=list[RunView])

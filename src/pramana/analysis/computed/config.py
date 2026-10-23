@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
@@ -13,6 +15,7 @@ from pramana.analysis.config import DEFAULT_CONFIG_PATH
 class ComputedConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    sector_engine: Literal["api", "rules"]
     max_measures: int = Field(ge=1, le=50)
     max_segments: int = Field(ge=2, le=100)
     max_outliers_listed: int = Field(ge=1, le=50)
@@ -27,4 +30,6 @@ class ComputedConfig(BaseModel):
 
 def load_computed_config(path: Path | str = DEFAULT_CONFIG_PATH) -> ComputedConfig:
     raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))["computed"]
+    if engine := os.getenv("PRAMANA_SECTOR_ENGINE"):
+        raw["sector_engine"] = engine
     return ComputedConfig.model_validate(raw)

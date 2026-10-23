@@ -135,12 +135,6 @@ class DatasetView(Payload):
     computed: ComputedAnalysis | None = None
 
 
-class SectorChoice(Payload):
-    """The user's sector for a dataset; null returns to automatic detection."""
-
-    sector: str | None = Field(default=None, max_length=40)
-
-
 class DatasetSummary(Payload):
     dataset_id: UUID
     name: str

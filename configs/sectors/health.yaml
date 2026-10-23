@@ -60,5 +60,5 @@ age_bands: [20, 40, 60, 80]
 analyses: [prevalence, weighted_means, rates, segment_ranking, outliers, identity, data_quality]
 
 wording:
-  scope_note: Figures describe this table. Without survey weights they are shares of the sample, not population estimates.
+  scope_note: Figures describe this table. Shares and averages use the survey weight when the table has one; each figure says which.
   refusal: PRAMANA does not give medical advice or diagnoses.

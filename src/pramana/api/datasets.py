@@ -13,9 +13,10 @@ from uuid import UUID
 import pandas as pd
 from pydantic import ValidationError
 
-from pramana.analysis.computed import ComputedAnalysis, compute_analysis
+from pramana.analysis.computed import ComputedAnalysis, compute_analysis, load_computed_config
 from pramana.analysis.reader import DataBrief, read_data
 from pramana.analysis.schema_inference import SchemaProfile
+from pramana.analysis.sector_model import detect_sector_with_model
 from pramana.analysis.sectors import load_packs
 from pramana.api.charts import data_overview
 from pramana.api.models import (
@@ -73,33 +74,37 @@ def build_preview(
 
 
 def exact_tier(
-    frame: pd.DataFrame, schema: SchemaProfile, sector: str | None = None
+    frame: pd.DataFrame, schema: SchemaProfile, *, trace_id: UUID
 ) -> ComputedAnalysis | None:
     """The Exact tier for a cleaned table, or None if it cannot be built at all.
 
-    Each analysis inside already fails on its own; this only guards detection and
-    shape, so a strange table can lose the section but never the upload.
+    The sector is private to the system: with `sector_engine: api` DeepSeek picks it
+    from column names (traced under `trace_id`, the dataset's id), otherwise the rules
+    do. Each analysis already fails on its own; this only guards detection and shape,
+    so a strange table can lose the section but never the upload.
     """
     try:
-        return compute_analysis(frame, schema, sector=sector)
+        config = load_computed_config()
+        packs = load_packs()
+        detected = None
+        if config.sector_engine == "api":
+            detected = detect_sector_with_model(frame, schema, packs, trace_id=trace_id)
+        return compute_analysis(frame, schema, config=config, packs=packs, detected=detected)
     except Exception:
         logger.exception("exact_tier_failed")
         return None
 
 
-def compute_exact_tier(path: Path, sector: str | None = None) -> ComputedAnalysis | None:
-    """Rebuild the Exact tier for a stored file. Raises ValueError for an unknown sector."""
+def compute_exact_tier(path: Path, *, trace_id: UUID) -> ComputedAnalysis | None:
+    """Rebuild the Exact tier for a stored file, or None if it cannot be read."""
     from pramana.analysis import clean_dataset, infer_schema, load_config, load_dataset
-
-    if sector is not None and sector not in {"general", *load_packs()}:
-        raise ValueError(f"unknown sector {sector!r}")
 
     try:
         cleaned, _ = clean_dataset(load_dataset(path))
         schema = infer_schema(cleaned, load_config().schema_inference)
     except Exception:
         return None
-    return exact_tier(cleaned, schema, sector)
+    return exact_tier(cleaned, schema, trace_id=trace_id)
 
 
 def compute_brief(path: Path) -> DataBrief | None:
@@ -141,7 +146,7 @@ def profile_file(
         brief = read_data(cleaned, schema)
     except Exception:
         brief = None
-    computed = exact_tier(cleaned, schema)
+    computed = exact_tier(cleaned, schema, trace_id=dataset_id)
     return DatasetView(
         dataset_id=dataset_id,
         name=name,
@@ -246,21 +251,11 @@ class DatasetRepository:
         """Add the Exact tier to a dataset stored before it existed (or with a stale one)."""
         if view.computed is not None:
             return view
-        computed = compute_exact_tier(self.file_path(view.dataset_id, owner_id))
+        computed = compute_exact_tier(
+            self.file_path(view.dataset_id, owner_id), trace_id=view.dataset_id
+        )
         if computed is None:
             return view
-        updated = view.model_copy(update={"computed": computed})
-        self._save(updated)
-        return updated
-
-    def set_sector(
-        self, view: DatasetView, sector: str | None, owner_id: UUID | None = None
-    ) -> DatasetView:
-        """Recompute the Exact tier under the user's sector; None means detect again.
-
-        Raises ValueError for a sector no pack defines.
-        """
-        computed = compute_exact_tier(self.file_path(view.dataset_id, owner_id), sector)
         updated = view.model_copy(update={"computed": computed})
         self._save(updated)
         return updated

@@ -133,19 +133,30 @@ def test_upload_includes_the_exact_tier_with_sector_and_shape(tmp_path: Path) ->
         assert all(item["level"] == "exact" for item in computed["items"])
 
 
-def test_the_user_can_change_the_sector_and_unknown_sectors_are_refused(tmp_path: Path) -> None:
+def test_the_sector_is_decided_by_the_system_with_no_user_switch(tmp_path: Path) -> None:
     with TestClient(create_app(service=service_for(tmp_path))) as client:
         sign_in(client)
         view = client.post("/api/datasets", files={"file": ("pl.csv", _finance_csv())}).json()
-        url = f"/api/datasets/{view['dataset_id']}/sector"
-        changed = client.put(url, json={"sector": "general"})
-        assert changed.status_code == 200
-        assert changed.json()["computed"]["sector"]["sector"] == "general"
-        assert client.get(f"/api/datasets/{view['dataset_id']}").json()["computed"]["sector"][
-            "sector"] == "general"
-        assert client.put(url, json={"sector": "astrology"}).status_code == 422
-        restored = client.put(url, json={"sector": None}).json()
-        assert restored["computed"]["sector"]["sector"] == "finance"
+        put = client.put(f"/api/datasets/{view['dataset_id']}/sector", json={"sector": "health"})
+        assert put.status_code in {404, 405}
+
+
+def test_the_user_names_the_dataset_at_upload(tmp_path: Path) -> None:
+    with TestClient(create_app(service=service_for(tmp_path))) as client:
+        sign_in(client)
+        named = client.post(
+            "/api/datasets",
+            files={"file": ("pl.csv", _finance_csv())},
+            data={"name": "  Sales   FY2025 "},
+        ).json()
+        assert named["name"] == "Sales FY2025"
+        assert client.get("/api/datasets").json()[0]["name"] == "Sales FY2025"
+        unnamed = client.post("/api/datasets", files={"file": ("pl.csv", _finance_csv())}).json()
+        assert unnamed["name"] == "pl.csv"
+        too_long = client.post(
+            "/api/datasets", files={"file": ("pl.csv", _finance_csv())}, data={"name": "x" * 121}
+        )
+        assert too_long.status_code == 422
 
 
 def test_old_datasets_get_the_exact_tier_and_a_stale_one_never_breaks_them(tmp_path: Path) -> None:

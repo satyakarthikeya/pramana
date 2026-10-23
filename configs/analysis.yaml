@@ -126,6 +126,7 @@ workspace:
 computed:
   # The Exact tier (PLAN §5.1): arithmetic on the uploaded table, shown with its formula.
   # Nothing here is a statistical threshold and nothing here reaches the gateway or memory.
+  sector_engine: api            # api (DeepSeek reads column names, traced) | rules (offline)
   max_measures: 6               # numeric columns analysed per table
   max_segments: 12              # rows shown per segment table; the rest are grouped as "other"
   max_outliers_listed: 5
