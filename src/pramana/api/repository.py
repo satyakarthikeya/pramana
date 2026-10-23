@@ -22,39 +22,58 @@ class RunRepository:
         with self._connect() as connection:
             connection.execute("""CREATE TABLE IF NOT EXISTS runs (
                 run_id TEXT PRIMARY KEY, view_json TEXT NOT NULL, results_json TEXT)""")
+            if "owner_id" not in {r[1] for r in connection.execute("PRAGMA table_info(runs)")}:
+                connection.execute("ALTER TABLE runs ADD COLUMN owner_id TEXT")
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self.path, timeout=30)
 
-    def create(self, run_id: UUID, file_name: str) -> RunView:
+    def create(
+        self,
+        run_id: UUID,
+        file_name: str,
+        dataset_id: UUID | None = None,
+        owner_id: UUID | None = None,
+    ) -> RunView:
         """Insert one pending run; never overwrite an existing run ID."""
         view = RunView(
             run_id=run_id,
+            dataset_id=dataset_id,
             status=RunStatus.PENDING,
             file_name=file_name,
             created_at=datetime.now(UTC),
         )
         with self._connect() as connection:
             connection.execute(
-                "INSERT INTO runs VALUES (?, ?, NULL)", (str(run_id), view.model_dump_json())
+                "INSERT INTO runs (run_id, view_json, owner_id) VALUES (?, ?, ?)",
+                (str(run_id), view.model_dump_json(), str(owner_id) if owner_id else None),
             )
         return view
 
-    def get(self, run_id: UUID) -> RunView:
-        """Return one persisted status, raising KeyError for an unknown run."""
+    def get(self, run_id: UUID, owner_id: UUID | None = None) -> RunView:
+        """Return one run; KeyError if unknown or, given an owner, someone else's.
+
+        The two cases are indistinguishable so nothing leaks across accounts.
+        """
+        query, args = "SELECT view_json FROM runs WHERE run_id = ?", [str(run_id)]
+        if owner_id is not None:
+            query += " AND owner_id = ?"
+            args.append(str(owner_id))
         with self._connect() as connection:
-            row = connection.execute(
-                "SELECT view_json FROM runs WHERE run_id = ?", (str(run_id),)
-            ).fetchone()
+            row = connection.execute(query, args).fetchone()
         if row is None:
             raise KeyError(str(run_id))
         return RunView.model_validate_json(row[0])
 
-    def list_runs(self, limit: int = 50, offset: int = 0) -> list[RunView]:
+    def list_runs(
+        self, limit: int = 50, offset: int = 0, owner_id: UUID | None = None
+    ) -> list[RunView]:
         """Return bounded recent run metadata without any unverified claim text."""
+        where, args = ("", []) if owner_id is None else (" WHERE owner_id = ?", [str(owner_id)])
         with self._connect() as connection:
             rows = connection.execute(
-                "SELECT view_json FROM runs ORDER BY rowid DESC LIMIT ? OFFSET ?", (limit, offset)
+                f"SELECT view_json FROM runs{where} ORDER BY rowid DESC LIMIT ? OFFSET ?",
+                [*args, limit, offset],
             ).fetchall()
         return [RunView.model_validate_json(row[0]) for row in rows]
 
@@ -101,14 +120,21 @@ class RunRepository:
                 (view.model_dump_json(), payload, str(run_id)),
             )
 
-    def results(self, run_id: UUID) -> RunResults | None:
+    def results(self, run_id: UUID, owner_id: UUID | None = None) -> RunResults | None:
         """Return stored results, never rerun analysis to satisfy a GET request."""
-        self.get(run_id)
+        self.get(run_id, owner_id)
         with self._connect() as connection:
             row = connection.execute(
                 "SELECT results_json FROM runs WHERE run_id = ?", (str(run_id),)
             ).fetchone()
         return RunResults.model_validate_json(row[0]) if row and row[0] else None
+
+    def claim_unowned(self, owner_id: UUID) -> None:
+        """Hand runs made before accounts existed to the first account."""
+        with self._connect() as connection:
+            connection.execute(
+                "UPDATE runs SET owner_id = ? WHERE owner_id IS NULL", (str(owner_id),)
+            )
 
     def recover_interrupted(self) -> None:
         """Mark unfinished jobs failed at startup; do not silently resubmit hypotheses."""

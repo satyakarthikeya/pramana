@@ -1,27 +1,23 @@
-"""FastAPI app factory + router registration.
-
-TODO(karthik-reddy): SCOPE_M 4 step 5.
-
-Owner: M. Karthik Reddy
-Scope: scope/SCOPE_M_Karthik_Reddy.md
-"""
+"""FastAPI app factory + router registration."""
 
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import urlsplit
 
-from fastapi import FastAPI
-from fastapi.responses import FileResponse, Response
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from pramana.api.routes import memory, results, runs
+from pramana.api.routes import auth, datasets, memory, results, runs, system
 from pramana.api.service import RunService
 from pramana.common.paths import DATA_DIR
 from pramana.memory.config import load_memory_settings
 
-DASHBOARD_DIR = Path(__file__).resolve().parents[1] / "dashboard/static"
+#: The built web UI. Docker serves it from nginx; locally `npm run build` in web/ enables it here.
+WEB_DIST = Path(__file__).resolve().parents[3] / "web" / "dist"
 
 
 def create_app(*, service: RunService | None = None) -> FastAPI:
@@ -35,31 +31,32 @@ def create_app(*, service: RunService | None = None) -> FastAPI:
         yield
 
     application = FastAPI(title="PRAMANA", version="0.1.0", lifespan=lifespan)
+    application.include_router(auth.router, prefix="/api")
+    application.include_router(datasets.router, prefix="/api")
     application.include_router(runs.router, prefix="/api")
     application.include_router(results.router, prefix="/api")
     application.include_router(memory.router, prefix="/api")
-    application.mount("/static", StaticFiles(directory=DASHBOARD_DIR), name="dashboard")
+    application.include_router(system.router, prefix="/api")
+
+    @application.middleware("http")
+    async def same_origin_writes(request: Request, call_next):  # type: ignore[no-untyped-def]
+        """Refuse cross-site writes: a browser's Origin must match the host it called."""
+        origin = request.headers.get("origin")
+        if (
+            request.method in {"POST", "PUT", "PATCH", "DELETE"}
+            and origin
+            and urlsplit(origin).netloc != request.headers.get("host")
+        ):
+            return JSONResponse({"detail": "Cross-site request refused."}, status_code=403)
+        return await call_next(request)
 
     @application.get("/health")
     def health() -> dict[str, str]:
         """Report API liveness; this is not a claim that external dependencies are healthy."""
         return {"status": "ok"}
 
-    @application.get("/", include_in_schema=False)
-    def dashboard() -> FileResponse:
-        """Serve the dashboard that consumes only public, read-only result interfaces."""
-        return FileResponse(DASHBOARD_DIR / "index.html")
-
-    @application.get("/api/sample", include_in_schema=False)
-    def sample() -> Response:
-        """Download generated synthetic data; never ship restricted or participant data."""
-        from pramana.api.v1 import sample_frame
-
-        return Response(
-            sample_frame().to_csv(index=False),
-            media_type="text/csv",
-            headers={"Content-Disposition": 'attachment; filename="synthetic-sample.csv"'},
-        )
+    if WEB_DIST.is_dir():
+        application.mount("/", StaticFiles(directory=WEB_DIST, html=True), name="web")
 
     return application
 

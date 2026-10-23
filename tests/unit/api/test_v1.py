@@ -15,12 +15,19 @@ from fastapi.testclient import TestClient
 
 from pramana.api.main import create_app
 from pramana.api.service import RunService
-from pramana.api.v1 import effect_strength, rejection_reason, sample_frame, v1_settings
+from pramana.api.v1 import effect_strength, rejection_reason, v1_settings
 from pramana.contracts import GateOutcome, ProofObject, Verdict
 from pramana.memory.store import ChromaLessonStore
-from tests.unit.api.test_api import service_for
+from tests.fixtures.sample_data import SAMPLE_PILOT_ROWS, SAMPLE_ROWS, sample_frame
+from tests.unit.api.test_api import service_for, sign_in
 from tests.unit.memory.test_lessons import TestEmbedding, settings_for
 from tests.unit.memory.test_store import _proof
+
+
+def run_sample(client: TestClient) -> dict[str, Any]:
+    """Upload the test-only synthetic table through the real upload endpoint."""
+    content = sample_frame().to_csv(index=False).encode()
+    return client.post("/api/runs", files={"file": ("sample.csv", content)}).json()
 
 
 def real_service(root: Path) -> RunService:
@@ -63,7 +70,8 @@ def test_deepseek_analysis_failure_is_safe_and_actionable_in_website_api(
         "pramana.analysis.hypotheses.llm_proposer.get_langfuse_client", lambda _: None
     )
     with TestClient(create_app(service=real_service(tmp_path))) as client:
-        run_id = client.post("/api/runs/sample").json()["run_id"]
+        sign_in(client)
+        run_id = run_sample(client)["run_id"]
         view = client.get(f"/api/runs/{run_id}").json()
         assert view["status"] == "degraded"
         assert "Analysis model unavailable" in view["error"]
@@ -88,6 +96,7 @@ def test_bad_tables_have_friendly_messages_without_tracebacks(
     message: str,
 ) -> None:
     with TestClient(create_app(service=real_service(tmp_path))) as client:
+        sign_in(client)
         run_id = client.post("/api/runs", files={"file": ("input.csv", content)}).json()["run_id"]
         view = client.get(f"/api/runs/{run_id}").json()
         assert view["status"] == "degraded"
@@ -96,16 +105,16 @@ def test_bad_tables_have_friendly_messages_without_tracebacks(
         assert client.get(f"/api/runs/{run_id}/results").json()["verified_insights"] == []
 
 
-def test_sample_is_generated_reproducibly_and_downloadable(tmp_path: Path) -> None:
+def test_synthetic_test_table_is_reproducible_and_runs_through_upload(tmp_path: Path) -> None:
     first, second = sample_frame(), sample_frame()
     pd.testing.assert_frame_equal(first, second)
-    assert len(first) == v1_settings().sample_rows
-    assert first["moon_phase_pilot"].notna().sum() == v1_settings().sample_pilot_rows
+    assert len(first) == SAMPLE_ROWS
+    assert first["moon_phase_pilot"].notna().sum() == SAMPLE_PILOT_ROWS
     with TestClient(create_app(service=service_for(tmp_path))) as client:
-        response = client.get("/api/sample")
-        assert response.status_code == 200
-        assert "attachment" in response.headers["content-disposition"]
-        run = client.post("/api/runs/sample").json()
+        sign_in(client)
+        assert client.get("/api/sample").status_code == 404
+        assert client.post("/api/runs/sample").status_code in {404, 405}
+        run = run_sample(client)
         assert client.get(f"/api/runs/{run['run_id']}").json()["status"] == "completed"
 
 
@@ -130,11 +139,12 @@ def test_preview_progress_cap_and_two_run_hints_keep_pass_only_memory(
 
     monkeypatch.setattr(service.repository, "progress", record)
     with TestClient(create_app(service=service)) as client:
+        sign_in(client)
         for index in range(2):
-            run_id = client.post("/api/runs/sample").json()["run_id"]
+            run_id = run_sample(client)["run_id"]
             view = client.get(f"/api/runs/{run_id}").json()
             assert view["status"] == "completed", view
-            assert view["preview"]["rows"] == v1_settings().sample_rows
+            assert view["preview"]["rows"] == SAMPLE_ROWS
             assert any(not column["usable"] for column in view["preview"]["detected_columns"])
             if index:
                 assert view["past_lessons"]
@@ -143,6 +153,11 @@ def test_preview_progress_cap_and_two_run_hints_keep_pass_only_memory(
             assert 0 < result["candidate_count"] <= v1_settings().max_candidates
             assert result["verified_insights"] and result["rejected_claims"]
             assert all(row["explanation"] for row in result["rejected_claims"])
+            look = result["exploration"]
+            assert look["engine"] == "scan" and look["examined"] >= look["proposed"] > 0
+            assert look["tested"] == len(result["verified_insights"]) + len(
+                result["rejected_claims"]
+            )
             for row in result["verified_insights"]:
                 assert row["effect_strength"] and row["complete_rows"]
                 assert row["n_permutations"] == 199
@@ -166,6 +181,7 @@ def test_exports_are_downloadable_proof_bearing_and_guard_csv_formulas(tmp_path:
         return state
 
     with TestClient(create_app(service=service_for(tmp_path, formula))) as client:
+        sign_in(client)
         run_id = client.post("/api/runs", files={"file": ("table.csv", b"a,b\n1,2")}).json()[
             "run_id"
         ]
@@ -202,6 +218,7 @@ def test_generator_unavailable_is_an_explicit_api_error_with_retained_proofs(
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     content = pd.DataFrame({"x": range(40), "y": range(40)}).to_csv(index=False).encode()
     with TestClient(create_app(service=real_service(tmp_path))) as client:
+        sign_in(client)
         run_id = client.post("/api/runs", files={"file": ("table.csv", content)}).json()["run_id"]
         view = client.get(f"/api/runs/{run_id}").json()
         assert view["status"] == "degraded"
@@ -217,6 +234,7 @@ def test_trend_table_above_documented_ceiling_refuses_without_sampling(tmp_path:
         {"measurement_date": pd.date_range("2020-01-01", periods=3001), "measurement": range(3001)}
     )
     with TestClient(create_app(service=real_service(tmp_path))) as client:
+        sign_in(client)
         run_id = client.post(
             "/api/runs", files={"file": ("trend.csv", frame.to_csv(index=False).encode())}
         ).json()["run_id"]
@@ -232,6 +250,7 @@ def test_upload_size_error_is_friendly_and_releases_capacity(tmp_path: Path) -> 
         update={"api": service.settings.api.model_copy(update={"max_upload_mb": 1})}
     )
     with TestClient(create_app(service=service)) as client:
+        sign_in(client)
         response = client.post("/api/runs", files={"file": ("large.csv", b"x" * (1024**2 + 1))})
         assert response.status_code == 413 and "size limit" in response.json()["detail"]
         assert service.reserve()

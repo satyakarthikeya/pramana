@@ -1,20 +1,19 @@
-"""Memory browse/search (read-only). Writes never go through the API.
+"""Memory browse/search (read-only, signed-in users). Writes never go through the API.
 
-Owner: M. Karthik Reddy
-Scope: scope/SCOPE_M_Karthik_Reddy.md
+Memory is still shared between accounts; separating it per user is a later decision.
 """
 
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from pramana.api.deps import get_service
+from pramana.api.deps import current_user, get_service
 from pramana.api.models import MemorySearch
 from pramana.api.service import RunService
 from pramana.memory.lesson import Lesson
 from pramana.memory.retrieval import RetrievedLesson
 
-router = APIRouter(prefix="/memory", tags=["memory"])
+router = APIRouter(prefix="/memory", tags=["memory"], dependencies=[Depends(current_user)])
 Service = Annotated[RunService, Depends(get_service)]
 
 

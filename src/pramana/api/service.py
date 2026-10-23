@@ -10,7 +10,11 @@ from typing import Any
 from uuid import UUID
 
 from pramana.analysis.schema_inference import SchemaProfile
-from pramana.api.models import ColumnPreview, DataPreview, ResultRow, RunResults
+from pramana.analysis.workspace.ledger import ExplorationSummary
+from pramana.api.auth import AuthService
+from pramana.api.charts import claim_chart
+from pramana.api.datasets import DatasetRepository, build_preview
+from pramana.api.models import DataPreview, ResultRow, RunResults
 from pramana.api.repository import RunRepository
 from pramana.api.v1 import effect_strength, permutation_count, rejection_reason, v1_settings
 from pramana.common.logging import get_logger
@@ -37,32 +41,8 @@ class DataInputError(ValueError):
 def data_preview(state: PramanaState) -> DataPreview:
     """Expose a bounded cleaned-data preview, not proposed or verified insights."""
     schema = SchemaProfile.model_validate(state.schema_profile)
-    columns = [
-        ColumnPreview(
-            name=name,
-            role=column.role.value,
-            usable=column.usable_for_hypotheses,
-            reasons=column.reasons,
-        )
-        for name, column in schema.columns.items()
-    ]
-    columns.extend(
-        ColumnPreview(name=item["column"], role="excluded", usable=False, reasons=[item["reason"]])
-        for item in state.cleaning_report.get("columns_removed", [])
-    )
-    source = state.dataset.iloc[: v1_settings().preview_rows, :40].astype(object)
-    frame = source.where(source.notna(), "").astype(str)
-    rows = [
-        {str(key): str(value)[:160] for key, value in row.items()}
-        for row in frame.to_dict(orient="records")
-    ]
-    return DataPreview(
-        rows=len(state.dataset),
-        columns=len(state.dataset.columns),
-        detected_columns=columns[:100],
-        sample_rows=rows,
-        omitted_columns=max(0, len(columns) - 100),
-    )
+    removed = state.cleaning_report.get("columns_removed", [])
+    return build_preview(state.dataset, schema, removed, v1_settings().preview_rows)
 
 
 class RunService:
@@ -79,6 +59,8 @@ class RunService:
         self.root = root
         self.settings = settings
         self.repository = RunRepository(root / "api/runs.sqlite3")
+        self.datasets = DatasetRepository(root / "api/runs.sqlite3")
+        self.auth = AuthService(root / "api/runs.sqlite3")
         self.store = store or ChromaLessonStore(settings)
         self._slots = BoundedSemaphore(settings.api.max_active_runs)
         self._runner = runner or self._run_workflow
@@ -184,6 +166,28 @@ class RunService:
         )
         return run_graph(state, build_graph(selected))
 
+    @staticmethod
+    def _chart(candidate: Any, state: PramanaState) -> Any:
+        """Draw a claim's data; a charting problem must never fail or alter a verified run."""
+        try:
+            return claim_chart(candidate, state.dataset)
+        except Exception as error:
+            get_logger(component="api", run_id=str(state.run_id)).warning(
+                "chart_failed", error_type=type(error).__name__
+            )
+            return None
+
+    @staticmethod
+    def _exploration(state: PramanaState) -> ExplorationSummary | None:
+        """What the analyst looked at, with how many claims the gateway actually tested."""
+        if not state.exploration:
+            return None
+        summary = ExplorationSummary.model_validate(state.exploration)
+        tested = state.verification_summary.n_tested if state.verification_summary else 0
+        return summary.model_copy(
+            update={"proposed": len(state.candidate_insights), "tested": tested}
+        )
+
     def execute(self, run_id: UUID, path: Path, query: str | None) -> None:
         """Record failures as failures; never publish candidates that lack a proof."""
         try:
@@ -212,6 +216,7 @@ class RunService:
                         explanation=rejection_reason(proof),
                         effect_strength=effect_strength(proof),
                         n_permutations=permutation_count(proof),
+                        chart=self._chart(candidate, state),
                         complete_rows=(
                             int(state.dataset.dropna(subset=candidate.variables).shape[0])
                             if hasattr(state.dataset, "dropna")
@@ -229,6 +234,7 @@ class RunService:
                 rejected_claims=[row for row in rows if row.proof.verdict is Verdict.REJECT],
                 candidate_count=len(candidates),
                 unverified_candidate_count=len(candidates) - len(seen),
+                exploration=self._exploration(state),
             )
             error = (
                 "Some workflow steps failed; inspect the local run logs." if state.errors else None
@@ -243,8 +249,9 @@ class RunService:
                         error = failure.message
                     elif failure.node == "analysis" and failure.error_type == "ProposerUnavailable":
                         error = (
-                            "Analysis model unavailable. Check DEEPSEEK_API_KEY and Langfuse "
-                            "configuration; no unverified findings were published."
+                            f"Analysis model unavailable: {failure.message.rstrip('.')}. "
+                            "Check DEEPSEEK_API_KEY and Langfuse configuration; "
+                            "no unverified findings were published."
                         )
                     elif failure.node == "ingest":
                         error = (
