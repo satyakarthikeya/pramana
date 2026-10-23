@@ -39,11 +39,31 @@ class AgentConfig(BaseModel):
     temperature: float = Field(ge=0, le=1)
 
 
+class ChatConfig(BaseModel):
+    """Hard stops for one chat question and for what chat may test on a dataset."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    max_turns: int = Field(ge=1, le=12)
+    max_tool_calls: int = Field(ge=0, le=20)
+    max_output_tokens: int = Field(ge=128, le=4096)
+    max_total_tokens: int = Field(ge=1000, le=100000)
+    max_result_chars: int = Field(ge=200, le=8000)
+    max_question_chars: int = Field(ge=50, le=4000)
+    max_answer_chars: int = Field(ge=100, le=4000)
+    history_questions: int = Field(ge=0, le=10)
+    max_hypotheses_examined: int = Field(ge=1, le=2000)
+    max_tests_per_dataset: int = Field(ge=0, le=500)
+    max_messages_per_hour: int = Field(ge=1, le=1000)
+    temperature: float = Field(ge=0, le=1)
+
+
 class WorkspaceConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     sandbox: SandboxConfig
     agent: AgentConfig
+    chat: ChatConfig
 
 
 def load_workspace_config(path: Path | str = DEFAULT_CONFIG_PATH) -> WorkspaceConfig:

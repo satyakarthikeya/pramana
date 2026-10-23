@@ -11,7 +11,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from pramana.api.routes import auth, datasets, memory, results, runs, system
+from pramana.api.routes import auth, chat, datasets, memory, results, runs, system
 from pramana.api.service import RunService
 from pramana.common.paths import DATA_DIR
 from pramana.memory.config import load_memory_settings
@@ -33,6 +33,7 @@ def create_app(*, service: RunService | None = None) -> FastAPI:
     application = FastAPI(title="PRAMANA", version="0.1.0", lifespan=lifespan)
     application.include_router(auth.router, prefix="/api")
     application.include_router(datasets.router, prefix="/api")
+    application.include_router(chat.router, prefix="/api")
     application.include_router(runs.router, prefix="/api")
     application.include_router(results.router, prefix="/api")
     application.include_router(memory.router, prefix="/api")

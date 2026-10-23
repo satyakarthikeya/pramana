@@ -108,3 +108,17 @@ workspace:
     max_claims: 8                 # claims the analyst may hand to the gateway
     max_hypotheses_examined: 300  # pairs the analyst's tools may look at in one run
     temperature: 0.0
+  chat:
+    # "Talk to your data": limits for one question. Nothing here changes a verdict.
+    max_turns: 5                  # model calls per question
+    max_tool_calls: 8             # tool steps per question
+    max_output_tokens: 700        # per model reply
+    max_total_tokens: 20000       # input plus output for one question, hard stop
+    max_result_chars: 3000        # a tool result is cut to this before the model reads it
+    max_question_chars: 1000
+    max_answer_chars: 1500        # longer model wording is withheld, not trimmed
+    history_questions: 4          # earlier questions (never earlier answers) sent as context
+    max_hypotheses_examined: 40   # column pairs the chat tools may look at per question
+    max_tests_per_dataset: 50     # claims chat may send to the gateway on one dataset, ever
+    max_messages_per_hour: 60     # per account
+    temperature: 0.0

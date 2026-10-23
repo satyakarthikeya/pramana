@@ -44,3 +44,25 @@ def test_model_engines_name_exactly_what_is_missing(
     monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk")
     ready = _status(tmp_path / "again")
     assert ready["model_ready"] is True and ready["blockers"] == []
+
+
+def test_chat_readiness_names_what_is_missing_without_values(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PRAMANA_ANALYSIS_ENGINE", "deterministic")
+    monkeypatch.setenv("PRAMANA_VERIFICATION_GENERATOR", "template")
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    for name in ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    status = _status(tmp_path)
+    assert status["chat_ready"] is False
+    assert status["chat_blockers"] == [
+        "DEEPSEEK_API_KEY is not set",
+        "Langfuse keys are not set (model calls must be traced)",
+    ]
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-secret-value")
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk")
+    ready = _status(tmp_path / "again")
+    assert ready["chat_ready"] is True and ready["chat_blockers"] == []
+    assert "sk-secret-value" not in str(ready)

@@ -37,13 +37,14 @@ def sign_in(client: TestClient, email: str = "owner@example.com") -> None:
         assert client.post("/api/auth/login", json=body).status_code == 200
 
 
-def service_for(root: Path, runner=finished) -> RunService:
+def service_for(root: Path, runner=finished, **extra) -> RunService:
     settings = settings_for(root / "chroma")
     return RunService(
         root,
         settings,
         store=ChromaLessonStore(settings, embedding_function=TestEmbedding()),
         runner=runner,
+        **extra,
     )
 
 

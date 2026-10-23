@@ -10,6 +10,7 @@ from typing import Any
 from uuid import UUID
 
 from pramana.analysis.schema_inference import SchemaProfile
+from pramana.analysis.workspace.agent import ChatFn
 from pramana.analysis.workspace.ledger import ExplorationSummary
 from pramana.api.auth import AuthService
 from pramana.api.charts import claim_chart
@@ -17,6 +18,7 @@ from pramana.api.datasets import DatasetRepository, build_preview
 from pramana.api.models import DataPreview, ResultRow, RunResults
 from pramana.api.repository import RunRepository
 from pramana.api.v1 import effect_strength, permutation_count, rejection_reason, v1_settings
+from pramana.chat.service import ChatService, Verifier
 from pramana.common.logging import get_logger
 from pramana.contracts import ProofObject, Verdict
 from pramana.memory.config import MemorySettings
@@ -55,6 +57,8 @@ class RunService:
         *,
         store: ChromaLessonStore | None = None,
         runner: Callable[[UUID, Path, str | None], PramanaState] | None = None,
+        chat: ChatFn | None = None,
+        chat_verifier: Verifier | None = None,
     ) -> None:
         self.root = root
         self.settings = settings
@@ -64,6 +68,15 @@ class RunService:
         self.store = store or ChromaLessonStore(settings)
         self._slots = BoundedSemaphore(settings.api.max_active_runs)
         self._runner = runner or self._run_workflow
+        self.chat = ChatService(
+            root / "api/runs.sqlite3",
+            self.datasets,
+            self.repository,
+            reserve=self.reserve,
+            release=self.release,
+            chat=chat,
+            verifier=chat_verifier,
+        )
 
     def reserve(self) -> bool:
         """Refuse excess local execution instead of starting unbounded background jobs."""
