@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import UUID
@@ -132,6 +133,26 @@ class ChatRepository:
                     record.model_dump_json(),
                 ),
             )
+
+    def add_next_test(
+        self,
+        make: Callable[[int], LedgerRecord],
+        dataset_id: UUID,
+        owner_id: UUID,
+    ) -> LedgerRecord:
+        """Record a test under the next free number, retrying if another writer took it.
+
+        The unique (dataset, number) key makes a duplicate impossible; the retry makes sure a
+        test that already ran is still counted instead of failing after the fact.
+        """
+        for _ in range(8):
+            record = make(self.test_count(dataset_id, owner_id) + 1)
+            try:
+                self.add_test(record, dataset_id, owner_id)
+                return record
+            except sqlite3.IntegrityError:
+                continue
+        raise RuntimeError("could not allocate a ledger number")
 
     def tests(self, dataset_id: UUID, owner_id: UUID) -> list[LedgerRecord]:
         with self._connect() as connection:

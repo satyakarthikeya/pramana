@@ -8,6 +8,7 @@ one, it never writes to verified memory, and the ledger records it so the count 
 from __future__ import annotations
 
 import os
+import threading
 from collections import OrderedDict
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
@@ -17,14 +18,15 @@ from uuid import UUID, uuid4
 import pandas as pd
 from structlog.contextvars import bound_contextvars
 
+from pramana.analysis.config import AnalysisConfig
 from pramana.analysis.config import load_config as load_analysis_config
 from pramana.analysis.reader import DataBrief
 from pramana.analysis.schema_inference import SchemaProfile
 from pramana.analysis.workspace.agent import ChatFn
-from pramana.analysis.workspace.config import load_workspace_config
+from pramana.analysis.workspace.config import WorkspaceConfig, load_workspace_config
 from pramana.api.charts import claim_chart
 from pramana.api.datasets import DatasetRepository
-from pramana.api.models import ResultRow
+from pramana.api.models import DatasetView, ResultRow
 from pramana.api.repository import RunRepository
 from pramana.api.v1 import effect_strength, permutation_count, rejection_reason
 from pramana.chat.engine import ClaimRefused, VerifyFn, run_chat_turn
@@ -61,6 +63,16 @@ class ChatRateLimited(RuntimeError):
 
 class ChatInputError(ValueError):
     """The question or the dataset cannot be used. `str()` is safe to display."""
+
+
+def _chat_reason(proof: ProofObject) -> str:
+    """The reason line for a chat-tested claim: honest about it being a single, uncorrected test."""
+    if proof.gate_outcome is GateOutcome.INCONCLUSIVE and not proof.failure_reason:
+        return (
+            "Not statistically significant as a single test (the q-value equals the raw "
+            "p-value and is not corrected for earlier tests)."
+        )
+    return rejection_reason(proof)
 
 
 def _gateway(candidate: CandidateInsight, frame: pd.DataFrame, message_id: UUID) -> ProofObject:
@@ -101,6 +113,9 @@ class ChatService:
         self._cache: OrderedDict[tuple[str, int, int], tuple[pd.DataFrame, SchemaProfile]] = (
             OrderedDict()
         )
+        self._cache_lock = threading.Lock()
+        self._lock = threading.Lock()  # guards the question counters below
+        self._inflight: dict[UUID, int] = {}
 
     # ---- the table ------------------------------------------------------------------
     def _prepared(
@@ -112,21 +127,22 @@ class ChatService:
         path = self._datasets.file_path(dataset_id, owner_id)  # KeyError for another account
         stat = path.stat()
         key = (str(dataset_id), stat.st_mtime_ns, stat.st_size)
-        if key not in self._cache:
-            cleaned, _ = clean_dataset(load_dataset(path))
-            schema = infer_schema(cleaned, load_analysis_config().schema_inference)
-            self._cache[key] = (cleaned, schema)
-            while len(self._cache) > 8:
-                self._cache.popitem(last=False)
-        self._cache.move_to_end(key)
-        frame, schema = self._cache[key]
+        with self._cache_lock:
+            if key not in self._cache:
+                cleaned, _ = clean_dataset(load_dataset(path))
+                schema = infer_schema(cleaned, load_analysis_config().schema_inference)
+                self._cache[key] = (cleaned, schema)
+                while len(self._cache) > 8:
+                    self._cache.popitem(last=False)
+            self._cache.move_to_end(key)
+            frame, schema = self._cache[key]
         return frame, schema, str(path)
 
     def _run_tests(self, dataset_id: UUID, owner_id: UUID) -> int:
         """Claims tested by analysis runs on this dataset, for the disclosure only."""
         total = 0
         try:
-            for run in self._runs.list_runs(limit=200, owner_id=owner_id):
+            for run in self._runs.list_runs(limit=1000, owner_id=owner_id):
                 if run.dataset_id == dataset_id and run.status is RunStatus.COMPLETED:
                     results = self._runs.results(run.run_id, owner_id)
                     total += results.candidate_count if results else 0
@@ -186,8 +202,28 @@ class ChatService:
             raise ChatInputError(f"Keep the question under {budget.max_question_chars} characters.")
         if view.usable_columns == 0:
             raise ChatInputError("No usable measurement columns remain after cleaning.")
-        if self.repository.messages_since(owner_id) >= budget.max_messages_per_hour:
-            raise ChatRateLimited("Question limit for this hour reached. Try again later.")
+        # Count questions still being answered too, or parallel requests beat the hourly cap.
+        with self._lock:
+            used = self.repository.messages_since(owner_id) + self._inflight.get(owner_id, 0)
+            if used >= budget.max_messages_per_hour:
+                raise ChatRateLimited("Question limit for this hour reached. Try again later.")
+            self._inflight[owner_id] = self._inflight.get(owner_id, 0) + 1
+        try:
+            return self._ask(dataset_id, owner_id, question, view, analysis, workspace)
+        finally:
+            with self._lock:
+                self._inflight[owner_id] -= 1
+
+    def _ask(
+        self,
+        dataset_id: UUID,
+        owner_id: UUID,
+        question: str,
+        view: DatasetView,
+        analysis: AnalysisConfig,
+        workspace: WorkspaceConfig,
+    ) -> ChatExchange:
+        budget = workspace.chat
         try:
             frame, schema, dataset_ref = self._prepared(dataset_id, owner_id)
         except KeyError:
@@ -214,7 +250,11 @@ class ChatService:
                     "Ask again when it finishes."
                 )
             try:
-                number = self.repository.test_count(dataset_id, owner_id) + 1
+                if self.repository.test_count(dataset_id, owner_id) >= budget.max_tests_per_dataset:
+                    raise ClaimRefused(
+                        f"chat has already sent {budget.max_tests_per_dataset} claims to the "
+                        "gateway on this dataset, which is the limit."
+                    )
                 try:
                     proof = self._verifier(candidate, frame, message_id)
                 except ClaimRefused:
@@ -230,7 +270,7 @@ class ChatService:
                     insight_id=proof.insight_id,
                     claim=candidate.claim,
                     proof=proof,
-                    explanation=rejection_reason(proof),
+                    explanation=_chat_reason(proof),
                     effect_strength=effect_strength(proof),
                     n_permutations=permutation_count(proof),
                     chart=chart,
@@ -243,22 +283,31 @@ class ChatService:
                     if proof.gate_outcome is GateOutcome.NOT_TESTABLE
                     else "rejected"
                 )
-                self.repository.add_test(
-                    LedgerRecord(
-                        test_number=number,
-                        message_id=message_id,
-                        created_at=datetime.now(UTC),
-                        question=question,
-                        claim=candidate.claim,
-                        label=label,
-                        q_value=proof.q_value,
-                        effect_size=proof.effect_size,
-                        effect_metric=proof.effect_metric.value if proof.effect_metric else None,
-                        n=row.complete_rows,
-                    ),
-                    dataset_id,
-                    owner_id,
-                )
+                try:
+                    record = self.repository.add_next_test(
+                        lambda n: LedgerRecord(
+                            test_number=n,
+                            message_id=message_id,
+                            created_at=datetime.now(UTC),
+                            question=question,
+                            claim=candidate.claim,
+                            label=label,
+                            q_value=proof.q_value,
+                            effect_size=proof.effect_size,
+                            effect_metric=(
+                                proof.effect_metric.value if proof.effect_metric else None
+                            ),
+                            n=row.complete_rows,
+                        ),
+                        dataset_id,
+                        owner_id,
+                    )
+                except Exception:
+                    get_logger(component="chat", run_id=str(message_id)).error("ledger_failed")
+                    raise ClaimRefused(
+                        "the test ran but could not be recorded in the ledger, so it is not shown."
+                    ) from None
+                number = record.test_number
                 return ClaimOutcome(
                     label=label,
                     row=row,

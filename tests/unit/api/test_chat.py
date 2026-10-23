@@ -81,7 +81,8 @@ def test_a_claim_goes_through_the_real_gateway_and_is_counted(
         sign_in(client)
         dataset = _upload(client)
         first = client.post(
-            f"/api/datasets/{dataset}/chat", json={"question": "does age raise bp?"}
+            f"/api/datasets/{dataset}/chat",
+            json={"question": "does age_years relate to systolic_bp?"},
         )
         answer = first.json()["answer"]
         # The planted age/blood-pressure relationship must pass the real permutation test.
@@ -97,7 +98,9 @@ def test_a_claim_goes_through_the_real_gateway_and_is_counted(
             "corrected_for_earlier_tests": False,
         }
         assert "not corrected" in answer["text"]
-        second = client.post(f"/api/datasets/{dataset}/chat", json={"question": "again?"}).json()
+        second = client.post(
+            f"/api/datasets/{dataset}/chat", json={"question": "again: age_years and systolic_bp?"}
+        ).json()
         assert second["answer"]["tested"]["disclosure"]["test_number"] == 2
         assert second["answer"]["tested"]["disclosure"]["earlier_chat_tests"] == 1
         ledger = client.get(f"/api/datasets/{dataset}/chat/tests").json()
@@ -114,7 +117,9 @@ def test_chat_never_writes_to_verified_memory(
     with TestClient(create_app(service=service)) as client:
         sign_in(client)
         dataset = _upload(client)
-        reply = client.post(f"/api/datasets/{dataset}/chat", json={"question": "age and bp?"})
+        reply = client.post(
+            f"/api/datasets/{dataset}/chat", json={"question": "age_years and systolic_bp?"}
+        )
         assert reply.json()["answer"]["kind"] == "verified"
         assert service.store.browse(limit=100) == []
         assert client.get("/api/memory").json() == []
@@ -130,7 +135,9 @@ def test_a_busy_verifier_means_the_claim_is_not_tested(
         dataset = _upload(client)
         assert service.reserve()  # an analysis run holds the only slot
         try:
-            reply = client.post(f"/api/datasets/{dataset}/chat", json={"question": "age and bp?"})
+            reply = client.post(
+                f"/api/datasets/{dataset}/chat", json={"question": "age_years and systolic_bp?"}
+            )
         finally:
             service.release()
         answer = reply.json()["answer"]
@@ -158,7 +165,9 @@ def test_another_account_cannot_read_ask_or_count_anything(
     with _client(tmp_path, Script(CLAIM), monkeypatch) as client:
         sign_in(client, "owner@example.com")
         dataset = _upload(client)
-        client.post(f"/api/datasets/{dataset}/chat", json={"question": "age and bp?"})
+        client.post(
+            f"/api/datasets/{dataset}/chat", json={"question": "age_years and systolic_bp?"}
+        )
         client.cookies.clear()
         sign_in(client, "stranger@example.com")
         base = f"/api/datasets/{dataset}/chat"
@@ -227,3 +236,168 @@ def test_a_row_saved_by_an_older_version_is_shown_as_unreadable_not_fatal(
         assert history[0]["question"] == "an old question"
         assert history[0]["answer"]["kind"] == "unanswered"
         assert "older version" in history[0]["answer"]["text"]
+
+
+# ---- reviewer regressions: concurrency, slot handling and trace binding ----------------------
+def _capped(monkeypatch: pytest.MonkeyPatch, **chat: int) -> None:
+    config = load_workspace_config()
+    capped = config.model_copy(update={"chat": config.chat.model_copy(update=chat)})
+    monkeypatch.setattr("pramana.chat.service.load_workspace_config", lambda: capped)
+
+
+def test_parallel_questions_cannot_beat_the_hourly_cap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reviewer's C7: the cap used to be checked before and written after a slow answer."""
+    import threading
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+    from uuid import UUID
+
+    from pramana.chat.service import ChatRateLimited
+
+    _capped(monkeypatch, max_messages_per_hour=1)
+    answer = json.dumps({"action": "answer", "text": "No.", "cites": []})
+
+    def slow(_messages: Sequence[ChatMessage]) -> Completion:
+        time.sleep(0.4)
+        return Completion(content=answer, input_tokens=10, output_tokens=5)
+
+    monkeypatch.setenv("PRAMANA_VERIFICATION_GENERATOR", "template")
+    service = service_for(tmp_path, chat=slow)
+    with TestClient(create_app(service=service)) as client:
+        sign_in(client)
+        dataset = UUID(_upload(client))
+        owner = UUID(client.get("/api/auth/me").json()["user_id"])
+        outcomes: list[str] = []
+        lock = threading.Lock()
+
+        def one() -> None:
+            try:
+                service.chat.ask(dataset, owner, "anything")
+                result = "answered"
+            except ChatRateLimited:
+                result = "limited"
+            with lock:
+                outcomes.append(result)
+
+        with ThreadPoolExecutor(6) as pool:
+            for _ in range(6):
+                pool.submit(one)
+        assert sorted(outcomes) == ["answered"] + ["limited"] * 5
+
+
+def test_ledger_numbers_stay_unique_when_writers_collide(tmp_path: Path) -> None:
+    """The reviewer's C8: a test that already ran must still be counted, never lost."""
+    from concurrent.futures import ThreadPoolExecutor
+    from datetime import UTC, datetime
+    from uuid import uuid4
+
+    from pramana.chat.models import LedgerRecord
+    from pramana.chat.store import ChatRepository
+
+    repository = ChatRepository(tmp_path / "chat.sqlite3")
+    dataset, owner = uuid4(), uuid4()
+
+    def record(number: int) -> LedgerRecord:
+        return LedgerRecord(
+            test_number=number,
+            message_id=uuid4(),
+            created_at=datetime.now(UTC),
+            question="q",
+            claim="c",
+            label="rejected",
+        )
+
+    with ThreadPoolExecutor(8) as pool:
+        saved = list(
+            pool.map(lambda _i: repository.add_next_test(record, dataset, owner), range(24))
+        )
+    assert sorted(r.test_number for r in saved) == list(range(1, 25))
+    assert [r.test_number for r in repository.tests(dataset, owner)] == list(range(1, 25))
+
+
+def test_the_per_dataset_test_limit_stops_further_gateway_calls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _capped(monkeypatch, max_tests_per_dataset=1)
+    with _client(tmp_path, Script(CLAIM, CLAIM), monkeypatch) as client:
+        sign_in(client)
+        dataset = _upload(client)
+        base = f"/api/datasets/{dataset}/chat"
+        question = {"question": "does age_years relate to systolic_bp?"}
+        assert client.post(base, json=question).json()["answer"]["kind"] == "verified"
+        second = client.post(base, json=question).json()["answer"]
+        assert second["kind"] == "not_tested" and "limit" in second["text"]
+        assert client.get(base + "/tests").json()["chat_tests"] == 1
+
+
+def test_the_run_slot_is_handed_back_after_a_crashing_verifier(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(*_args: object) -> object:
+        raise RuntimeError("sk-secret-key participant-name")
+
+    monkeypatch.setenv("PRAMANA_VERIFICATION_GENERATOR", "template")
+    service = service_for(tmp_path, chat=Script(CLAIM), chat_verifier=broken)
+    with TestClient(create_app(service=service)) as client:
+        sign_in(client)
+        dataset = _upload(client)
+        reply = client.post(
+            f"/api/datasets/{dataset}/chat",
+            json={"question": "does age_years relate to systolic_bp?"},
+        )
+        assert reply.status_code == 200 and reply.json()["answer"]["kind"] == "not_tested"
+        assert "sk-secret" not in reply.text and "participant" not in reply.text
+        assert service.reserve(), "the slot must not leak when the verifier crashes"
+        service.release()
+
+
+def test_the_model_written_test_code_is_traced_under_the_message_uuid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The llm generator reads its trace id from logging context; chat must set it."""
+    seen: list[str] = []
+
+    def spy(*_args: object, **kwargs: object) -> object:
+        seen.append(str(kwargs["run_id"]))
+        raise RuntimeError("no network in tests")
+
+    monkeypatch.setattr("pramana.verification.falsification.generator.complete_chat", spy)
+    monkeypatch.setenv("PRAMANA_VERIFICATION_GENERATOR", "llm")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "not-a-real-key")
+    service = service_for(tmp_path, chat=Script(CLAIM))
+    with TestClient(create_app(service=service)) as client:
+        sign_in(client)
+        dataset = _upload(client)
+        reply = client.post(
+            f"/api/datasets/{dataset}/chat",
+            json={"question": "does age_years relate to systolic_bp?"},
+        ).json()
+    assert seen == [reply["message_id"]]
+    assert reply["answer"]["kind"] == "not_tested"
+    assert "Nothing was marked verified" in reply["answer"]["text"]
+
+
+def test_a_non_significant_chat_claim_is_not_described_as_corrected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A chat test is a family of one, so 'after correction for multiple tests' would be false."""
+    from pramana.contracts import GateOutcome
+    from tests.unit.memory.test_store import _proof
+
+    def inconclusive(candidate, _frame, _message_id):  # noqa: ANN001
+        return _proof(candidate.insight_id, GateOutcome.INCONCLUSIVE)
+
+    monkeypatch.setenv("PRAMANA_VERIFICATION_GENERATOR", "template")
+    service = service_for(tmp_path, chat=Script(CLAIM), chat_verifier=inconclusive)
+    with TestClient(create_app(service=service)) as client:
+        sign_in(client)
+        dataset = _upload(client)
+        reply = client.post(
+            f"/api/datasets/{dataset}/chat",
+            json={"question": "does age_years relate to systolic_bp?"},
+        ).json()["answer"]
+    assert reply["kind"] == "rejected"
+    assert "single test" in reply["text"] and "after correction" not in reply["text"]
+    assert "single test" in reply["tested"]["row"]["explanation"]

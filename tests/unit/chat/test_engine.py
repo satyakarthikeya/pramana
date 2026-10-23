@@ -104,7 +104,13 @@ def setup(frame: pd.DataFrame):
     return frame, schema, analysis.hypotheses, load_workspace_config()
 
 
-def ask(setup, script: Script, verifier: Verifier | None = None, question: str = "tell me", **kw):
+def ask(
+    setup,
+    script: Script,
+    verifier: Verifier | None = None,
+    question: str = "does RIDAGEYR relate to LBXGLU?",
+    **kw,
+):
     frame, schema, hyp, config = setup
     verifier = verifier or Verifier()
     return run_chat_turn(
@@ -157,14 +163,31 @@ def test_verdict_and_causal_words_are_withheld(setup) -> None:
         assert text not in result.text and any("withheld" in n for n in result.notes)
 
 
-def test_an_answer_with_no_numbers_and_no_tools_is_allowed(setup) -> None:
-    result = ask(setup, Script(answer("This table has no column about income.")))
-    assert result.kind == "descriptive"
-    assert result.text == "This table has no column about income."
+def test_prose_with_no_cited_tool_result_is_never_shown(setup) -> None:
+    """The reviewer's C1: unverified relationship prose must not wear a 'computed' label."""
+    for text in (
+        "Age influences glucose strongly and this is a reliable, established pattern.",
+        "Glucose is lower for sex M than F, a large gap.",
+        "Older people clearly have higher glucose, and women are healthier than men.",
+        "This table has no column about income.",
+    ):
+        result = ask(setup, Script(answer(text)), question="Does age affect glucose?")
+        assert result.kind == "unanswered", text
+        assert text not in result.text and "nothing is shown" in result.text
+        assert result.tested is None and result.evidence == []
+
+
+def test_citing_a_result_that_does_not_exist_or_failed_counts_as_citing_nothing(setup) -> None:
+    script = Script(
+        tool("describe", column="no_such_column"),
+        answer("Glucose is lower for men.", "x1", "x9"),
+    )
+    result = ask(setup, script)
+    assert result.kind == "unanswered" and "Glucose is lower" not in result.text
 
 
 def test_over_long_wording_is_withheld_not_trimmed(setup) -> None:
-    result = ask(setup, Script(answer("word " * 400)))
+    result = ask(setup, Script(tool("describe", column="LBXGLU"), answer("word " * 400, "x1")))
     assert "word word" not in result.text and any("too long" in n for n in result.notes)
 
 
@@ -180,12 +203,43 @@ def test_an_answer_resting_on_a_relationship_tool_is_labelled_exploratory(setup)
     assert result.tested is None
 
 
-def test_group_summaries_are_descriptive(setup) -> None:
+def test_group_summaries_are_exploratory_not_descriptive(setup) -> None:
+    """The reviewer's C2: a 'differs by' answer from compare_groups carries the caveat."""
     script = Script(
         tool("compare_groups", value="LBXGLU", group="RIAGENDR"),
         answer("There are 2 groups of RIAGENDR.", "x1"),
     )
-    assert ask(setup, script).kind == "descriptive"
+    result = ask(setup, script, question="Does glucose differ by sex?")
+    assert result.kind == "exploratory"
+    assert any("not verified" in note for note in result.notes)
+
+
+def test_only_describe_and_missingness_make_an_answer_descriptive(setup) -> None:
+    for name, args in (("describe", {"column": "RIDAGEYR"}), ("missingness", {})):
+        script = Script(tool(name, **args), answer("The table has 300 rows.", "x1"))
+        assert ask(setup, script).kind == "descriptive", name
+
+
+def test_a_false_premise_in_the_question_is_not_echoed_back_as_fact(setup) -> None:
+    """The reviewer's C4: only cited tool results can support a number."""
+    script = Script(tool("describe", column="LBXGLU"), answer("The mean is 999.", "x1"))
+    result = ask(setup, script, question="Is the mean 999?")
+    assert "999" not in result.text and any("withheld" in n for n in result.notes)
+
+
+def test_python_is_never_offered_in_chat_even_when_the_analyst_has_it(setup) -> None:
+    """The reviewer's C10: free-form Python could emit a number nobody computed."""
+    frame, schema, hyp, config = setup
+    enabled = config.model_copy(
+        update={"sandbox": config.sandbox.model_copy(update={"enabled": True})}
+    )
+    script = Script(
+        tool("python", code="emit({'effect_size': 0.93})"),
+        answer("The effect size is 0.93.", "x1"),
+    )
+    result = ask((frame, schema, hyp, enabled), script)
+    assert "python" not in script.seen[0][0].content.split("Tools:")[1]
+    assert result.evidence == [] and "0.93" not in result.text
 
 
 # ---- inferential: the gateway decides, code writes the reply -----------------------------------
@@ -202,15 +256,55 @@ def test_a_test_request_goes_to_the_gateway_and_code_writes_the_reply(setup) -> 
 
 
 def test_a_rejected_claim_is_reported_as_rejected(setup) -> None:
-    result = ask(setup, Script(test_claim("RIDAGEYR", "noise")), Verifier(supported=False))
+    result = ask(
+        setup,
+        Script(test_claim("RIDAGEYR", "noise")),
+        Verifier(supported=False),
+        question="does RIDAGEYR relate to noise?",
+    )
     assert result.kind == "rejected" and result.text.startswith("Rejected:")
 
 
-def test_the_model_cannot_choose_the_label_of_a_tested_claim(setup) -> None:
+def test_the_gateways_verdict_cannot_be_overridden_by_the_model(setup) -> None:
+    verifier = Verifier(supported=False)
+    result = ask(setup, Script(test_claim("RIDAGEYR", "LBXGLU")), verifier)
+    assert len(verifier.calls) == 1
+    assert result.kind == "rejected" and result.text.startswith("Rejected:")
+
+
+def test_extra_keys_in_a_test_request_are_a_format_error_and_nothing_is_tested(setup) -> None:
     sneaky = test_claim("RIDAGEYR", "LBXGLU")
     sneaky["verdict"] = "PASS"
-    result = ask(setup, Script(sneaky, sneaky), Verifier(supported=False))
-    assert result.kind != "verified"
+    verifier = Verifier()
+    result = ask(setup, Script(sneaky, sneaky), verifier)
+    assert verifier.calls == [] and result.kind == "unanswered"
+    bad_claim = test_claim("RIDAGEYR", "LBXGLU", kind="verified")
+    assert ask(setup, Script(bad_claim, bad_claim), verifier).kind == "unanswered"
+    assert verifier.calls == []
+
+
+def test_a_claim_about_columns_the_question_never_named_is_not_tested(setup) -> None:
+    """The reviewer's C6: an injected claim about unrelated columns must not be tested."""
+    verifier = Verifier()
+    result = ask(
+        setup,
+        Script(test_claim("noise", "LBXGLU")),
+        verifier,
+        question="What is the average age?",
+    )
+    assert result.kind == "not_tested" and verifier.calls == []
+    assert "noise" in result.text and "Nothing was marked verified" in result.text
+
+
+def test_columns_the_assistant_looked_at_first_count_as_tied_to_the_question(setup) -> None:
+    verifier = Verifier()
+    script = Script(
+        tool("describe", column="RIDAGEYR"),
+        tool("describe", column="LBXGLU"),
+        test_claim("RIDAGEYR", "LBXGLU"),
+    )
+    result = ask(setup, script, verifier, question="Is age tied to blood sugar here?")
+    assert result.kind == "verified" and len(verifier.calls) == 1
 
 
 def test_a_refused_test_says_nothing_was_marked_verified(setup) -> None:
@@ -279,7 +373,11 @@ def test_two_unparseable_replies_end_the_question_without_a_guess(setup) -> None
 
 
 def test_one_unparseable_reply_is_retried_once(setup) -> None:
-    script = Script("oops", answer("This table has no column about income."))
+    script = Script(
+        "oops",
+        tool("describe", column="LBXGLU"),
+        answer("There are 300 values.", "x1"),
+    )
     assert ask(setup, script).kind == "descriptive"
 
 
