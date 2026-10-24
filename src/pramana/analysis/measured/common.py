@@ -83,10 +83,6 @@ def withheld_item(
     )
 
 
-def finite(values: list[float]) -> list[float]:
-    return [v for v in values if v is not None and math.isfinite(v)]
-
-
 def sd(values: list[float]) -> float:
     """Sample standard deviation; 0 for fewer than two values."""
     return float(np.std(values, ddof=1)) if len(values) > 1 else 0.0

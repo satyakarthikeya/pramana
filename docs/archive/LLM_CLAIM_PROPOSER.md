@@ -2,7 +2,7 @@
 
 **Historical implementation record.** On 21 October 2026 the user requested
 DeepSeek-only inference. The Ollama path described below has been removed.
-Use [DEEPSEEK_ONLY_TODO.md](DEEPSEEK_ONLY_TODO.md) and the root README for current
+Use [DEEPSEEK_ONLY_TODO.md](../team/DEEPSEEK_ONLY_TODO.md) and the root README for current
 setup. Both hosted roles now use the shared run-traced transport; hosted analysis
 does not inherit the old local-only Langfuse exception. Its bounded summary prompt
 is traced (no raw rows), with exact response auditing under the run ID.

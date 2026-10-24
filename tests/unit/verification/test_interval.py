@@ -70,10 +70,20 @@ def test_a_passing_claim_carries_an_interval_and_a_rejected_one_does_not() -> No
     rng = np.random.default_rng(6)
     frame = _pairs(rng, 120).assign(noise=rng.normal(size=120))
     claims = [
-        candidate("t", "y is positively associated with x", ClaimType.CORRELATION, ["x", "y"],
-                  direction=Direction.POSITIVE),
-        candidate("f", "noise is positively associated with x", ClaimType.CORRELATION,
-                  ["x", "noise"], direction=Direction.POSITIVE),
+        candidate(
+            "t",
+            "y is positively associated with x",
+            ClaimType.CORRELATION,
+            ["x", "y"],
+            direction=Direction.POSITIVE,
+        ),
+        candidate(
+            "f",
+            "noise is positively associated with x",
+            ClaimType.CORRELATION,
+            ["x", "noise"],
+            direction=Direction.POSITIVE,
+        ),
     ]
     proofs = {p.insight_id: p for p in verify_batch(claims, frame, load_pinned_config())}
     assert proofs["t"].effect_interval is not None and proofs["t"].effect_interval.low > 0.4
@@ -82,8 +92,12 @@ def test_a_passing_claim_carries_an_interval_and_a_rejected_one_does_not() -> No
 
 def test_a_proof_stored_before_these_fields_still_loads() -> None:
     old = {
-        "insight_id": "x", "verdict": "REJECT", "gate_outcome": "not_testable",
-        "bh_family_id": "fam", "seed": 1, "failure_reason": "too few rows",
+        "insight_id": "x",
+        "verdict": "REJECT",
+        "gate_outcome": "not_testable",
+        "bh_family_id": "fam",
+        "seed": 1,
+        "failure_reason": "too few rows",
     }
     proof = ProofObject.model_validate(old)
     assert proof.effect_interval is None and proof.power is None

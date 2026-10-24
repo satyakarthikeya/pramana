@@ -90,7 +90,9 @@ def collapse_table() -> pd.DataFrame:
     rows = _grid("2023-01", "2024-12", ("Denmark", "France", "Spain", "South", "Italy"), ("Core",))
     for r in rows:
         year2 = r["month"] >= "2024-01"
-        level = {"Denmark": 0.2 if year2 else 1.0, "South": 1.3 if year2 else 1.0}.get(r["region"], 1.0)
+        level = {"Denmark": 0.2 if year2 else 1.0, "South": 1.3 if year2 else 1.0}.get(
+            r["region"], 1.0
+        )
         r["revenue"] = 1000 * level * rng.uniform(0.97, 1.03)
         r["cost"] = r["revenue"] * 0.6
     return pd.DataFrame(rows)
@@ -153,9 +155,7 @@ def _season_in_q4(items: list[ExactItem]) -> bool:
 
 def _spike_listed(items: list[ExactItem]) -> bool:
     return any(
-        (row.get("times_median") or 0) > 4
-        for i in _of(items, "outliers")
-        for row in i.table
+        (row.get("times_median") or 0) > 4 for i in _of(items, "outliers") for row in i.table
     )
 
 
@@ -179,23 +179,48 @@ def _price_vs_volume(items: list[ExactItem]) -> bool:
 
 
 def _top_customers(items: list[ExactItem]) -> bool:
-    return any(0.35 <= (i.values.get("top_n_share") or 0) <= 0.65 for i in _of(items, "customer_view"))
+    return any(
+        0.35 <= (i.values.get("top_n_share") or 0) <= 0.65 for i in _of(items, "customer_view")
+    )
 
 
 CASES = [
-    Case("margin falls on one product", margin_table, [Fact("Lite margin fall named", _margin_names_lite)],
-         frozenset({"margins", "period_change"})),
-    Case("Q4 is 35% higher", season_table, [Fact("Q4 peak found", _season_in_q4)],
-         frozenset({"seasonality"})),
-    Case("one row six times too large", spike_table, [Fact("inflated row listed", _spike_listed)],
-         frozenset({"outliers"})),
-    Case("one segment collapses, one grows", collapse_table,
-         [Fact("collapse named", _collapse_named), Fact("fastest grower named", _fastest_grower)],
-         frozenset({"variance_decomposition", "segment_growth", "period_change"})),
-    Case("price up, volume down", price_volume_table, [Fact("price vs volume split", _price_vs_volume)],
-         frozenset({"price_volume_mix", "period_change", "variance_decomposition"})),
-    Case("ten customers make half", customer_table, [Fact("top-customer share found", _top_customers)],
-         frozenset({"customer_view", "concentration"})),
+    Case(
+        "margin falls on one product",
+        margin_table,
+        [Fact("Lite margin fall named", _margin_names_lite)],
+        frozenset({"margins", "period_change"}),
+    ),
+    Case(
+        "Q4 is 35% higher",
+        season_table,
+        [Fact("Q4 peak found", _season_in_q4)],
+        frozenset({"seasonality"}),
+    ),
+    Case(
+        "one row six times too large",
+        spike_table,
+        [Fact("inflated row listed", _spike_listed)],
+        frozenset({"outliers"}),
+    ),
+    Case(
+        "one segment collapses, one grows",
+        collapse_table,
+        [Fact("collapse named", _collapse_named), Fact("fastest grower named", _fastest_grower)],
+        frozenset({"variance_decomposition", "segment_growth", "period_change"}),
+    ),
+    Case(
+        "price up, volume down",
+        price_volume_table,
+        [Fact("price vs volume split", _price_vs_volume)],
+        frozenset({"price_volume_mix", "period_change", "variance_decomposition"}),
+    ),
+    Case(
+        "ten customers make half",
+        customer_table,
+        [Fact("top-customer share found", _top_customers)],
+        frozenset({"customer_view", "concentration"}),
+    ),
 ]
 
 
@@ -225,7 +250,14 @@ def score(top: int = TOP) -> dict:
         fact_total += len(facts)
         other += len(off)
         listed += len(lead)
-        rows.append({"table": case.name, "facts": facts, "lead_kinds": [i.kind for i in lead], "off_topic": off})
+        rows.append(
+            {
+                "table": case.name,
+                "facts": facts,
+                "lead_kinds": [i.kind for i in lead],
+                "off_topic": off,
+            }
+        )
     return {
         "top": top,
         "recall": found_total / fact_total,

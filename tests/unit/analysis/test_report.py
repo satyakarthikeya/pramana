@@ -139,7 +139,7 @@ def test_template_summary_uses_code_sentences(finance: ComputedAnalysis) -> None
         assert line.text == ids[line.item_id].sentence
     # the story leads with what happened, then why it moved
     assert summary.lines[0].item_id.startswith("period_change")
-    assert any(l.item_id.startswith("variance_decomposition") for l in summary.lines)
+    assert any(ln.item_id.startswith("variance_decomposition") for ln in summary.lines)
 
 
 def test_model_summary_is_kept_when_every_number_checks_out(finance: ComputedAnalysis) -> None:

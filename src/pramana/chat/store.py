@@ -117,23 +117,6 @@ class ChatRepository:
             ).fetchone()
         return int(row[0])
 
-    def add_test(self, record: LedgerRecord, dataset_id: UUID, owner_id: UUID) -> None:
-        """Record one gateway test. The unique number makes a double count impossible."""
-        with self._connect() as connection:
-            connection.execute(
-                "INSERT INTO chat_tests "
-                "(message_id, dataset_id, owner_id, test_number, created_at, record_json) "
-                "VALUES (?,?,?,?,?,?)",
-                (
-                    str(record.message_id),
-                    str(dataset_id),
-                    str(owner_id),
-                    record.test_number,
-                    record.created_at.isoformat(),
-                    record.model_dump_json(),
-                ),
-            )
-
     def add_next_test(
         self,
         make: Callable[[int], LedgerRecord],

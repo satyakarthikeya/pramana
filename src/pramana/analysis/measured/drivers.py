@@ -30,9 +30,9 @@ from sklearn.ensemble import (
 from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.metrics import balanced_accuracy_score, r2_score
 from sklearn.model_selection import GridSearchCV
+from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.svm import SVC, SVR
 
 from pramana.analysis.computed.charts import Bar, BarChart

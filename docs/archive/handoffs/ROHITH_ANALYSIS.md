@@ -148,7 +148,7 @@ The table records component status; `SCOPE_P_Rohith.md` §4 gives the build orde
 
 ## Cross-module note
 
-`src/pramana/analysis/` belongs to P. Rohith (`OWNERSHIP.md`). Schema inference
+`src/pramana/analysis/` belongs to P. Rohith (`src/pramana/analysis/OWNERSHIP.md`). Schema inference
 and `CandidateInsight` generation were built by P.P. Satya Karthikeya by team
 agreement, recorded in the two commit messages that introduced them, and are
 pending Rohith's review (`AGENTS.md` §8.10). Points worth his attention are

@@ -43,7 +43,9 @@ def test_no_note_for_tiny_samples_or_unsupported_metrics() -> None:
 
 
 def test_effective_sample_follows_the_scheme() -> None:
-    kwargs = dict(n_observations=200, n_periods=20, n_entities=8, groups=None, alpha=0.05, power=0.8)
+    kwargs = dict(
+        n_observations=200, n_periods=20, n_entities=8, groups=None, alpha=0.05, power=0.8
+    )
     free = power_note(EffectMetric.SPEARMAN_RHO, PermutationScheme.FREE, **kwargs)
     strat = power_note(EffectMetric.SPEARMAN_RHO, PermutationScheme.STRATIFIED, **kwargs)
     cluster = power_note(EffectMetric.SPEARMAN_RHO, PermutationScheme.CLUSTER, **kwargs)

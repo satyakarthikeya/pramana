@@ -225,7 +225,9 @@ def run_segments(
         z = ((members.mean() - overall_mean) / overall_sd).dropna()
         top = z.reindex(z.abs().sort_values(ascending=False).index).iloc[:2]
         stands_out = ", ".join(
-            f"{'high' if v > 0 else 'low'} {c} ({v:+.1f} sd)" for c, v in top.items() if abs(v) >= 0.3
+            f"{'high' if v > 0 else 'low'} {c} ({v:+.1f} sd)"
+            for c, v in top.items()
+            if abs(v) >= 0.3
         )
         share_money = (
             float(members[money].clip(lower=0).sum() / original[money].clip(lower=0).sum() * 100)
@@ -234,7 +236,13 @@ def run_segments(
         )
         shown_z = [float(v) for v in top.values if abs(v) >= 0.3]
         profiles.append(
-            (f"Segment {rank}", float(sizes[cluster] / len(scaled) * 100), share_money, stands_out, shown_z)
+            (
+                f"Segment {rank}",
+                float(sizes[cluster] / len(scaled) * 100),
+                share_money,
+                stands_out,
+                shown_z,
+            )
         )
         extra = {f"share of {money} (%)": share_money} if money else {}
         table.append(

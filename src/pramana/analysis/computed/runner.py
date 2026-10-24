@@ -145,12 +145,18 @@ def _not_run(kind: str, reason: str, column: str | None = None) -> ExactItem:
 _FISCAL_NAME = re.compile(r"fiscal|financial|(?:^|[^a-z])fy(?:[^a-z]|$)")
 
 
-def _fiscal_names(ctx: Context, current: list[object], previous: list[object]) -> tuple[str, str] | None:
+def _fiscal_names(
+    ctx: Context, current: list[object], previous: list[object]
+) -> tuple[str, str] | None:
     """Names for two windows from the table's own fiscal-year column, when each window is
     exactly one of its labels (so "FY2025" is said only when the rows say it)."""
     assert ctx.keys is not None
     column = next(
-        (c for c in ctx.frame.columns if _FISCAL_NAME.search(str(c).lower()) and c != ctx.shape.time_column),
+        (
+            c
+            for c in ctx.frame.columns
+            if _FISCAL_NAME.search(str(c).lower()) and c != ctx.shape.time_column
+        ),
         None,
     )
     if column is None:
@@ -777,7 +783,9 @@ def _rolling_seasonality(ctx: Context, period: str, length: int, needed: int) ->
         ok = ~np.isnan(ratio)
         by_position = pd.Series(ratio[ok]).groupby(position[ok]).mean()
         if len(by_position) < length:
-            items.append(_not_run("seasonality", f"Too few {period}s to place every position.", column))
+            items.append(
+                _not_run("seasonality", f"Too few {period}s to place every position.", column)
+            )
             continue
         idx = by_position / by_position.mean()
         counts = pd.Series(position[ok]).value_counts()
@@ -792,7 +800,8 @@ def _rolling_seasonality(ctx: Context, period: str, length: int, needed: int) ->
                 id=f"seasonality:{column}",
                 kind="seasonality",
                 title=TITLES["seasonality"],
-                sentence=f"Over the last {len(run)} {period}s ({run[0]} to {run[-1]}), {name(peak)} "
+                sentence=f"Over the last {len(run)} {period}s ({run[0]} to {run[-1]}), "
+                f"{name(peak)} "
                 f"{column} runs {float(idx[peak]):.2f} times the usual level for the year; "
                 f"{name(low)} is lowest at {float(idx[low]):.2f}. Each {period} was seen "
                 f"{seen} time{'s' if seen != 1 else ''}.",

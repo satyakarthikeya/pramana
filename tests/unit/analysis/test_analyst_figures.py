@@ -10,7 +10,12 @@ import pandas as pd
 import pytest
 
 from pramana.analysis import infer_schema, load_config
-from pramana.analysis.computed import ComputedAnalysis, ExactItem, compute_analysis, load_computed_config
+from pramana.analysis.computed import (
+    ComputedAnalysis,
+    ExactItem,
+    compute_analysis,
+    load_computed_config,
+)
 
 
 def _run(frame: pd.DataFrame) -> ComputedAnalysis:
@@ -47,7 +52,9 @@ def _monthly(rows_by_year: dict[int, dict[str, tuple[float, float]]]) -> pd.Data
 def test_price_volume_mix_matches_the_hand_calculation() -> None:
     # Year 1: A 10 units/month at 10, B 10 at 20. Year 2: A 15 at 11, B 5 at 20.
     # Totals: Q0 = Q1 = 240, R0 = 3600, R1 = 3180.
-    frame = _monthly({2023: {"A": (10, 10.0), "B": (10, 20.0)}, 2024: {"A": (15, 11.0), "B": (5, 20.0)}})
+    frame = _monthly(
+        {2023: {"A": (10, 10.0), "B": (10, 20.0)}, 2024: {"A": (15, 11.0), "B": (5, 20.0)}}
+    )
     item = _item(_run(frame), "price_volume_mix")
     v = item.values
     assert v["total_change"] == pytest.approx(-420.0)
@@ -55,9 +62,9 @@ def test_price_volume_mix_matches_the_hand_calculation() -> None:
     assert v["mix_effect"] == pytest.approx(-600.0)
     assert v["price_effect"] == pytest.approx(180.0)
     assert v["other_effect"] == pytest.approx(0.0)
-    assert v["volume_effect"] + v["mix_effect"] + v["price_effect"] + v["other_effect"] == pytest.approx(
-        v["total_change"]
-    )
+    assert v["volume_effect"] + v["mix_effect"] + v["price_effect"] + v[
+        "other_effect"
+    ] == pytest.approx(v["total_change"])
 
 
 def test_a_segment_in_only_one_window_is_reported_on_its_own_line() -> None:
@@ -67,13 +74,15 @@ def test_a_segment_in_only_one_window_is_reported_on_its_own_line() -> None:
     assert v["segments_in_one_window"] == 1
     assert v["other_effect"] == pytest.approx(12 * 4 * 5.0)  # all of C's revenue
     assert v["price_effect"] == pytest.approx(12 * 10 * 2.0)  # A: 120 units at +2
-    assert v["volume_effect"] + v["mix_effect"] + v["price_effect"] + v["other_effect"] == pytest.approx(
-        v["total_change"]
-    )
+    assert v["volume_effect"] + v["mix_effect"] + v["price_effect"] + v[
+        "other_effect"
+    ] == pytest.approx(v["total_change"])
 
 
 def test_without_units_the_bridge_says_why_it_did_not_run() -> None:
-    frame = _monthly({2023: {"A": (10, 10.0), "B": (10, 20.0)}, 2024: {"A": (15, 11.0), "B": (5, 20.0)}})
+    frame = _monthly(
+        {2023: {"A": (10, 10.0), "B": (10, 20.0)}, 2024: {"A": (15, 11.0), "B": (5, 20.0)}}
+    )
     result = _run(frame.drop(columns="units"))
     item = _item(result, "price_volume_mix")
     assert item.status == "not_run" and "units" in (item.reason or "")
@@ -85,7 +94,10 @@ def test_without_units_the_bridge_says_why_it_did_not_run() -> None:
 def test_segment_growth_ranks_by_rate_and_leaves_out_a_tiny_base() -> None:
     # A +10%, B -20%, T is under 2% of the earlier total and doubles (not ranked).
     frame = _monthly(
-        {2023: {"A": (10, 10.0), "B": (10, 10.0), "T": (0.1, 10.0)}, 2024: {"A": (11, 10.0), "B": (8, 10.0), "T": (0.2, 10.0)}}
+        {
+            2023: {"A": (10, 10.0), "B": (10, 10.0), "T": (0.1, 10.0)},
+            2024: {"A": (11, 10.0), "B": (8, 10.0), "T": (0.2, 10.0)},
+        }
     )
     item = _item(_run(frame), "segment_growth")
     v = item.values
@@ -103,7 +115,10 @@ def _orders(customer_values: list[str | None], amounts: list[float]) -> pd.DataF
     months = pd.period_range("2023-01", "2024-12", freq="M")
     return pd.DataFrame(
         {
-            "order_date": [months[i % len(months)].to_timestamp().date().isoformat() for i in range(len(amounts))],
+            "order_date": [
+                months[i % len(months)].to_timestamp().date().isoformat()
+                for i in range(len(amounts))
+            ],
             "customer_id": customer_values,
             "region": ["N" if i % 2 else "S" for i in range(len(amounts))],
             "revenue": amounts,
@@ -145,7 +160,12 @@ def test_seasonality_works_on_a_financial_year_table_with_growth() -> None:
         level = 1000 * 1.01**i * (1.5 if month.month == 12 else 1.0)
         for region in ("N", "S"):
             rows.append(
-                {"month": month.to_timestamp().date().isoformat(), "region": region, "revenue": level / 2, "cost": level * 0.3}
+                {
+                    "month": month.to_timestamp().date().isoformat(),
+                    "region": region,
+                    "revenue": level / 2,
+                    "cost": level * 0.3,
+                }
             )
     item = _item(_run(pd.DataFrame(rows)), "seasonality")
     revenue = [i for i in _run(pd.DataFrame(rows)).items if i.id == "seasonality:revenue"][0]
@@ -180,7 +200,9 @@ def test_seasonality_with_a_gap_uses_only_the_run_ending_at_the_latest_month() -
 
 
 def _finance() -> ComputedAnalysis:
-    frame = _monthly({2023: {"A": (10, 10.0), "B": (10, 20.0)}, 2024: {"A": (15, 11.0), "B": (5, 20.0)}})
+    frame = _monthly(
+        {2023: {"A": (10, 10.0), "B": (10, 20.0)}, 2024: {"A": (15, 11.0), "B": (5, 20.0)}}
+    )
     return _run(frame)
 
 
@@ -225,7 +247,9 @@ def test_a_numeric_customer_id_prints_without_a_decimal() -> None:
 def _rfm_orders() -> pd.DataFrame:
     """60 customers over 12 months: 20 buy every month, 20 stop after month 9, 20 buy once
     in month 1. Everyone spends 100 a month."""
-    months = [m.to_timestamp().date().isoformat() for m in pd.period_range("2024-01", "2024-12", freq="M")]
+    months = [
+        m.to_timestamp().date().isoformat() for m in pd.period_range("2024-01", "2024-12", freq="M")
+    ]
     rows = []
     for i in range(60):
         active = months if i < 20 else months[:9] if i < 40 else months[:1]

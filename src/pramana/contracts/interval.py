@@ -34,7 +34,7 @@ class EffectInterval(BaseModel):
     n_resamples: int = Field(ge=1)
 
     @model_validator(mode="after")
-    def _ordered(self) -> "EffectInterval":
+    def _ordered(self) -> EffectInterval:
         if self.low > self.high:
             raise ValueError("low must not exceed high")
         return self

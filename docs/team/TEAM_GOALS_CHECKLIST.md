@@ -1,12 +1,14 @@
 # PRAMANA team goals and acceptance checklist
 
+> **Historical snapshot.** Current project status is in [STATUS.md](../../STATUS.md). Figures and branch names below are from the date of writing and may be out of date.
+
 **21 October provider migration:** DeepSeek-only implementation and live testing
 are tracked separately in [DEEPSEEK_ONLY_TODO.md](DEEPSEEK_ONLY_TODO.md).
 Earlier Gemma acceptance below is historical evidence, not evidence of the new
 provider profile. No live DeepSeek/website acceptance is claimed until that new
 checklist records it.
 
-Live update: [DEEPSEEK_LIVE_TEST_LOG.md](DEEPSEEK_LIVE_TEST_LOG.md) records real
+Live update: [DEEPSEEK_LIVE_TEST_LOG.md](../evidence/DEEPSEEK_LIVE_TEST_LOG.md) records real
 DeepSeek smoke, two browser journeys, group/trend execution, 14 exact program
 replays and remote Langfuse readback. Final post-fix suite: **781 passed**.
 One additional shuffled-decoy coverage assertion failed because the model omitted
@@ -15,14 +17,14 @@ that candidate; this is disclosed, not silently counted as a passed check.
 V1 follow-up: the local application/software tasks are implemented and tested on
 `feat/b-karthikeya/v1-product`: **771 tests passed**; two actual headless browser
 journeys, exports, hints and PASS-only real memory passed. See
-[V1 task status](../V1.md) and [V1 evidence/remaining release gates](V1_TEST_LOG.md).
+[V1 task status](../V1.md) and [V1 evidence/remaining release gates](../evidence/V1_TEST_LOG.md).
 The broader goals below include work explicitly outside V1. Review/second-machine,
 paid-provider and human report/freeze gates are not implied complete.
 
 Audited: 20 October 2026. Checkout: `feat/b-karthikeya/workflow-followup`,
 based on refreshed `origin/main` at `2707af0` (gateway PR #21 merged).
 Earlier workflow PR #20 is merged. Ownership follows `PROJECT.md` section 4,
-`OWNERSHIP.md`, `SCOPE.md` and the three member scope files.
+the `OWNERSHIP.md` file in each module folder and `SCOPE.md` (the per-member scope files have been removed).
 
 This is an engineering handoff, not capstone report prose. A checked box means
 implemented in this checkout with the stated evidence. An unchecked box means
@@ -95,7 +97,7 @@ Scope: system architecture, workflow, common utilities and local Docker.
 
 Evidence: `tests/unit/orchestration/`, `tests/integration/test_episode_workflow.py`,
 `tests/integration/test_native_analysis_workflow.py`,
-[workflow handoff](../handoffs/B_KARTHIKEYA_COMPLETION.md), [testing phase](TESTING_PHASE.md).
+[workflow handoff](../archive/handoffs/B_KARTHIKEYA_COMPLETION.md), [testing phase](TESTING_PHASE.md).
 Your local functional workflow works; your complete tracing/model-client
 acceptance boundary is not yet closed.
 
@@ -122,14 +124,14 @@ Scope: dataset preparation, schema, proposals, prioritization and curation.
   are not implemented in this checkout; keep optional scope explicit.
 - [x] Benchmark pilot and 40-extract curation, provenance and per-dataset
   contamination screening are merged (PRs #16/#17). See
-  [40-extract evidence](../handoffs/BENCHMARK_40_HANDOFF.md); raw data remains ignored.
+  [40-extract evidence](../archive/handoffs/BENCHMARK_40_HANDOFF.md); raw data remains ignored.
 - [ ] W11: demonstrate that the actual LLM proposes the NHANES demo's intended
   decoy and the gateway rejects it while real relationships survive. Synthetic
   Gemma smoke acceptance is not evidence for this specific NHANES demonstration.
 
 Evidence: `tests/unit/analysis/`, `tests/integration/test_analysis_handlers.py`,
 `tests/integration/test_candidate_generation_clears_admissibility.py`,
-`tests/integration/test_llm_claims_gateway.py`, [proposer guide](LLM_CLAIM_PROPOSER.md).
+`tests/integration/test_llm_claims_gateway.py`, [proposer guide](../archive/LLM_CLAIM_PROPOSER.md).
 
 ## P.P. Satya Karthikeya — CB.AI.U4AID23128
 
@@ -177,7 +179,7 @@ Evidence: `tests/unit/contracts/`, `tests/unit/verification/`,
 
 Scope: verified memory, API, dashboard and deployment. The memory/API implementation
 in this checkout comes from Rohith's published dependency branch; module ownership
-and required review remain as recorded in `OWNERSHIP.md`.
+and required review remain as recorded in each module's `OWNERSHIP.md`.
 
 - [x] Validated lesson schema, complete source proof, fingerprint and provenance.
 - [x] Guarded single write boundary; rejected batches refused, with tests against
@@ -202,7 +204,7 @@ and required review remain as recorded in `OWNERSHIP.md`.
 - [x] Memory/API PR #18 is merged; cloud deployment sign-off is still outstanding.
 
 Evidence: `tests/unit/memory/`, `tests/unit/api/test_api.py`,
-`src/pramana/dashboard/static/`, [memory/API handoff](../handoffs/KARTHIK_LOCAL_HANDOFF.md).
+`src/pramana/dashboard/static/`, [memory/API handoff](../archive/handoffs/KARTHIK_LOCAL_HANDOFF.md).
 
 ## Team integration, testing and publication
 
