@@ -463,7 +463,8 @@ export type MeasuredKind =
   | "segments"
   | "anomalies"
   | "forecast"
-  | "threshold";
+  | "threshold"
+  | "components";
 export type MeasuredStatus = "ok" | "not_run" | "no_lift" | "withheld";
 export interface Exclusion {
   column: string;

@@ -101,7 +101,7 @@ Rules:
 shape; you cannot change it.
 - tasks: driver_regression (target numeric), driver_classification (target a label), \
 adjusted_association (features[0] is the variable, controls are the columns held fixed, \
-target numeric), segments, anomalies, forecast (target numeric, needs a time column), \
+target numeric), segments, anomalies, components (which numeric columns move together), forecast (target numeric, needs a time column), \
 threshold (features[0] numeric, target numeric). reason_code is one of: strong_signal, \
 suspected_driver, time_structure, unusual_rows, subgroup_structure, adjust_for_control, \
 check_threshold, other. Do not name a column that restates the target (for example a total \
@@ -399,14 +399,14 @@ def _lint_request(
         return "unknown_column", f"{', '.join(sorted(set(unknown)))} is not a column of the table"
     task, target = request.task, request.target
     named = request.features + request.controls
-    needs_target = task not in {"segments", "anomalies"}
+    needs_target = task not in {"segments", "anomalies", "components"}
     if needs_target and target is None:
         return "invalid_fields", f"{task} needs a target column"
     if target is not None and target in named:
         return "leakage", f"{target} is the target and cannot also be a feature or control"
     if task in {"adjusted_association", "threshold"} and len(request.features) != 1:
         return "invalid_fields", f"{task} needs exactly one column in features"
-    numeric_target = task not in {"driver_classification", "segments", "anomalies"}
+    numeric_target = task not in {"driver_classification", "segments", "anomalies", "components"}
     if numeric_target and target is not None and schema.role_of(target) is not ColumnRole.NUMERIC:
         return "wrong_shape", f"{target} is not a numeric column"
     if task == "driver_classification" and target is not None:
@@ -417,11 +417,11 @@ def _lint_request(
         return "wrong_shape", "a forecast needs a time column and a different numeric target"
     if task == "threshold" and schema.role_of(request.features[0]) not in _NUMERIC:
         return "wrong_shape", f"{request.features[0]} is not numeric"
-    if task in {"segments", "anomalies"}:
+    if task in {"segments", "anomalies", "components"}:
         bad = [c for c in request.features if schema.role_of(c) not in _NUMERIC]
         if bad:
             return "wrong_shape", f"{', '.join(bad)} is not numeric"
-    if target is None or not named or task in {"forecast", "segments", "anomalies"}:
+    if target is None or not named or task in {"forecast", "segments", "anomalies", "components"}:
         return None
     try:
         y = (

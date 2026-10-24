@@ -186,6 +186,10 @@ def test_parts_that_break_the_rules_are_dropped_with_recorded_reasons(hyp) -> No
             claim("correlation", "units", "revenue", "positive"),
             claim("correlation", "cost", "revenue", "positive"),
             claim("correlation", "cost", "units", "positive"),
+            claim("group_difference", "region", "revenue"),
+            claim("group_difference", "region", "revenue"),
+            claim("group_difference", "region", "cost"),
+            claim("group_difference", "region", "units"),
         ],
         narrative_focus=["made_up:id", "period_change:revenue", "period_change:revenue"],
     )
@@ -200,7 +204,7 @@ def test_parts_that_break_the_rules_are_dropped_with_recorded_reasons(hyp) -> No
     # units~revenue, cost~revenue and cost~units restate how the table is built (and the
     # repeated pair is dropped for the same reason before it can be a duplicate)
     assert ("claim", "correlation", "bookkeeping") in codes
-    assert ("claim", "correlation", "over_budget") in codes
+    assert ("claim", "group_difference", "over_budget") in codes
     assert reasons >= {"unknown_column", "wrong_shape", "invalid_fields", "duplicate"}
     assert len(outcome.candidates) == 2
     requests = {

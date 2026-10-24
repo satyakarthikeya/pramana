@@ -205,6 +205,8 @@ measured:
     svm_c: [0.5, 5.0]
     svm_max_rows: 1500          # support vector machines are left out above this many rows (they scale badly)
     logistic_c: [0.1, 1.0, 10.0]
+    knn_neighbors: [5, 15]      # nearest-neighbour model: how many neighbours vote
+    knn_max_rows: 20000         # left out above this many rows (prediction cost grows with rows)
   segments:
     k_min: 2
     k_max: 6

@@ -31,6 +31,7 @@ import pandas as pd
 from pramana.analysis.measured.adjusted import run_adjusted
 from pramana.analysis.measured.anomalies import run_anomalies
 from pramana.analysis.measured.common import not_run
+from pramana.analysis.measured.components import run_components
 from pramana.analysis.measured.config import MeasuredConfig, load_measured_config
 from pramana.analysis.measured.drivers import run_driver
 from pramana.analysis.measured.forecast import run_forecast
@@ -178,6 +179,8 @@ def _execute(
         return run_segments(frame, schema, shape, config=config, columns=features, roles=roles)
     if task == "anomalies":
         return run_anomalies(frame, schema, shape, config=config, columns=features, roles=roles)
+    if task == "components":
+        return run_components(frame, schema, shape, config=config, columns=features, roles=roles)
     if task == "forecast":
         if target is None:
             return not_run(task, "A target column is needed.")
@@ -297,6 +300,8 @@ def _default_plan(
     if len(numeric_columns(work, schema, shape, config, roles=roles)) >= 2:
         items.append(attempt(MeasuredRequest(task="segments")))
         items.append(attempt(MeasuredRequest(task="anomalies")))
+    if len(numeric_columns(work, schema, shape, config, roles=roles)) >= 3:
+        items.append(attempt(MeasuredRequest(task="components")))
     if shape.time_column is not None:
         forecast_target = target or pick_forecast_target(
             work, schema, shape, config, roles, measure_roles

@@ -15,6 +15,7 @@ const PARTS: { title: string; kinds: MeasuredKind[] }[] = [
   { title: "Adjusted association", kinds: ["adjusted_association"] },
   { title: "Segments", kinds: ["segments"] },
   { title: "Unusual rows", kinds: ["anomalies"] },
+  { title: "Columns that move together", kinds: ["components"] },
   { title: "Forecast", kinds: ["forecast"] },
   { title: "Where the relationship bends", kinds: ["threshold"] },
 ];

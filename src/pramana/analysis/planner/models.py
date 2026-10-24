@@ -23,6 +23,7 @@ MeasuredTask = Literal[
     "adjusted_association",
     "segments",
     "anomalies",
+    "components",
     "forecast",
     "threshold",
 ]

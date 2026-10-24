@@ -32,6 +32,7 @@ from sklearn.metrics import balanced_accuracy_score, r2_score
 from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.svm import SVC, SVR
 
 from pramana.analysis.computed.charts import Bar, BarChart
@@ -85,11 +86,14 @@ class Family:
 def families(task: Task, config: MeasuredConfig, n_rows: int | None = None) -> list[Family]:
     """The closed menu, with its fixed grids from config. Nothing else can be fitted.
 
-    Support vector machines are left out of a table with more than `svm_max_rows` rows.
+    Support vector machines are left out of a table with more than `svm_max_rows` rows and
+    nearest neighbours of one with more than `knn_max_rows`.
     """
     menu = _menu(task, config)
     if n_rows is not None and n_rows > config.grids.svm_max_rows:
         menu = [f for f in menu if f.key != "svm"]
+    if n_rows is not None and n_rows > config.grids.knn_max_rows:
+        menu = [f for f in menu if f.key != "knn"]
     return menu
 
 
@@ -118,6 +122,12 @@ def _menu(task: Task, config: MeasuredConfig) -> list[Family]:
                 "support vector machine",
                 TransformedTargetRegressor(regressor=SVR(), transformer=StandardScaler()),
                 {"model__regressor__C": g.svm_c},
+            ),
+            Family(
+                "knn",
+                "nearest neighbours",
+                KNeighborsRegressor(weights="distance"),
+                {"model__n_neighbors": g.knn_neighbors},
             ),
         ]
     return [
@@ -149,6 +159,12 @@ def _menu(task: Task, config: MeasuredConfig) -> list[Family]:
             "support vector machine",
             SVC(class_weight="balanced", random_state=seed),
             {"model__C": g.svm_c},
+        ),
+        Family(
+            "knn",
+            "nearest neighbours",
+            KNeighborsClassifier(weights="distance"),
+            {"model__n_neighbors": g.knn_neighbors},
         ),
     ]
 
