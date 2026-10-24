@@ -30,6 +30,12 @@ class ComputedConfig(BaseModel):
     identity_min_rows: int = Field(ge=3, le=100000)
     identity_rel_tolerance: float = Field(gt=0, lt=0.1)
     identity_min_match: float = Field(gt=0.5, le=1)
+    lead_items: int = Field(default=8, ge=1, le=30)
+    max_questions: int = Field(default=5, ge=0, le=10)
+    segment_growth_min_share: float = Field(default=0.02, ge=0, lt=1)
+    customer_min_customers: int = Field(default=10, ge=2, le=100000)
+    customer_top_n: int = Field(default=10, ge=1, le=1000)
+    story_weights: dict[str, float] = Field(default_factory=dict)
 
 
 def load_computed_config(path: Path | str = DEFAULT_CONFIG_PATH) -> ComputedConfig:

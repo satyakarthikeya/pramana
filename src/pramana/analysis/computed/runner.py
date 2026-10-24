@@ -32,6 +32,7 @@ from pramana.analysis.computed.charts import (
 )
 from pramana.analysis.computed.config import ComputedConfig, load_computed_config
 from pramana.analysis.computed.models import COMPUTED_VERSION, ComputedAnalysis, ExactItem, Scalar
+from pramana.analysis.computed.story import build_story
 from pramana.analysis.computed.summary import template_summary
 from pramana.analysis.schema_inference import ColumnRole, SchemaProfile
 from pramana.analysis.sectors import (
@@ -55,6 +56,9 @@ TITLES: dict[str, str] = {
     "segment_ranking": "Segments ranked",
     "outliers": "Unusual values",
     "seasonality": "Seasonal pattern",
+    "price_volume_mix": "Price, volume and mix",
+    "segment_growth": "Growth by segment",
+    "customer_view": "Customers",
     "identity": "Columns that restate others",
     "data_quality": "Data quality",
     "prevalence": "Prevalence",
@@ -715,6 +719,107 @@ def outliers(ctx: Context) -> list[ExactItem]:
     return items + row_items
 
 
+def _consecutive_tail(keys: pd.Series, period: str) -> list[pd.Period]:
+    """The longest run of consecutive periods that ends at the table's last period."""
+    freq = _PERIOD_CODE[period]
+    present = sorted({pd.Period(str(k), freq=freq) for k in keys.dropna().unique()})
+    run = [present[-1]]
+    for p in reversed(present[:-1]):
+        if p + 1 != run[0]:
+            break
+        run.insert(0, p)
+    return run
+
+
+def _rolling_seasonality(ctx: Context, period: str, length: int, needed: int) -> list[ExactItem]:
+    """Seasonal indices from any `needed` or more cycles of consecutive periods.
+
+    Index = value ÷ centred moving average of one cycle, averaged per position in the
+    year and scaled to mean 1. The moving average follows growth, so a rising series does
+    not make its late months look seasonal. With 2 cycles each position is seen once;
+    the sentence says how many times.
+    """
+    run = _consecutive_tail(ctx.keys, period)
+    if len(run) < needed * length:
+        return [
+            _not_run(
+                "seasonality",
+                f"Needs at least {needed} full years of {period}ly data ({needed * length} "
+                f"consecutive {period}s ending at the latest one); this table has {len(run)}.",
+            )
+        ]
+    index = [str(p) for p in run]
+    keys = ctx.keys.astype("string")
+    items = []
+    for column in ctx.measures:
+        values = _num(ctx.frame[column])
+        mask = keys.isin(index) & values.notna()
+        totals = values[mask].groupby(keys[mask]).sum().reindex(index)
+        if totals.isna().any() or (totals <= 0).any():
+            items.append(
+                _not_run(
+                    "seasonality",
+                    f"A seasonal index needs a positive total {column} in every {period}.",
+                    column,
+                )
+            )
+            continue
+        x = totals.to_numpy(dtype=float)
+        trailing = pd.Series(x).rolling(length).mean().to_numpy()
+        half = length // 2
+        # centred 2 x length average, for an even cycle length: the mean of the two
+        # trailing averages that straddle each period
+        centred = np.full_like(x, np.nan)
+        centred[half : len(x) - half] = (trailing[length - 1 : len(x) - 1] + trailing[length:]) / 2
+        ratio = x / centred
+        position = np.array([p.month if period == "month" else p.quarter for p in run])
+        ok = ~np.isnan(ratio)
+        by_position = pd.Series(ratio[ok]).groupby(position[ok]).mean()
+        if len(by_position) < length:
+            items.append(_not_run("seasonality", f"Too few {period}s to place every position.", column))
+            continue
+        idx = by_position / by_position.mean()
+        counts = pd.Series(position[ok]).value_counts()
+        seen = int(counts.min())
+        peak, low = int(idx.idxmax()), int(idx.idxmin())
+
+        def name(p: int) -> str:
+            return calendar.month_name[p] if period == "month" else f"Q{p}"
+
+        items.append(
+            ExactItem(
+                id=f"seasonality:{column}",
+                kind="seasonality",
+                title=TITLES["seasonality"],
+                sentence=f"Over the last {len(run)} {period}s ({run[0]} to {run[-1]}), {name(peak)} "
+                f"{column} runs {float(idx[peak]):.2f} times the usual level for the year; "
+                f"{name(low)} is lowest at {float(idx[low]):.2f}. Each {period} was seen "
+                f"{seen} time{'s' if seen != 1 else ''}.",
+                formula=f"index = {period} total ÷ centred moving average of {length} {period}s, "
+                f"averaged per {period} of the year and scaled to mean 1",
+                columns=[column, ctx.shape.time_column or ""],
+                n_rows=int(mask.sum()),
+                values={
+                    f"peak_{period}": peak,
+                    "peak_index": float(idx[peak]),
+                    f"low_{period}": low,
+                    "low_index": float(idx[low]),
+                    "periods": len(run),
+                    "times_seen": seen,
+                    "years": len(run) // length,
+                },
+                table=[
+                    _row(position=int(p), name=name(int(p)), index=float(idx[p])) for p in idx.index
+                ],
+                chart=HeatStrip(
+                    label=column,
+                    cells=[HeatCell(label=name(int(p)), index=float(idx[p])) for p in idx.index],
+                ),
+            )
+        )
+    return items
+
+
 def seasonality(ctx: Context) -> list[ExactItem]:
     if ctx.keys is None:
         return []
@@ -722,15 +827,12 @@ def seasonality(ctx: Context) -> list[ExactItem]:
     if period not in {"month", "quarter"}:
         return [_not_run("seasonality", "A seasonal pattern needs monthly or quarterly periods.")]
     needed = ctx.config.seasonality_min_cycles
-    if ctx.shape.full_cycles < needed:
-        return [
-            _not_run(
-                "seasonality",
-                f"Needs at least {needed} full years of {period}ly data; this table has "
-                f"{ctx.shape.full_cycles}.",
-            )
-        ]
     length = 12 if period == "month" else 4
+    calendar_years = ctx.shape.full_cycles >= needed
+    if not calendar_years:
+        # Fewer than two calendar years do not mean fewer than two years of data: a
+        # financial year runs April to March. Use any run of consecutive periods instead.
+        return _rolling_seasonality(ctx, period, length, needed)
     keys = ctx.keys.astype("string")
     years = keys.str[:4]
     complete = keys.groupby(years).nunique()
@@ -1185,6 +1287,12 @@ ANALYSES: dict[str, Callable[[Context], list[ExactItem]]] = {
     "rates": rates,
 }
 
+# The analyst figures live in their own module, which needs the helpers above; importing it
+# here, after they exist, is what lets the two modules share them.
+from pramana.analysis.computed.analyst import ANALYST_ANALYSES  # noqa: E402
+
+ANALYSES.update(ANALYST_ANALYSES)
+
 
 # --- runner -------------------------------------------------------------------------
 
@@ -1278,5 +1386,6 @@ def compute_analysis(
         scope_note=pack.wording.scope_note,
         items=items,
     )
+    result = build_story(result, config)
     # The code-written summary is always there; a model rewording may replace it later.
     return result.model_copy(update={"summary": template_summary(result)})

@@ -123,7 +123,8 @@ def customer_table() -> pd.DataFrame:
                     "order_date": day.date().isoformat(),
                     "customer": f"C{customer:03d}",
                     "region": str(rng.choice(["North", "South"])),
-                    "revenue": float(rng.uniform(40, 60)),
+                    "revenue": (revenue := float(rng.uniform(40, 60))),
+                    "cost": revenue * 0.6,
                 }
             )
     return pd.DataFrame(rows)
@@ -178,7 +179,7 @@ def _price_vs_volume(items: list[ExactItem]) -> bool:
 
 
 def _top_customers(items: list[ExactItem]) -> bool:
-    return any(0.35 <= (i.values.get("top10_share") or 0) <= 0.65 for i in _of(items, "customer_view"))
+    return any(0.35 <= (i.values.get("top_n_share") or 0) <= 0.65 for i in _of(items, "customer_view"))
 
 
 CASES = [

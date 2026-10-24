@@ -16,7 +16,8 @@ Scalar = float | int | str | bool | None
 #: 2 = chart data on figures and the report summary; 3 = clearer change wording;
 #: 4 = review fixes (blank segments, calendar windows, inf, signs, non-answers).
 #: 5 = margins, single-row outliers, fiscal-year window names.
-COMPUTED_VERSION = 5
+#: 6 = the analyst layer: story, price/volume/mix, segment growth, customer view.
+COMPUTED_VERSION = 6
 
 
 class ExactItem(BaseModel):
@@ -43,6 +44,11 @@ class ExactItem(BaseModel):
     values: dict[str, Scalar] = Field(default_factory=dict)
     table: list[dict[str, Scalar]] = Field(default_factory=list)
     chart: ChartSpec | None = None
+    #: Where the figure sits in the story; set by `build_story`, empty before.
+    section: str = ""
+    importance: float = 0.0
+    #: Ids of figures on the other measures that tell the same story (shown, not led).
+    also: list[str] = Field(default_factory=list)
 
 
 class SummaryLine(BaseModel):
@@ -62,6 +68,30 @@ class ReportSummary(BaseModel):
     pending: bool = False
 
 
+class StorySection(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    key: str
+    title: str
+    item_ids: list[str]
+
+
+class WatchQuestion(BaseModel):
+    """A question for the reader, written by code from one figure. Never advice."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    text: str
+    item_id: str
+
+
+class Story(BaseModel):
+    """The order the report is read in: lead figures, sections, and what to ask next."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    lead_ids: list[str] = Field(default_factory=list)
+    sections: list[StorySection] = Field(default_factory=list)
+    questions: list[WatchQuestion] = Field(default_factory=list)
+
+
 class ComputedAnalysis(BaseModel):
     """Everything the Exact tier found for one table. Shown to the user only (D5)."""
 
@@ -73,3 +103,4 @@ class ComputedAnalysis(BaseModel):
     scope_note: str = ""
     items: list[ExactItem]
     summary: ReportSummary | None = None
+    story: Story | None = None
