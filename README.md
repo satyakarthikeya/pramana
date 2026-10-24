@@ -1,15 +1,14 @@
 # PRAMANA
 
-**Self-evolving data analysis agent with execution-grounded verification.**
+**Data analysis agent with execution-grounded verification.**
 
-1. **What it is:** upload a table; PRAMANA proposes relationships, runs the statistical tests as code, and reports only findings that pass verification, each with a proof object. Only PASS findings enter local memory.
+1. **What it is:** upload a table; PRAMANA proposes relationships, runs the statistical tests as code, and sends each claim through the verification gateway, which issues PASS or REJECT with a proof object. Rejected claims are listed with the reason. Only PASS findings enter local memory, and memory offers them later as hints to re-test, never as findings.
 2. **Three evidence levels:** *Exact* (arithmetic on your table, recomputed by code), *Measured* (a model scored on data it did not see) and *Tested* (passed the verification gateway). Exact and Tested are built; see `docs/ANALYST_LAYER_STATUS.md` for how far Measured has got.
 3. **Run it:** `python -m pramana` after the Setup steps below, then open http://127.0.0.1:8080. The live profile needs a DeepSeek API key and Langfuse credentials in `.env`; the first run downloads a local embedding model (about 79 MB) used only for memory search.
-4. **Test it:** `python -m pytest` (the full suite takes a while; run it for the current count).
+4. **Test it:** `python -m pytest` (the full suite takes a while). Count: `python -m pytest --collect-only -q | tail -1`.
 5. **Docs:** [docs/README.md](docs/README.md) is the index, [STATUS.md](STATUS.md) is the current state, [PROJECT.md](PROJECT.md) the architecture, [SCOPE.md](SCOPE.md) the scope and [AGENTS.md](AGENTS.md) the rules.
 
-The default rule scan and template tests need no model API key; LLM proposal and code
-generation are explicit opt-ins, never silent fallbacks.
+The default claim proposer is `api` (DeepSeek, from column summaries) and the default test generator is `template`. The offline profile (rule scan plus templates) needs no model API key; model-written test code is an explicit opt-in, never a silent fallback.
 
 Capstone project, Team AB-07, Amrita School of AI. Supervisor: Rayappa David Amar Raj.
 
@@ -24,12 +23,11 @@ src/pramana/
     benchmark/       40-dataset curation + demo dataset
   verification/    THE GATEWAY                                            [Satya]
     stats/           permutation, bootstrap, effect size (the trust anchor)
-    falsification/   test-code generation: DeepSeek V4, or templates (offline)
+    falsification/   test generation: vetted templates (default), or DeepSeek-written code
     executor/        sandboxed runner + policy
     fdr.py, evidence.py, gateway.py, memory_guard.py
   memory/          ChromaDB verified lessons, guarded write path          [Karthik Reddy]
   api/             FastAPI backend                                        [Karthik Reddy]
-  dashboard/       run + demo visualisation                               [Karthik Reddy]
   orchestration/   LangGraph spine, Celery plumbing                       [B. Karthikeya]
   evaluation/      ablation harness (later work item)                     [Satya]
 
@@ -46,17 +44,17 @@ rules that apply inside it.
 ## Pipeline
 
 ```
-dataset → preparation (rules) → analysis agent (LLM proposes claims)
-        → VERIFICATION GATEWAY (DeepSeek writes the test; our code decides)
+dataset → preparation (rules) → proposer (model or rule scan proposes claims)
+        → VERIFICATION GATEWAY (code renders the test, or DeepSeek writes it; our code decides)
               ├─ PASS → memory (ChromaDB) → report
               └─ REJECT → discarded
 ```
 
-Target design — models propose and write code; code decides. In the gateway, DeepSeek V4 writes a
-falsification program that may only call our vetted statistics library. That program is
-**executed** in a sandbox (permutation test), Benjamini-Hochberg correction runs once across
-the whole run, and a deterministic gate issues PASS or REJECT with a proof object per
-insight. No model produces a statistic or a verdict. Every reported insight ships with its
+Models propose; code decides. In the gateway the default is a vetted test rendered by code per
+claim type; with `--generator llm`, DeepSeek writes a falsification program that may only call
+our vetted statistics library. The program is **executed** in a sandbox (permutation test),
+Benjamini-Hochberg correction runs once across the whole run, and a deterministic gate issues PASS or REJECT with a proof object per
+insight. No model produces a statistic or a verdict. Every verdict ships with its
 proof. See `PROJECT.md` §2 for the full flow and for which parts are built today.
 
 ## Setup
@@ -128,8 +126,9 @@ same way regardless.
 
 | Engine | What it does | Needs |
 |---|---|---|
-| `deterministic` | Rule scan over every eligible column pair | nothing |
-| `api` | A model proposes claims from column summaries only | DeepSeek key, Langfuse |
+| `deterministic` | Rule scan over every eligible column pair (offline) | nothing |
+| `api` (default) | A model proposes claims from column summaries only | DeepSeek key, Langfuse |
+| `planner` | A model plans the analysis from the profile and column summaries; claim filters apply | DeepSeek key, Langfuse |
 | `agent` | A model explores with tested tools and a bounded Python workspace, then proposes claims | DeepSeek key, Langfuse |
 
 The agent never computes a number or writes a claim sentence, and its spending is capped by
@@ -193,21 +192,22 @@ internet-facing service; do not expose it publicly.
 
 ### Limitations
 
-- PASS supports an association on this dataset, not causation. There is no confounder
-  adjustment, held-out replication or clinical interpretation.
+- PASS supports an association on this dataset, not causation. There is no clinical
+  interpretation. Claims are confirmed on a seeded held-out split; the Skeptic flags
+  possible confounders but does not adjust for them.
 - Effect floors do not separate chance from truth; corrected significance matters.
   Small real effects can pass. Strength words label the configured metric bands.
-- Categorical-versus-categorical claims and bootstrap confidence intervals are out
-  of V1. Tables with a usable trend axis are refused above 3,000 rows to avoid the
-  quadratic Sen-slope cost; rows are never silently subsampled.
+- Categorical-versus-categorical claims are out of scope. Passing claims carry a
+  bootstrap effect interval (descriptive only). Above 3,000 rows trend claims are
+  dropped with a recorded reason, to avoid the quadratic Sen-slope cost; rows are never
+  silently subsampled.
 - One run at a time, at most eight candidate claims per V1 run. Tests use the
   configured 10,000 permutations and can take several minutes on a laptop.
 - The LLM generator's refusal/disagreement rate at scale and the four-condition
   evaluation are not established V1 results.
 
-See [the V1 checklist](docs/V1.md) for evidence and tasks still awaiting people,
-credentials, a second machine or required reviews. Do not infer whole-project
-completion from the existence of the dashboard.
+See [STATUS.md](STATUS.md) for what is built and verified, and [docs/ROADMAP.md](docs/ROADMAP.md)
+for what is next. [docs/V1.md](docs/V1.md) is the historical V1 checklist.
 
 Working on one module only? Install just what you need:
 `pip install -r requirements/verification.txt -r requirements/dev.txt`

@@ -1,7 +1,8 @@
 # Verification gateway v3: design proposal
 
-Status: PROPOSAL for the verification owner (P.P. Satya Karthikeya). Nothing here is
-built. Every change to p-values, FDR, the split, or sandbox safety needs sign-off
+Status: originally a PROPOSAL for the verification owner (P.P. Satya Karthikeya). S1-S8
+were built and merged to `main` in PR 31 (24 Oct 2026, bb5bb77); owner sign-off is still
+pending. Every change to p-values, FDR, the split, or sandbox safety needs sign-off
 under AGENTS.md §8.10. Written 2026-10-24 against branch `feat/satya/findings-ui`
 (PR 29).
 

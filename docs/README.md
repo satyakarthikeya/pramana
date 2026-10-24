@@ -10,8 +10,7 @@ Next work, in order, is in [ROADMAP.md](ROADMAP.md).
 
 | File | What it is |
 |---|---|
-| [V1.md](V1.md) | The V1 plan and do-list |
-| [DESIGN_verification_gateway_v3.md](DESIGN_verification_gateway_v3.md) | Gateway v3 design, awaiting owner sign-off |
+| [DESIGN_verification_gateway_v3.md](DESIGN_verification_gateway_v3.md) | Gateway v3 design (built, PR 31); owner sign-off pending |
 | [GATEWAY_V3_STATUS_AND_SIGNOFF.md](GATEWAY_V3_STATUS_AND_SIGNOFF.md) | Gateway v3 status and the sign-off sheet |
 | [PLAN_analysis_platform.md](PLAN_analysis_platform.md) | V2 platform plan (evidence levels, exploration/confirmation split) |
 | [PLAN_data_analyst.md](PLAN_data_analyst.md) | Data-analyst layer plan |
@@ -50,5 +49,6 @@ editable `.excalidraw` files. There are two gateway-flow sources:
 
 Session handoffs ([handoffs/](archive/handoffs/)), the last session handoff, a cloud-session
 prompt, and the historical LLM claim proposer record. Useful background, not instructions.
+[V1.md](V1.md) is the V1-era plan and do-list; it is historical.
 Some status documents above (IMPLEMENTATION_STATUS.md, OPEN_ISSUES.md) are also historical
 in parts and say so in a banner.
