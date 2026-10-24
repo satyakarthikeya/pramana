@@ -43,8 +43,8 @@ No pull request is open (`gh pr list`).
   The planner varies, so counts are not a regression test of specific claims.
 - Real retail data (UCI Online Retail II, customer x month x country): Report checked in
   the running app (`docs/ANALYST_LAYER_STATUS.md`).
-- Full suite: green on the integrated gateway-v3 stack before merge (count in that doc);
-  for this branch see the latest commit message or run it.
+- Full suite: `python -m pytest` exited 0 (no failures) on this branch at `4eaa60b`,
+  25 Oct; later commits are docs only. Get the count with the collect-only command above.
 
 ## 4. Not verified
 
