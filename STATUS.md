@@ -1,6 +1,6 @@
 # STATUS.md — where we are (22 October 2026)
 
-> Sources: `docs/V1.md`, `docs/team/V1_TEST_LOG.md`, git history. Figures are from the
+> Sources: `docs/V1.md`, `docs/evidence/V1_TEST_LOG.md`, git history. Figures are from the
 > repo's own logs; they were not re-run when this file was written.
 
 ## Branches
@@ -33,7 +33,7 @@
 - [ ] Clean-clone test on a second machine (A5)
 - [ ] Full suite and ruff green on `main` after merge (G2)
 - [ ] Affected owners acknowledge the review notices (PR #25 comment)
-- [ ] Close the DeepSeek-only follow-ups in `docs/team/DEEPSEEK_ONLY_TODO.md`; read `DEEPSEEK_LIVE_TEST_LOG.md` (it records an extra decoy-coverage check that did not pass)
+- [ ] Close the DeepSeek-only follow-ups in `docs/team/DEEPSEEK_ONLY_TODO.md`; read `docs/evidence/DEEPSEEK_LIVE_TEST_LOG.md` (it records an extra decoy-coverage check that did not pass)
 - [ ] Confirm Langfuse credentials work: a DeepSeek key alone is not enough under the tracing rules
 - [ ] `docs/V1.md` and the V1 test log still describe the earlier template/Gemma setup (historical)
 - [ ] Independent human rehearsal of the journey

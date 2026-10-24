@@ -60,7 +60,7 @@ the effect size must equal the stamped statistic. The p-value, BH correction, ga
 verdict are code.
 
 **What it supersedes.** Only the "template is the DEFAULT generator" part of:
-`docs/OPEN_ISSUES.md` issue 4 and decision-table row 4, and `docs/handoffs/DECISIONS_HANDOFF.md`
+`docs/OPEN_ISSUES.md` issue 4 and decision-table row 4, and `docs/archive/handoffs/DECISIONS_HANDOFF.md`
 A.2 and A.4. The rest of those decisions stands: the trust guarantee comes from the
 sandbox, whitelist and stamp, not from the choice of model.
 
