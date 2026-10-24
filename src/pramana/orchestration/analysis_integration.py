@@ -109,6 +109,51 @@ def run_planned_measured(
         return None
 
 
+def drop_oversize_trends(
+    candidates: list[Any], exploration: Any, n_rows: int
+) -> tuple[list[Any], Any]:
+    """Leave out trend claims on a table above the Sen-slope row ceiling.
+
+    The ceiling is a memory limit of the trend effect size, not a statistical choice, and
+    rows are never sampled silently. Every other claim is still tested, and each trend
+    claim left out is recorded with its reason where the report shows dropped claims.
+    """
+    from pramana.analysis.planner.models import PlanDrop
+    from pramana.verification.stats.effect_size import MAX_SENS_SLOPE_OBSERVATIONS
+
+    if n_rows <= MAX_SENS_SLOPE_OBSERVATIONS:
+        return candidates, exploration
+    left_out = [c for c in candidates if c.claim_type == "trend"]
+    if not left_out:
+        return candidates, exploration
+    reason = (
+        f"a trend test supports at most {MAX_SENS_SLOPE_OBSERVATIONS:,} rows and this table "
+        f"has {n_rows:,}; the trend is described in the report instead"
+    )
+    kept = [c for c in candidates if c.claim_type != "trend"]
+    update: dict[str, Any] = {"proposed": len(kept)}
+    if exploration.plan is not None:
+        ids = {c.insight_id for c in left_out}
+        drops = [
+            PlanDrop(
+                what="claim",
+                item=f"trend({', '.join(c.variables)})",
+                reason_code="wrong_shape",
+                reason=reason[:400],
+            )
+            for c in left_out
+        ]
+        update["plan"] = exploration.plan.model_copy(
+            update={
+                "dropped": [*exploration.plan.dropped, *drops],
+                "accepted_claims": [
+                    a for a in exploration.plan.accepted_claims if a.insight_id not in ids
+                ],
+            }
+        )
+    return kept, exploration.model_copy(update=update)
+
+
 def native_analysis_adapters(
     *, data_dir: Path | None = None, candidate_limit: int | None = None
 ) -> AnalysisNodeAdapters:
@@ -199,6 +244,7 @@ def native_analysis_adapters(
             lesson_hints=state.lesson_hints,
             shape=shape,
         )
+        candidates, exploration = drop_oversize_trends(candidates, exploration, len(whole))
         update: dict[str, Any] = {
             "candidate_insights": candidates,
             "exploration": exploration.model_dump(mode="json"),

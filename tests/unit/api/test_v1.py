@@ -234,7 +234,7 @@ def test_generator_unavailable_is_an_explicit_api_error_with_retained_proofs(
         assert client.get("/api/memory").json() == []
 
 
-def test_trend_table_above_documented_ceiling_refuses_without_sampling(tmp_path: Path) -> None:
+def test_trend_table_above_documented_ceiling_is_analysed_without_its_trend_claims(tmp_path: Path) -> None:
     frame = pd.DataFrame(
         {"measurement_date": pd.date_range("2020-01-01", periods=3001), "measurement": range(3001)}
     )
@@ -244,9 +244,12 @@ def test_trend_table_above_documented_ceiling_refuses_without_sampling(tmp_path:
             "/api/runs", files={"file": ("trend.csv", frame.to_csv(index=False).encode())}
         ).json()["run_id"]
         view = client.get(f"/api/runs/{run_id}").json()
-        assert view["status"] == "degraded"
-        assert "3000" in view["error"] and "silently sampled" in view["error"]
+        # the run is no longer refused: only trend claims are left out, and rows are not sampled
+        assert view["status"] == "completed", view.get("error")
         assert view["preview"]["rows"] == 3001
+        results = client.get(f"/api/runs/{run_id}/results").json()
+        tested = results["verified_insights"] + results["rejected_claims"]
+        assert not [r for r in tested if r["proof"].get("claim_type") == "trend"]
 
 
 def test_upload_size_error_is_friendly_and_releases_capacity(tmp_path: Path) -> None:
