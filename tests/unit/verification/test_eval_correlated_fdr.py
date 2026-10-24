@@ -1,4 +1,4 @@
-"""E2 script plumbing: tiny replicates; checks structure and the generator's truth, not calibration."""
+"""E2 script plumbing: tiny replicates; checks structure and the generator's truth only."""
 
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ def test_planted_pairs_are_the_only_correlated_claims() -> None:
     for cell in module.all_cells()[::7]:
         _, claims, truth, beta, sigma = module.draw_table(cell, rng)
         assert 0 < beta <= module.BETA and len(claims) == cell["m"]
-        assert all((sigma[i, j] != 0.0) == t for (i, j), t in zip(claims, truth))
+        assert all((sigma[i, j] != 0.0) == t for (i, j), t in zip(claims, truth, strict=True))
 
 
 def test_holm_and_by_are_never_looser_than_bh() -> None:

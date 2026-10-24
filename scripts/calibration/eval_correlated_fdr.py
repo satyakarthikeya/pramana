@@ -85,8 +85,13 @@ def _draw(sigma: np.ndarray, rng: np.random.Generator) -> np.ndarray:
     return rng.standard_normal((N_ROWS, sigma.shape[0])) @ np.linalg.cholesky(sigma).T
 
 
-def draw_table(cell: dict[str, Any], rng: np.random.Generator):
-    """(table, claims, truth, realised beta, covariance). Non-planted claimed pairs have covariance 0."""
+def draw_table(
+    cell: dict[str, Any], rng: np.random.Generator
+) -> tuple[np.ndarray, list[tuple[int, int]], list[bool], float, np.ndarray]:
+    """(table, claims, truth, realised beta, covariance).
+
+    Guarantees every claimed pair that is not planted has covariance exactly 0.
+    """
     m, frac, rho = cell["m"], cell["frac"], cell["rho"]
     k = int(round(frac * m))
     if cell["structure"] == "star":
@@ -167,7 +172,7 @@ def simulate_replicate(args: tuple[dict[str, Any], int, int, float, int]) -> dic
     rng = np.random.default_rng(np.random.SeedSequence([seed, cell["id"], rep]))
     table, claims, truth_list, beta, sigma = draw_table(cell, rng)
     truth = np.asarray(truth_list, dtype=bool)
-    for (i, j), is_true in zip(claims, truth):  # the generator's own promise
+    for (i, j), is_true in zip(claims, truth, strict=True):  # the generator's own promise
         assert (sigma[i, j] != 0.0) == bool(is_true)
     z = standardised_ranks(table)
     p = np.empty(len(claims))
