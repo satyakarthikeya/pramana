@@ -84,3 +84,24 @@ def test_a_clean_table_flags_no_single_row() -> None:
     item = _one(_run(_table(spike=False)), "row_outliers:revenue")
     assert item.values["flagged"] == 0
     assert item.table == []
+
+
+def test_a_sector_entity_column_with_many_levels_is_still_the_group() -> None:
+    rng = np.random.default_rng(5)
+    rows = []
+    countries = [f"country_{i:02d}" for i in range(43)]
+    for month in pd.period_range("2022-01", "2023-12", freq="M"):
+        for i, country in enumerate(countries):
+            if rng.random() < 0.7:
+                rows.append(
+                    {
+                        "month": month.to_timestamp().date().isoformat(),
+                        "country": country,
+                        "revenue": 1000.0 * (1 + i / 10) * rng.uniform(0.8, 1.2),
+                        "orders": int(rng.integers(5, 50)),
+                    }
+                )
+    result = _run(pd.DataFrame(rows))
+    assert result.shape.entity_column == "country"
+    assert any(i.kind == "variance_decomposition" for i in result.items)
+    assert any(i.kind == "concentration" for i in result.items)
