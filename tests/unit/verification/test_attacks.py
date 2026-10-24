@@ -211,3 +211,18 @@ def test_the_gate_turns_a_confounded_pass_into_fragile() -> None:
     assert "temperature" in (fragile.failure_reason or "")
     assert honest.verdict is Verdict.PASS and len(honest.attacks) == 7
     assert not any(a.outcome is AttackOutcome.BROKEN for a in honest.attacks)
+
+
+def test_a3_does_not_control_for_a_near_copy_of_one_side(config) -> None:
+    """Partialling out cost (about 0.62 x revenue) would remove revenue itself."""
+    rng = np.random.default_rng(12)
+    revenue = rng.normal(200, 30, size=400)
+    frame = pd.DataFrame(
+        {
+            "revenue": revenue,
+            "cost": 0.62 * revenue + rng.normal(0, 7, size=400),
+            "ad_spend": 10 + 0.05 * revenue + rng.normal(0, 3, size=400),
+        }
+    )
+    result = _by_id(run_attacks(_corr("revenue", "ad_spend"), frame, config, seed=1))["A3"]
+    assert result.outcome is not AttackOutcome.BROKEN, result.reason

@@ -14,8 +14,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from pramana.analysis.computed.charts import ChartSpec
 from pramana.analysis.computed.models import Scalar
 
-#: Bumped whenever stored analyses should be rebuilt.
-MEASURED_VERSION = 1
+#: Bumped whenever stored analyses should be rebuilt. 2 = held-out R² must be above
+#: zero before a result is reported as skill; forecasts scored on unseen origins.
+MEASURED_VERSION = 2
 
 Kind = Literal[
     "driver_regression",

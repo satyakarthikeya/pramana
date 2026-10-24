@@ -170,6 +170,16 @@ def run_adjusted(
             cutoff=config.too_good_cutoff,
             subject=_label(target),
         )
+    if metric == "R²" and float(np.mean(with_scores)) <= config.lift_floor:
+        return MeasuredItem(
+            status="no_lift",
+            sentence=(
+                f"The model with {_label(variable)} and the controls predicted held-out rows no "
+                f"better than their own average (R² {float(np.mean(with_scores)):.2f}), so no "
+                f"adjusted association is reported."
+            ),
+            **common,
+        )
     if lift <= config.lift_floor:
         return MeasuredItem(
             status="no_lift",

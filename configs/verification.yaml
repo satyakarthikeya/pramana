@@ -43,6 +43,7 @@ attacks:
   max_subgroup_columns: 3      # A4: grouping columns examined, in table order
   max_subgroup_levels: 10      # A4: a grouping column with more levels is skipped
   min_confound_score: 0.1      # A3: |assoc(x,z)| * |assoc(y,z)| below this: no control
+  max_control_proxy: 0.9       # A3: a column this rank-correlated with x or y is a copy of it, not a control
   identity_tolerance: 1.0e-6   # A7: max deviation, as a share of sd(y), for "exactly"
 
 evidence:

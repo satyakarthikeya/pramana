@@ -573,7 +573,8 @@ button.chip:hover {
 }
 .col-row {
   display: grid;
-  grid-template-columns: 180px minmax(0, 1fr);
+  /* name beside the picture when there is room, stacked when the column is narrow */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
   gap: var(--s5);
   align-items: center;
   padding: var(--s3) 0;
@@ -1269,6 +1270,12 @@ text.axis {
 .exact-item {
   border-top: 1px solid var(--border-soft);
   padding: var(--s4) 0;
+}
+/* Grid children default to min-width: auto, so one wide table or chart would widen the
+   whole report past the screen; let them shrink and scroll inside themselves instead. */
+.report > *,
+.exact-list > li {
+  min-width: 0;
 }
 .exact-top {
   display: flex;

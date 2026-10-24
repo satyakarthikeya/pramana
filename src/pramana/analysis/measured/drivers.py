@@ -447,6 +447,18 @@ def run_driver(
             subject=_label(target),
         )
     values["lift_floor"] = config.lift_floor
+    if metric == "R²" and model_score <= config.lift_floor:
+        # Beating a baseline that is itself worse than a flat line is not skill: a model
+        # with held-out R² at or below zero predicts no better than the rows' own average.
+        return MeasuredItem(
+            status="no_lift",
+            sentence=(
+                f"No model predicted {_label(target)} on held-out rows better than their own "
+                f"average (held-out R² {_fmt(model_score)}, at or below {_fmt(config.lift_floor)})."
+            ),
+            values=clean_values(values),
+            **common,
+        )
     if lift <= config.lift_floor:
         return MeasuredItem(
             status="no_lift",
@@ -476,8 +488,8 @@ def run_driver(
     sentence = (
         f"A {family.label} beats the {baseline_name} baseline by {_fmt(lift)} in {metric} "
         f"on rows it did not see ({_fmt(model_score)} against {_fmt(base_score)}, "
-        f"± {_fmt(spread)} between folds, {split_text}). It uses {len(usable)} columns "
-        f"to predict {_label(target)}."
+        f"± {_fmt(spread)} between folds, {split_text}). It uses {len(usable)} "
+        f"column{'' if len(usable) == 1 else 's'} to predict {_label(target)}."
     )
     if total > 0:
         top = int(order[0])

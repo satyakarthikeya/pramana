@@ -135,6 +135,7 @@ def seasonality_test(
     *,
     n_permutations: int,
     seed: int,
+    alternative: Alternative = "two-sided",
 ) -> PermutationResult:
     """Test whether some months (or quarters) sit consistently above others.
 
@@ -143,9 +144,12 @@ def seasonality_test(
     was simply higher overall carries no seasonal information.
 
     Guarantees: stamped `STRATIFIED`; deterministic for a seed; refuses fewer than two
-    years or a cycle position seen only once. Unsigned, so always "greater".
+    years or a cycle position seen only once. The statistic is never negative, so
+    "two-sided" and "greater" are the same test; "less" is refused.
     """
-    _validate_run(n_permutations, "greater")
+    _validate_run(n_permutations, alternative)
+    if alternative == "less":
+        raise ValueError("a seasonal effect has no direction; 'less' is not a valid test")
     series = np.asarray(values, dtype=float).ravel()
     cycles = np.asarray(cycle, dtype=np.int64).ravel()
     years = np.asarray(year, dtype=np.int64).ravel()
@@ -253,6 +257,7 @@ def seasonality_test_from_periods(
     cycle_length: int,
     n_permutations: int,
     seed: int,
+    alternative: Alternative = "two-sided",
 ) -> PermutationResult:
     """`seasonality_test` on the per-period means of `values`.
 
@@ -260,7 +265,9 @@ def seasonality_test_from_periods(
     quarterly), so `ordinal % cycle_length` is the month or quarter of the year.
     """
     means, cycles, years = _cycle_frame(values, periods, cycle_length)
-    return seasonality_test(means, cycles, years, n_permutations=n_permutations, seed=seed)
+    return seasonality_test(
+        means, cycles, years, n_permutations=n_permutations, seed=seed, alternative=alternative
+    )
 
 
 def seasonal_range(values: ArrayLike, periods: ArrayLike, *, cycle_length: int) -> float:

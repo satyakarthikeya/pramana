@@ -81,6 +81,9 @@ refused by the sandbox and your output is discarded.
 underscore from the stats package.
 
 WHICH DATA YOU MAY READ
+- PERIOD and ENTITY, when the request defines them, are columns ALREADY IN the frame, \
+added by the gate (PERIOD is a number per row that orders and groups periods). Select \
+them; never create, assign or overwrite them, and never derive them from VAR_X.
 - Read ONLY the columns named in VAR_X and VAR_Y (plus PERIOD or ENTITY when the \
 request defines them), selected first and by name, for example `frame[[VAR_X, VAR_Y]]`. \
 Write column names as string literals or as the module-level constants; a name built \
@@ -181,8 +184,9 @@ _SCHEME_FRAMING: dict[tuple[ClaimType, PermutationScheme], str] = {
         "HOW TO DESTROY IT: use `rows = frame[[VAR_Y, PERIOD]].apply(pd.to_numeric, "
         'errors="coerce").dropna()` and call `seasonality_test_from_periods('
         "rows[VAR_Y].to_numpy(dtype=float), rows[PERIOD].to_numpy(dtype=float), "
-        "cycle_length=CYCLE_LENGTH, n_permutations=N_PERMUTATIONS, seed=SEED)`. It centres "
-        "each year and shuffles months within years; do not pass `alternative`."
+        "cycle_length=CYCLE_LENGTH, n_permutations=N_PERMUTATIONS, seed=SEED, "
+        'alternative="two-sided")`. It centres each year and shuffles months within '
+        "years. Do not read VAR_X: the period is the PERIOD column."
     ),
     (ClaimType.TREND, PermutationScheme.BLOCK_DIFFERENCED): (
         "NULL HYPOTHESIS: the period-to-period changes of {var_y} average zero; the series "

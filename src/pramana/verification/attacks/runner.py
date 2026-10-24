@@ -70,6 +70,10 @@ class AttacksConfig(BaseModel):
     max_subgroup_columns: int = Field(ge=0)
     max_subgroup_levels: int = Field(ge=2)
     min_confound_score: float = Field(ge=0.0, lt=1.0)
+    #: A column whose rank correlation with either side of the claim reaches this is a
+    #: near-copy of that side (cost ~ revenue), not a third variable: partialling it out
+    #: removes that side's own variation, so it cannot tell a confounder from a copy.
+    max_control_proxy: float = Field(gt=0.0, le=1.0)
     identity_tolerance: float = Field(gt=0.0, lt=0.1)
 
 
@@ -389,9 +393,11 @@ def _a3_control(claim: ClaimView, rows: pd.DataFrame, original: float, config: A
             data = _numeric(rows, [claim.var_x, claim.var_y, name])
             if len(data) < config.min_subgroup_n:
                 continue
-            score = abs(spearman_rho(data[claim.var_x], data[name])) * abs(
-                spearman_rho(data[claim.var_y], data[name])
-            )
+            with_x = abs(spearman_rho(data[claim.var_x], data[name]))
+            with_y = abs(spearman_rho(data[claim.var_y], data[name]))
+            if max(with_x, with_y) >= config.max_control_proxy:
+                continue  # a near-copy of one side, not a third variable (see AttacksConfig)
+            score = with_x * with_y
         else:
             data = rows[[claim.var_x, claim.var_y, name]].copy()
             data[[claim.var_y, name]] = data[[claim.var_y, name]].apply(
@@ -405,9 +411,10 @@ def _a3_control(claim: ClaimView, rows: pd.DataFrame, original: float, config: A
             ]
             if len(by_label) < 2:
                 continue
-            score = float(np.sqrt(epsilon_squared(by_label))) * abs(
-                spearman_rho(data[claim.var_y], data[name])
-            )
+            with_y = abs(spearman_rho(data[claim.var_y], data[name]))
+            if with_y >= config.max_control_proxy:
+                continue  # a near-copy of the measure, not a third variable
+            score = float(np.sqrt(epsilon_squared(by_label))) * with_y
         if best is None or score > best[0]:
             best = (float(score), name)
     if best is None or best[0] < config.min_confound_score:

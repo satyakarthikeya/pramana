@@ -174,6 +174,15 @@ def run_threshold(
             cutoff=config.too_good_cutoff,
             subject=_label(target),
         )
+    if float(np.mean(bent)) <= config.lift_floor:
+        return MeasuredItem(
+            status="no_lift",
+            sentence=(
+                f"No threshold: even with one bend the line predicted held-out rows no better "
+                f"than their own average (R² {float(np.mean(bent)):.2f})."
+            ),
+            **common,
+        )
     if lift <= config.lift_floor:
         return MeasuredItem(
             status="no_lift",

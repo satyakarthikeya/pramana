@@ -68,7 +68,7 @@ def test_planted_driver_ranks_first_and_beats_the_baseline() -> None:
 def test_pure_noise_target_gets_no_lift_and_says_so() -> None:
     item = _driver(fx.driver_table(), "noise_target")
     assert item.status == "no_lift"
-    assert item.sentence.startswith("No model beat the baseline on held-out data")
+    assert item.sentence.startswith("No model")
     assert item.table == [] and item.chart is None
 
 
@@ -549,3 +549,42 @@ def test_a_whole_number_measure_distinct_per_row_is_not_an_identifier() -> None:
     assert not _is_identifier(frame, schema, "revenue", config)
     assert _is_identifier(frame, schema, "invoice_no", config)
     assert _is_identifier(frame, schema, "row_counter", config)
+
+
+def test_beating_a_baseline_worse_than_a_flat_line_is_not_skill() -> None:
+    """Held-out R² below zero is no skill even when the baseline is lower still."""
+    import numpy as np
+    import pandas as pd
+
+    from pramana.analysis import infer_schema, load_config
+    from pramana.analysis.measured import compute_measured
+    from pramana.analysis.measured.models import MeasuredRequest
+    from pramana.analysis.shape import classify_shape
+
+    rng = np.random.default_rng(4)
+    rows = []
+    for e in range(10):
+        level = rng.normal(0, 5)
+        for m in range(24):
+            rows.append(
+                {
+                    "month": (pd.Timestamp("2022-01-01") + pd.DateOffset(months=m)).strftime(
+                        "%Y-%m-%d"
+                    ),
+                    "region": f"r{e}",
+                    "sales": level + rng.normal(),
+                    "noise": rng.normal(),
+                }
+            )
+    frame = pd.DataFrame(rows)
+    schema = infer_schema(frame, load_config().schema_inference)
+    shape = classify_shape(frame, schema)
+    result = compute_measured(
+        frame,
+        schema,
+        shape,
+        requests=[MeasuredRequest(task="driver_regression", target="sales", features=["noise"])],
+    )
+    item = result.items[0]
+    assert item.status == "no_lift", item.sentence
+    assert "beats" not in item.sentence
