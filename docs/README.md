@@ -4,6 +4,8 @@ Current project state is in [../STATUS.md](../STATUS.md). Architecture is in
 [../PROJECT.md](../PROJECT.md), scope in [../SCOPE.md](../SCOPE.md), and the rules for
 contributors in [../AGENTS.md](../AGENTS.md). This folder holds the rest.
 
+Next work, in order, is in [ROADMAP.md](ROADMAP.md).
+
 ## Current
 
 | File | What it is |
