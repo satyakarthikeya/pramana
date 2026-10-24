@@ -117,6 +117,7 @@ class DependenceConfig(BaseModel):
     min_clusters: int = Field(ge=2)
     min_split_entities: int = Field(ge=2)
     min_exploration_periods: int = Field(ge=2)
+    max_prior_looks: int = Field(ge=0)
 
     @model_validator(mode="after")
     def _complete(self) -> Self:

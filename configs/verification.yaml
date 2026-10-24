@@ -34,6 +34,9 @@ dependence:
   # A split by time may hold back more than confirmation_fraction so the confirmation rows
   # reach min_series_length, but only while this many periods stay for exploration (F2).
   min_exploration_periods: 8
+  # S7: earlier runs on the same held-back rows after which a proof says they were reused.
+  # Disclosure only; a time-ordered split cannot be redrawn, so nothing is blocked.
+  max_prior_looks: 3
 
 attacks:
   # PLAN §7.2, P5. PROVISIONAL: tuned on the planted cases in

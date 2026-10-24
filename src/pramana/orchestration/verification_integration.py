@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable, Sequence
+from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -19,6 +21,7 @@ from pramana.verification.falsification.generator import (
     get_generator,
 )
 from pramana.verification.gateway import BatchSummary
+from pramana.verification.looks import record_look, rows_key
 from pramana.verification.schemes import (
     FREE_PLAN,
     TestPlan,
@@ -29,15 +32,31 @@ from pramana.verification.schemes import (
 
 
 def gate_rows(
-    frame: pd.DataFrame, structure: DataStructure | None, config: VerificationConfig
+    frame: pd.DataFrame,
+    structure: DataStructure | None,
+    config: VerificationConfig,
+    *,
+    run_id: str | UUID | None = None,
+    looks_db: Path | None = None,
 ) -> tuple[pd.DataFrame, SplitRecord | None]:
     """The rows the gate tests on: the confirmation split, or `frame` with no structure.
 
-    Guarantees: with a structure, never a row the proposer explored (PLAN D5).
+    Guarantees: with a structure, never a row the proposer explored (PLAN D5). With a
+    `run_id` and a `looks_db`, the split also records how many other runs used the same
+    held-back rows (S7); a ledger problem leaves that field empty and changes nothing else.
     """
     if structure is None:
         return frame, None
-    return confirmation_frame(frame, structure, config)
+    rows, split = confirmation_frame(frame, structure, config)
+    if run_id is None or looks_db is None:
+        return rows, split
+    try:
+        prior = record_look(looks_db, rows_key(rows), str(run_id))
+    except Exception:  # a disclosure that cannot be made is simply absent
+        return rows, split
+    return rows, split.model_copy(
+        update={"prior_looks": prior, "look_budget": config.dependence.max_prior_looks}
+    )
 
 
 def validate_summary(

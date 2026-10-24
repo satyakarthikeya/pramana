@@ -53,6 +53,9 @@ export interface SplitRecord {
   n_exploration: number;
   n_confirmation: number;
   confirmation_digest: string;
+  /** Other runs that already tested on these held-back rows; null if not recorded. */
+  prior_looks?: number | null;
+  look_budget?: number | null;
 }
 export type AttackOutcome = "survived" | "broken" | "not_run";
 export interface AttackResult {
