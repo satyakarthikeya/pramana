@@ -1675,3 +1675,25 @@ text.axis {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* Report spacing: each figure gets room, and its chart sits clear of the sentence above
+   and the working below. */
+.report {
+  gap: var(--s6);
+}
+.report-section {
+  padding: var(--s6);
+}
+.exact-item {
+  padding: var(--s6) 0;
+}
+.exact-item .chart {
+  margin: var(--s5) 0 var(--s4) !important;
+}
+.exact-item .work {
+  margin-top: var(--s3);
+}
+.exact-item .exact-sentence {
+  max-width: 760px;
+  margin-top: var(--s3);
+}
