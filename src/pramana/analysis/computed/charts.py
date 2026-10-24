@@ -76,7 +76,25 @@ class HeatStrip(_Chart):
     cells: list[HeatCell]
 
 
+class ForecastChart(_Chart):
+    """History, the forecast and its interval (Measured tier, M6).
+
+    `lower` and `upper` come from the backtest's own errors, not from a distribution
+    assumption, and `interval_level` is the share of backtest values they were built to
+    cover; the item's values say how much they did cover.
+    """
+
+    kind: Literal["forecast"] = "forecast"
+    x_label: str
+    y_label: str
+    interval_level: float
+    actual: list[tuple[str, float]]
+    forecast: list[tuple[str, float]]
+    lower: list[tuple[str, float]]
+    upper: list[tuple[str, float]]
+
+
 ChartSpec = Annotated[
-    LineChart | BarChart | WaterfallChart | ParetoChart | HeatStrip,
+    LineChart | BarChart | WaterfallChart | ParetoChart | HeatStrip | ForecastChart,
     Field(discriminator="kind"),
 ]

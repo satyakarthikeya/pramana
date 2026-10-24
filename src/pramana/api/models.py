@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from pramana.advisory.models import AdvisoryReport
 from pramana.analysis.computed import ComputedAnalysis
+from pramana.analysis.measured import MeasuredAnalysis
 from pramana.analysis.reader import DataBrief
 from pramana.analysis.workspace.ledger import ExplorationSummary
 from pramana.contracts import ProofObject, Verdict
@@ -136,6 +137,13 @@ class DatasetView(Payload):
     #: The COMPUTED_VERSION whose build failed for this table, so a table the Exact tier
     #: cannot build is not rebuilt (with a model call) on every open.
     computed_failed_version: int = Field(default=0, ge=0)
+    #: The Measured tier: closed-menu models scored on rows they did not see, against a
+    #: baseline. Built after the response (it can be slow), so it is None until done.
+    measured: MeasuredAnalysis | None = None
+    #: The MEASURED_VERSION whose build failed, so it is not retried on every open.
+    measured_failed_version: int = Field(default=0, ge=0)
+    #: A build has been scheduled; nobody should schedule another.
+    measured_pending: bool = False
 
 
 class DatasetSummary(Payload):

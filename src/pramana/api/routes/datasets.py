@@ -70,6 +70,9 @@ async def upload_dataset(
         if service.datasets.needs_model_summary(view):
             view = service.datasets.schedule_summary(view)
             background.add_task(service.datasets.refine_summary, dataset_id, user.user_id)
+        if service.datasets.needs_measured(view):
+            view = service.datasets.schedule_measured(view)
+            background.add_task(service.datasets.build_measured, dataset_id, user.user_id)
         return view
     finally:
         await file.close()
@@ -96,6 +99,9 @@ def get_dataset(
         if service.datasets.needs_model_summary(view):
             view = service.datasets.schedule_summary(view)
             background.add_task(service.datasets.refine_summary, dataset_id, user.user_id)
+        if service.datasets.needs_measured(view):
+            view = service.datasets.schedule_measured(view)
+            background.add_task(service.datasets.build_measured, dataset_id, user.user_id)
         return view
     except KeyError:
         raise HTTPException(404, "Dataset not found.") from None
