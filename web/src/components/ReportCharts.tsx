@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ExactChart, ExactItem } from "../api";
+import type { ExactChart } from "../api";
 import { fmtInt, fmtNum, niceTicks, tickFormatter } from "../format";
 
 const W = 560;
@@ -171,6 +171,64 @@ function HeatStripView({ chart }: { chart: Extract<ExactChart, { kind: "heat_str
   );
 }
 
+function Forecast({ chart }: { chart: Extract<ExactChart, { kind: "forecast" }> }) {
+  const labels = [...chart.actual.map((p) => p[0]), ...chart.forecast.map((p) => p[0])];
+  const nA = chart.actual.length;
+  const all = [...chart.actual, ...chart.lower, ...chart.upper, ...chart.forecast].map((p) => p[1]);
+  const { y, ticks, fmt } = yScale(Math.min(...all), Math.max(...all));
+  const step = (W - PAD.l - PAD.r) / Math.max(1, labels.length - 1);
+  const x = (i: number) => PAD.l + i * step;
+  const fx = (i: number) => x(nA + i);
+  const k = every(labels.length);
+  const line = (pts: [string, number][], at: (i: number) => number) =>
+    pts.map((p, i) => `${i ? "L" : "M"}${at(i)},${y(p[1])}`).join(" ");
+  const band =
+    chart.upper.length > 0
+      ? `${line(chart.upper, fx)} ${[...chart.lower]
+          .map((p, i) => [fx(i), y(p[1])] as const)
+          .reverse()
+          .map(([px, py]) => `L${px},${py}`)
+          .join(" ")} Z`
+      : "";
+  // The forecast line starts at the last actual point so the two lines join.
+  const join = nA > 0 && chart.forecast.length > 0 ? `M${x(nA - 1)},${y(chart.actual[nA - 1][1])} ${line(chart.forecast, fx).replace(/^M/, "L")}` : "";
+  const level = Math.round(chart.interval_level * 100);
+  const mid = nA + Math.floor(chart.forecast.length / 2);
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      role="img"
+      aria-label={`${chart.y_label} by ${chart.x_label}: ${nA} observed periods, then a ${chart.forecast.length}-period forecast with a ${level}% interval`}
+    >
+      <Axes ticks={ticks} y={y} fmt={fmt} label={chart.y_label} />
+      {band && <path d={band} fill={AMBER} fillOpacity={0.18} stroke="none" />}
+      <path d={line(chart.actual, x)} fill="none" stroke={TEAL} strokeWidth={2} />
+      {join && <path d={join} fill="none" stroke={AMBER} strokeWidth={2} strokeDasharray="5 3" />}
+      {chart.forecast.map((p, i) => (
+        <rect key={p[0]} x={fx(i) - 3} y={y(p[1]) - 3} width={6} height={6} fill={AMBER} />
+      ))}
+      {labels.map((l, i) =>
+        i % k === 0 ? (
+          <text className="axis" key={`${l}-${i}`} x={x(i)} y={H - PAD.b + 16} textAnchor="middle">
+            {l}
+          </text>
+        ) : null,
+      )}
+      <text className="axis" x={W / 2} y={H - 6} textAnchor="middle">
+        {chart.x_label}
+      </text>
+      <text className="axis" x={x(Math.max(0, Math.floor(nA / 2)))} y={PAD.t + 10} textAnchor="middle">
+        actual
+      </text>
+      {chart.forecast.length > 0 && (
+        <text className="axis" x={Math.min(x(mid), W - PAD.r - 40)} y={PAD.t + 10} textAnchor="middle">
+          forecast, {level}% interval
+        </text>
+      )}
+    </svg>
+  );
+}
+
 function rows(chart: ExactChart): [string, string][] {
   switch (chart.kind) {
     case "line":
@@ -183,11 +241,23 @@ function rows(chart: ExactChart): [string, string][] {
       return chart.bars.map((b) => [b.label, `${fmtNum(b.value)} · ${(b.cumulative_share * 100).toFixed(1)}% cumulative`]);
     case "heat_strip":
       return chart.cells.map((c) => [c.label, c.index.toFixed(2)]);
+    case "forecast":
+      return [
+        ...chart.actual.map(([x, v]): [string, string] => [x, `${fmtNum(v)} (observed)`]),
+        ...chart.forecast.map(([x, v], i): [string, string] => [
+          x,
+          `${fmtNum(v)} forecast, ${fmtNum(chart.lower[i]?.[1] ?? NaN)} to ${fmtNum(chart.upper[i]?.[1] ?? NaN)}`,
+        ]),
+      ];
+    default: {
+      const unreachable: never = chart;
+      return unreachable;
+    }
   }
 }
 
 /** The figure's chart, drawn from the series code computed, with a table view. */
-export function ExactChartView({ item }: { item: ExactItem }) {
+export function ExactChartView({ item }: { item: { chart: ExactChart | null; n_rows: number } }) {
   const [table, setTable] = useState(false);
   const chart = item.chart;
   if (!chart) return null;
@@ -212,8 +282,10 @@ export function ExactChartView({ item }: { item: ExactItem }) {
         <Waterfall chart={chart} />
       ) : chart.kind === "pareto" ? (
         <Pareto chart={chart} />
-      ) : (
+      ) : chart.kind === "heat_strip" ? (
         <HeatStripView chart={chart} />
+      ) : (
+        <Forecast chart={chart} />
       )}
       <div className="chart-foot">
         <span>n = {fmtInt(item.n_rows)} rows</span>

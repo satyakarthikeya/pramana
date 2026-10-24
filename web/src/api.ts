@@ -38,10 +38,37 @@ export interface RunView {
   preview: DataPreview | null;
   past_lessons: RetrievedLesson[];
 }
+export type GateOutcome =
+  | "supported"
+  | "refuted"
+  | "negligible"
+  | "inconclusive"
+  | "not_testable"
+  | "fragile";
+export type PermutationScheme = "free" | "block_differenced" | "stratified" | "cluster" | "paired";
+export interface SplitRecord {
+  method: "random_rows" | "by_time" | "by_entity" | "none";
+  seed: number;
+  confirmation_fraction: number;
+  n_exploration: number;
+  n_confirmation: number;
+  confirmation_digest: string;
+}
+export type AttackOutcome = "survived" | "broken" | "not_run";
+export interface AttackResult {
+  attack_id: string;
+  name: string;
+  outcome: AttackOutcome;
+  reason: string;
+  original_effect: number | null;
+  attacked_effect: number | null;
+  n_rows: number | null;
+  details: Record<string, number | string | boolean | null>;
+}
 export interface Proof {
   insight_id: string;
   verdict: "PASS" | "REJECT";
-  gate_outcome: string;
+  gate_outcome: GateOutcome;
   bh_family_id: string;
   seed: number | null;
   p_value: number | null;
@@ -54,6 +81,11 @@ export interface Proof {
   asserted_direction: string | null;
   observed_direction: string | null;
   failure_reason: string | null;
+  reported_effect?: number | null;
+  reported_effect_metric?: string | null;
+  permutation_scheme?: PermutationScheme | null;
+  split?: SplitRecord | null;
+  attacks?: AttackResult[];
 }
 export interface ScatterChart {
   kind: "scatter";
@@ -300,7 +332,17 @@ export type ExactChart =
       steps: { label: string; value: number }[];
     }
   | { kind: "pareto"; y_label: string; bars: { label: string; value: number; cumulative_share: number }[] }
-  | { kind: "heat_strip"; label: string; cells: { label: string; index: number }[] };
+  | { kind: "heat_strip"; label: string; cells: { label: string; index: number }[] }
+  | {
+      kind: "forecast";
+      x_label: string;
+      y_label: string;
+      interval_level: number;
+      actual: [string, number][];
+      forecast: [string, number][];
+      lower: [string, number][];
+      upper: [string, number][];
+    };
 export interface ReportSummary {
   source: "template" | "model";
   lines: { item_id: string; text: string }[];
@@ -347,6 +389,53 @@ export interface ComputedAnalysis {
   items: ExactItem[];
   summary: ReportSummary | null;
 }
+export type MeasuredKind =
+  | "driver_regression"
+  | "driver_classification"
+  | "adjusted_association"
+  | "segments"
+  | "anomalies"
+  | "forecast"
+  | "threshold";
+export type MeasuredStatus = "ok" | "not_run" | "no_lift" | "withheld";
+export interface Exclusion {
+  column: string;
+  reason: string;
+}
+export interface MeasuredItem {
+  id: string;
+  kind: MeasuredKind;
+  level: "measured";
+  status: MeasuredStatus;
+  title: string;
+  sentence: string;
+  reason: string | null;
+  target: string | null;
+  features: string[];
+  model_family: string | null;
+  models_tried: number;
+  split: string;
+  baseline: string | null;
+  metric: string | null;
+  baseline_score: number | null;
+  model_score: number | null;
+  lift: number | null;
+  spread: number | null;
+  n_rows: number;
+  values: Record<string, Scalar>;
+  table: Record<string, Scalar>[];
+  chart: ExactChart | null;
+  leakage: Exclusion[];
+}
+export interface MeasuredAnalysis {
+  version: number;
+  seed: number;
+  n_rows: number;
+  sampled_rows: number | null;
+  items: MeasuredItem[];
+  excluded: Exclusion[];
+  seconds: number;
+}
 export interface DatasetView {
   dataset_id: string;
   name: string;
@@ -357,6 +446,9 @@ export interface DatasetView {
   overview: DataOverview | null;
   brief: DataBrief | null;
   computed: ComputedAnalysis | null;
+  measured?: MeasuredAnalysis | null;
+  measured_pending?: boolean;
+  measured_failed_version?: number;
 }
 export interface DatasetSummary {
   dataset_id: string;
