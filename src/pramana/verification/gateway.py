@@ -79,6 +79,7 @@ from pramana.verification.falsification.generator import (
 from pramana.verification.fdr import apply_bh
 from pramana.verification.interval import effect_interval
 from pramana.verification.power import power_note
+from pramana.verification.refuter import suggest_hints
 from pramana.verification.spec import declared_permutations, spec_hash
 from pramana.verification.schemes import (
     FREE_PLAN,
@@ -655,8 +656,22 @@ def _attacked(
     """
     candidate = tested.candidate
     claim = _claim_view(proof, tested, structure)
+    hints = None
+    if config.attacks.refuter_enabled:
+        outcome = suggest_hints(claim, frame, config)
+        hints = outcome.hints
+        _emit(
+            "refuter",
+            proof.insight_id,
+            status=outcome.status,
+            controls=list(outcome.hints.controls),
+            groups=list(outcome.hints.groups),
+            dropped=list(outcome.dropped),
+        )
     try:
-        results = run_attacks(claim, frame, config.attacks, seed=config.statistics.seed)
+        results = run_attacks(
+            claim, frame, config.attacks, seed=config.statistics.seed, hints=hints
+        )
     except Exception as error:  # attacks lower verdicts only; a crash changes nothing
         _emit("attacks_failed", proof.insight_id, error=f"{type(error).__name__}: {error}")
         return proof

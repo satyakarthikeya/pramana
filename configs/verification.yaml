@@ -52,6 +52,9 @@ attacks:
   max_subgroup_levels: 10      # A4: a grouping column with more levels is skipped
   min_confound_score: 0.1      # A3: |assoc(x,z)| * |assoc(y,z)| below this: no control
   max_control_proxy: 0.9       # A3: a column this rank-correlated with x or y is a copy of it, not a control
+  refuter_enabled: false       # S8: a model may SUGGEST extra controls / subgroup columns; it can only add checks
+  refuter_max_controls: 2      # S8: suggested extra controls kept
+  refuter_max_groups: 2        # S8: suggested extra subgroup columns kept
   identity_tolerance: 1.0e-6   # A7: max deviation, as a share of sd(y), for "exactly"
 
 evidence:
