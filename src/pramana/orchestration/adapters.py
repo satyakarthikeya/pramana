@@ -147,13 +147,21 @@ def inprocess_verification_adapter(
         generator = get_generator(config)
         positions = {item.insight_id: i + 1 for i, item in enumerate(state.candidate_insights)}
 
-        def generate(candidate: Any, current: Any) -> Any:
+        def generate(candidate: Any, current: Any, *plan: Any) -> Any:
             progress(positions[candidate.insight_id], len(state.candidate_insights))
-            return generator(candidate, current)
+            return generator(candidate, current, *plan)
 
         options["generate"] = generate
+    from pramana.orchestration.verification_integration import gate_rows
+
+    rows, split = gate_rows(state.dataset, state.data_structure, config)
     proofs, summary = verify_batch_with_summary(
-        state.candidate_insights, state.dataset, config, **options
+        state.candidate_insights,
+        rows,
+        config,
+        structure=state.data_structure,
+        split=split,
+        **options,
     )
     return {"proof_objects": proofs, "verification_summary": summary}
 
@@ -183,20 +191,29 @@ def celery_verification_adapter(state: PramanaState) -> NodeUpdate:
     verification_config = load_verification_config()
     generated_batch = None
     if verification_config.llm.generator == "llm":
-        from pramana.orchestration.verification_integration import prepare_verification
+        from pramana.orchestration.verification_integration import (
+            gate_rows,
+            prepare_verification,
+        )
 
         if state.dataset is None:
             raise ValueError("Trusted code generation requires the cleaned dataset")
+        rows, _ = gate_rows(state.dataset, state.data_structure, verification_config)
         generated_batch = prepare_verification(
-            state.candidate_insights, state.dataset, verification_config
+            state.candidate_insights, rows, verification_config, state.data_structure
         ).model_dump(mode="json")
+    structure = (
+        state.data_structure.model_dump(mode="json") if state.data_structure is not None else None
+    )
+    extra: dict[str, Any] = {}
+    if generated_batch is not None:
+        extra["generated_batch"] = generated_batch
+    if structure is not None:
+        extra["data_structure"] = structure
     try:
-        if generated_batch is None:
-            async_result = enqueue_verification(str(state.run_id), candidates, state.dataset_ref)
-        else:
-            async_result = enqueue_verification(
-                str(state.run_id), candidates, state.dataset_ref, generated_batch=generated_batch
-            )
+        async_result = enqueue_verification(
+            str(state.run_id), candidates, state.dataset_ref, **extra
+        )
     except OperationalError as error:
         raise RetryableWorkflowError("Verification queue is unavailable") from error
     try:

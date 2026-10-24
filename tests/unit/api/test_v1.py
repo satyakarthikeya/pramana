@@ -151,7 +151,9 @@ def test_preview_progress_cap_and_two_run_hints_keep_pass_only_memory(
                 assert all(hit["lesson"]["run_id"] != run_id for hit in view["past_lessons"])
             result = client.get(f"/api/runs/{run_id}/results").json()
             assert 0 < result["candidate_count"] <= v1_settings().max_candidates
-            assert result["verified_insights"] and result["rejected_claims"]
+            # The proposer explores half the rows (PLAN D5), so the sample's decoy pairs no
+            # longer always clear its scan; a real pair must still be proposed and verified.
+            assert result["verified_insights"]
             assert all(row["explanation"] for row in result["rejected_claims"])
             look = result["exploration"]
             assert look["engine"] == "scan" and look["examined"] >= look["proposed"] > 0
@@ -216,7 +218,8 @@ def test_generator_unavailable_is_an_explicit_api_error_with_retained_proofs(
 ) -> None:
     monkeypatch.setenv("PRAMANA_VERIFICATION_GENERATOR", "llm")
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
-    content = pd.DataFrame({"x": range(40), "y": range(40)}).to_csv(index=False).encode()
+    # 80 rows: the proposer explores half of them (PLAN D5) and needs 20 or more
+    content = pd.DataFrame({"x": range(80), "y": range(80)}).to_csv(index=False).encode()
     with TestClient(create_app(service=real_service(tmp_path))) as client:
         sign_in(client)
         run_id = client.post("/api/runs", files={"file": ("table.csv", content)}).json()["run_id"]

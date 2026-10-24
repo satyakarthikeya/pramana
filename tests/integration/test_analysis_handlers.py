@@ -93,7 +93,7 @@ def test_preparation_artifact_is_accepted_by_the_existing_worker_handler(
     seen: dict[str, object] = {}
 
     def capture_gateway(
-        batch: list[CandidateInsight], frame: pd.DataFrame, _config: object
+        batch: list[CandidateInsight], frame: pd.DataFrame, _config: object, **_: object
     ) -> tuple[list[ProofObject], BatchSummary]:
         seen["batch"] = batch
         pd.testing.assert_frame_equal(frame, prepared["dataset"])

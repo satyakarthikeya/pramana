@@ -380,3 +380,9 @@ def test_no_refiner_means_no_refinement(
 ) -> None:
     """The shipped default: no Gemma client wired in, so ambiguity stays ambiguous."""
     assert infer_schema(frame, config).columns["v026"].role is ColumnRole.UNKNOWN
+
+
+def test_tags_that_parse_as_year_one_times_are_not_dates() -> None:
+    series = pd.Series([f"m{i}" for i in range(48)])
+    profile = infer_column(series, "row_tag", load_config().schema_inference)
+    assert profile.role is not ColumnRole.DATETIME

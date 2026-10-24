@@ -28,6 +28,7 @@ Scope: SCOPE.md 2 component 8
 
 from __future__ import annotations
 
+import math
 import os
 from pathlib import Path
 from typing import Literal, Self
@@ -84,6 +85,36 @@ class StatisticsConfig(BaseModel):
         description="Usable rows below which a test concludes nothing and fails closed, "
         "rather than reporting a p-value computed from a handful of points.",
     )
+    m_max: int = Field(
+        ge=1,
+        description="Largest BH family a run may test; n_permutations must resolve it.",
+    )
+
+
+class DependenceConfig(BaseModel):
+    """How the gate respects row dependence and splits the table (PLAN D5, D6, D6b)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    confirmation_fraction: float = Field(gt=0.0, lt=1.0)
+    block_length: Literal["auto"] | int = Field(
+        description="Block length for ordered series; 'auto' is ceil(steps ** (1/3))."
+    )
+    max_diff_autocorrelation: float = Field(gt=0.0, lt=1.0)
+    min_series_length: dict[Literal["trend", "correlation"], int]
+    min_clusters: int = Field(ge=2)
+    min_split_entities: int = Field(ge=2)
+
+    @model_validator(mode="after")
+    def _complete(self) -> Self:
+        missing = {"trend", "correlation"} - set(self.min_series_length)
+        if missing:
+            raise ValueError(f"min_series_length is missing {sorted(missing)}")
+        if any(v < 4 for v in self.min_series_length.values()):
+            raise ValueError("min_series_length must be at least 4 periods")
+        if isinstance(self.block_length, int) and self.block_length < 1:
+            raise ValueError("block_length must be 'auto' or a positive integer")
+        return self
 
 
 class EffectBand(BaseModel):
@@ -196,6 +227,7 @@ class VerificationConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     statistics: StatisticsConfig
+    dependence: DependenceConfig
     evidence: EvidenceConfig
     executor: ExecutorConfig
     llm: LLMConfig
@@ -215,6 +247,22 @@ class VerificationConfig(BaseModel):
                 f"below alpha = {self.statistics.alpha}; with "
                 f"{self.statistics.n_permutations} permutations no p-value can clear this "
                 f"alpha, and the significance leg would be undefined"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _resamples_resolve_the_largest_family(self) -> Self:
+        """Guarantees: the smallest p a test can report can survive BH at `m_max` claims.
+
+        BH's strictest threshold is alpha / m; a test whose floor 1/(B+1) sits above it
+        could never pass in a full family, however strong the effect (PLAN 5, T7).
+        """
+        stats = self.statistics
+        needed = math.ceil(stats.m_max / stats.alpha - 1)
+        if stats.n_permutations < needed:
+            raise ValueError(
+                f"n_permutations = {stats.n_permutations} cannot resolve a family of "
+                f"m_max = {stats.m_max} at alpha = {stats.alpha}; it needs at least {needed}"
             )
         return self
 

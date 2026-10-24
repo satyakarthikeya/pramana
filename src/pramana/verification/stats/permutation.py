@@ -38,6 +38,7 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from pydantic import BaseModel, ConfigDict, Field
 
+from pramana.contracts.enums import PermutationScheme
 from pramana.verification.stats import provenance
 from pramana.verification.stats.effect_size import MINIMUM_COMPUTABLE_OBSERVATIONS
 
@@ -64,6 +65,10 @@ class PermutationResult(BaseModel):
     statistic: float = Field(description="The observed statistic, computed once on the real data.")
     n_permutations: int = Field(ge=1)
     seed: int
+    scheme: PermutationScheme = Field(
+        default=PermutationScheme.FREE,
+        description="How the null was built; stamped, so a free shuffle cannot pose as another.",
+    )
     provenance: str | None = Field(
         default=None,
         description="HMAC stamp proving this came from here. Null outside the sandbox.",
@@ -98,20 +103,26 @@ def _p_value(
 
 
 def _stamped(
-    p_value: float, statistic: float, n_permutations: int, seed: int
+    p_value: float,
+    statistic: float,
+    n_permutations: int,
+    seed: int,
+    scheme: PermutationScheme = PermutationScheme.FREE,
 ) -> PermutationResult:
     """Build the result and stamp it, so a caller can tell it came from this function.
 
-    The stamped fields are exactly the numbers the executor reads back out of the
+    The stamped fields are exactly the values the executor reads back out of the
     generated code's payload, so a value altered anywhere in between fails the check
-    (see `stats/provenance.py`).
+    (see `stats/provenance.py`). The scheme is among them: the gate assigns each claim a
+    scheme, and a result stamped with any other one is refused.
     """
     return PermutationResult(
         p_value=p_value,
         statistic=statistic,
         n_permutations=n_permutations,
         seed=seed,
-        provenance=provenance.stamp((p_value, statistic, n_permutations, seed)),
+        scheme=scheme,
+        provenance=provenance.stamp((p_value, statistic, n_permutations, seed, scheme.value)),
     )
 
 

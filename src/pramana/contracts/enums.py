@@ -78,6 +78,37 @@ class EffectMetric(StrEnum):
     CRAMERS_V = "cramers_v"
 
 
+class TableShape(StrEnum):
+    """How the rows of a table relate in time and by entity (PLAN 4.1).
+
+    Mirrors the analysis shape classifier's values so the gate can be told the shape
+    without importing the analysis package.
+    """
+
+    CROSS_SECTION = "cross_section"
+    TIME_SERIES = "time_series"
+    PANEL = "panel"
+    TRANSACTIONS = "transactions"
+
+
+class PermutationScheme(StrEnum):
+    """How a null was built, so it matches how the rows depend on each other (D6).
+
+    * `FREE`              -- shuffle rows freely. Valid only for independent rows.
+    * `BLOCK_DIFFERENCED` -- one ordered series: test on first differences and resample
+                             them in blocks, so a random walk is not read as a trend.
+    * `STRATIFIED`        -- shuffle only within each time period, so a common movement
+                             over time is part of the null rather than evidence.
+    * `CLUSTER`           -- move a label between whole entities, never between the rows
+                             of one entity.
+    """
+
+    FREE = "free"
+    BLOCK_DIFFERENCED = "block_differenced"
+    STRATIFIED = "stratified"
+    CLUSTER = "cluster"
+
+
 class GateOutcome(StrEnum):
     """Why the gate decided what it decided.
 

@@ -13,6 +13,22 @@ statistics:
   # PROVISIONAL: structural placeholder, not calibrated against demo data --
   # see SCOPE.md 7 (open items) and docs/OPEN_ISSUES.md 11.
   min_observations: 20       # fewer usable rows than this: conclude nothing, fail closed
+  # Largest BH family a run may test (PLAN 5, T7). The loader refuses a config whose
+  # n_permutations could not resolve a p-value small enough to pass BH at this size:
+  # n_permutations >= m_max / alpha - 1.
+  m_max: 40
+
+dependence:
+  # PLAN D5 / D6 / D6b (P1). Signed off by the verification owner on 2026-10-24:
+  # lag-1 screen on differences, structural columns readable, 50/50 split.
+  confirmation_fraction: 0.5     # share of rows only the gate sees; the rest is exploration
+  block_length: auto             # auto = ceil(steps ** (1/3)) of the series being tested
+  max_diff_autocorrelation: 0.5  # differences still this autocorrelated: NOT_TESTABLE
+  min_series_length:             # periods needed in the CONFIRMATION rows, per claim type
+    trend: 20
+    correlation: 20
+  min_clusters: 6                # entities needed to move a label between whole entities
+  min_split_entities: 8          # a panel splits by entity only with this many; else by time
 
 evidence:
   # Gating bands per effect metric. `min` is the floor below which a result is

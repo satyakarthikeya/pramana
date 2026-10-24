@@ -76,12 +76,22 @@ def _chat_reason(proof: ProofObject) -> str:
 
 
 def _gateway(candidate: CandidateInsight, frame: pd.DataFrame, message_id: UUID) -> ProofObject:
-    """Run the real gateway on a family of one, tracing under the message's UUID."""
+    """Run the real gateway on a family of one, tracing under the message's UUID.
+
+    The table's shape is classified first, so a question about monthly figures gets a
+    null that respects their order (PLAN D6). Chat explored the whole table, so there is
+    no held-out split here; the reply says the test was chosen after seeing results.
+    """
+    from pramana.analysis import infer_schema, load_config
+    from pramana.orchestration.analysis_integration import data_structure_for
     from pramana.verification.config import load_config as load_verification_config
     from pramana.verification.gateway import verify_batch_with_summary
 
+    structure = data_structure_for(frame, infer_schema(frame, load_config().schema_inference))
     with bound_contextvars(run_id=str(message_id)):
-        proofs, summary = verify_batch_with_summary([candidate], frame, load_verification_config())
+        proofs, summary = verify_batch_with_summary(
+            [candidate], frame, load_verification_config(), structure=structure
+        )
     if summary.generator_unavailable:
         raise ClaimRefused("the verifier is unavailable (check DeepSeek credentials and Langfuse).")
     if len(proofs) != 1 or proofs[0].insight_id != candidate.insight_id:

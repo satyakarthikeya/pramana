@@ -169,7 +169,7 @@ def test_p_value_of_zero_fails_closed(config: VerificationConfig, frame: pd.Data
         "def falsify(frame):\n"
         "    return {'p_value': 0.0, 'effect_size': 0.9, 'effect_metric': 'spearman_rho',\n"
         "            'reported_effect': 0.9, 'seed': 7, 'statistic': 0.9,\n"
-        "            'n_permutations': 1000, 'provenance': 'x'}\n"
+        "            'n_permutations': 1000, 'scheme': 'free', 'provenance': 'x'}\n"
     )
     result = execute(program, frame, config)
     assert not result.ok
@@ -183,7 +183,7 @@ def test_unknown_effect_metric_fails_closed(
         "def falsify(frame):\n"
         "    return {'p_value': 0.01, 'effect_size': 0.9, 'effect_metric': 'my_own_metric',\n"
         "            'reported_effect': 0.9, 'seed': 7, 'statistic': 0.9,\n"
-        "            'n_permutations': 1000, 'provenance': 'x'}\n"
+        "            'n_permutations': 1000, 'scheme': 'free', 'provenance': 'x'}\n"
     )
     result = execute(program, frame, config)
     assert not result.ok
@@ -208,7 +208,7 @@ def test_fabricated_result_is_rejected(config: VerificationConfig, frame: pd.Dat
         "def falsify(frame):\n"
         "    return {'p_value': 0.0001, 'effect_size': 0.85, 'effect_metric': 'spearman_rho',\n"
         "            'reported_effect': 0.85, 'seed': 7, 'statistic': 0.85,\n"
-        "            'n_permutations': 1000, 'provenance': 'deadbeef'}\n"
+        "            'n_permutations': 1000, 'scheme': 'free', 'provenance': 'deadbeef'}\n"
     )
     result = execute(program, frame, config)
     assert not result.ok
@@ -244,7 +244,7 @@ def test_hand_rolled_permutation_is_rejected(
         "    return {'p_value': (1 + extreme) / 201, 'effect_size': float(observed),\n"
         "            'effect_metric': 'spearman_rho', 'reported_effect': float(observed),\n"
         "            'seed': 7, 'statistic': float(observed), 'n_permutations': 200,\n"
-        "            'provenance': None}\n"
+        "            'scheme': 'free', 'provenance': None}\n"
     )
     result = execute(program, frame, config)
     assert not result.ok
@@ -282,7 +282,7 @@ def test_non_finite_effect_size_fails_closed(
         f"    return {{'p_value': 0.001, 'effect_size': {effect},\n"
         "            'effect_metric': 'spearman_rho',\n"
         "            'reported_effect': 0.9, 'seed': 7, 'statistic': 0.9,\n"
-        "            'n_permutations': 1000, 'provenance': 'x'}\n"
+        "            'n_permutations': 1000, 'scheme': 'free', 'provenance': 'x'}\n"
     )
     result = execute(program, frame, config)
     assert not result.ok
@@ -312,7 +312,8 @@ def test_effect_size_that_is_not_the_stamped_statistic_is_rejected(
         f"                         seed={config.statistics.seed})\n"
         "    return {'p_value': r.p_value, 'effect_size': 0.95, 'effect_metric': 'spearman_rho',\n"
         "            'reported_effect': 0.95, 'seed': r.seed, 'statistic': r.statistic,\n"
-        "            'n_permutations': r.n_permutations, 'provenance': r.provenance}\n"
+        "            'n_permutations': r.n_permutations, 'scheme': 'free',\n"
+        "            'provenance': r.provenance}\n"
     )
     result = execute(program, frame, config)
     assert not result.ok
@@ -346,7 +347,8 @@ def test_genuinely_stamped_result_with_wrong_config_is_rejected(
         "    return {'p_value': r.p_value, 'effect_size': r.statistic,\n"
         "            'effect_metric': 'spearman_rho', 'reported_effect': r.statistic,\n"
         "            'seed': r.seed, 'statistic': r.statistic,\n"
-        "            'n_permutations': r.n_permutations, 'provenance': r.provenance}\n"
+        "            'n_permutations': r.n_permutations, 'scheme': 'free',\n"
+        "            'provenance': r.provenance}\n"
     )
     result = execute(program, frame, config)
     assert not result.ok

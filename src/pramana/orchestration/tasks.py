@@ -112,17 +112,22 @@ def native_verification_handler(
             f"mismatched insight IDs: {mismatched}"
         )
     config = load_verification_config()
+    from pramana.contracts import DataStructure
+    from pramana.orchestration.verification_integration import gate_rows
+
+    raw_structure = request.get("data_structure")
+    structure = None if raw_structure is None else DataStructure.model_validate(raw_structure)
+    # The worker slices the confirmation rows itself from the full cleaned artifact.
+    rows, split = gate_rows(frame, structure, config)
+    options: dict[str, Any] = {"structure": structure, "split": split}
     if request.get("generated_batch") is not None:
         from pramana.orchestration.verification_integration import PreparedBatch, prepared_generator
 
         batch = PreparedBatch.model_validate(request["generated_batch"])
-        proofs, summary = verify_batch_with_summary(
-            candidates, frame, config, generate=prepared_generator(batch, candidates, config)
-        )
-    else:
-        if config.llm.generator == "llm":
-            raise ValueError("LLM verification requires programs from the trusted process")
-        proofs, summary = verify_batch_with_summary(candidates, frame, config)
+        options["generate"] = prepared_generator(batch, candidates, config)
+    elif config.llm.generator == "llm":
+        raise ValueError("LLM verification requires programs from the trusted process")
+    proofs, summary = verify_batch_with_summary(candidates, rows, config, **options)
     return {"proof_objects": proofs, "verification_summary": summary}
 
 
@@ -154,13 +159,16 @@ def verify_batch_task(
     candidates: Sequence[Mapping[str, Any]],
     dataset_ref: str,
     generated_batch: Mapping[str, Any] | None = None,
+    data_structure: Mapping[str, Any] | None = None,
 ) -> Mapping[str, Any]:
     """Dispatch one complete candidate family and propagate failures unchanged."""
     bind_run_context(run_id, task_id=self.request.id)
     try:
         client = get_langfuse_client(_runtime.langfuse)
         with traced_run(client, run_id, name="verification-task"):
-            return _verify_request(run_id, candidates, dataset_ref, generated_batch)
+            return _verify_request(
+                run_id, candidates, dataset_ref, generated_batch, data_structure
+            )
     finally:
         clear_log_context()
 
@@ -170,6 +178,7 @@ def _verify_request(
     candidates: Sequence[Mapping[str, Any]],
     dataset_ref: str,
     generated_batch: Mapping[str, Any] | None = None,
+    data_structure: Mapping[str, Any] | None = None,
 ) -> Mapping[str, Any]:
     """Validate the whole family inside the task's trace and cleanup boundary."""
     validated_candidates = [
@@ -195,6 +204,8 @@ def _verify_request(
     }
     if generated_batch is not None:
         request["generated_batch"] = generated_batch
+    if data_structure is not None:
+        request["data_structure"] = dict(data_structure)
     get_logger(component="celery", run_id=run_id).info(
         "verification_dispatched", n_candidates=len(candidates)
     )
@@ -231,9 +242,14 @@ def enqueue_verification(
     dataset_ref: str,
     *,
     generated_batch: Mapping[str, Any] | None = None,
+    data_structure: Mapping[str, Any] | None = None,
 ) -> Any:
     """Queue a complete hypothesis family as one task so BH-FDR remains batch-wide."""
-    kwargs = {"generated_batch": dict(generated_batch)} if generated_batch is not None else {}
+    kwargs: dict[str, Any] = {}
+    if generated_batch is not None:
+        kwargs["generated_batch"] = dict(generated_batch)
+    if data_structure is not None:
+        kwargs["data_structure"] = dict(data_structure)
     return verify_batch_task.apply_async(
         args=(run_id, list(candidates), dataset_ref), kwargs=kwargs
     )

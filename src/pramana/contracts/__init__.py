@@ -15,19 +15,26 @@ from pramana.contracts.enums import (
     Direction,
     EffectMetric,
     GateOutcome,
+    PermutationScheme,
+    TableShape,
     TestType,
     Verdict,
 )
 from pramana.contracts.proof_object import ProofObject, ScoreComponents
+from pramana.contracts.structure import DataStructure, SplitRecord
 
 __all__ = [
     "CandidateInsight",
     "ClaimType",
+    "DataStructure",
     "Direction",
     "EffectMetric",
     "GateOutcome",
+    "PermutationScheme",
     "ProofObject",
     "ScoreComponents",
+    "SplitRecord",
+    "TableShape",
     "TestType",
     "Verdict",
 ]

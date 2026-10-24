@@ -21,6 +21,15 @@ Scope: SCOPE.md 4 step 2
 """
 
 from pramana.verification.stats.bootstrap import BootstrapResult, bootstrap_ci
+from pramana.verification.stats.dependence import (
+    correlation_test_differenced,
+    default_block_length,
+    lag1_autocorrelation,
+    permutation_test_groups_clustered,
+    permutation_test_groups_stratified,
+    permutation_test_stratified,
+    trend_test_differenced,
+)
 from pramana.verification.stats.effect_size import (
     cliffs_delta,
     cramers_v,
@@ -45,16 +54,23 @@ __all__ = [
     "PermutationResult",
     "bootstrap_ci",
     "cliffs_delta",
+    "correlation_test_differenced",
     "cramers_v",
+    "default_block_length",
     "epsilon_squared",
     "eta_squared",
     "hedges_g",
     "kendall_tau_b",
+    "lag1_autocorrelation",
     "outlier_divergence",
     "pearson_r",
     "permutation_test",
     "permutation_test_groups",
+    "permutation_test_groups_clustered",
+    "permutation_test_groups_stratified",
+    "permutation_test_stratified",
     "sens_slope",
     "spearman_rho",
     "table_k",
+    "trend_test_differenced",
 ]

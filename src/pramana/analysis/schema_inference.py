@@ -298,6 +298,10 @@ def _parseable_as_datetime(series: pd.Series) -> float:
     return float(parsed.notna().sum()) / float(len(non_null))
 
 
+#: Years a real date column can hold; anything else parsed by accident.
+_PLAUSIBLE_YEARS = (1800, 2200)
+
+
 def parse_timestamps(series: pd.Series) -> pd.Series:
     """Timestamps for text or datetime values, unparseable ones missing, always naive.
 
@@ -311,6 +315,9 @@ def parse_timestamps(series: pd.Series) -> pd.Series:
         stamps = pd.to_datetime(series, errors="coerce", format="mixed", utc=True)
     if isinstance(stamps, pd.Series) and getattr(stamps.dt, "tz", None) is not None:
         stamps = stamps.dt.tz_convert(None)
+    if isinstance(stamps, pd.Series):
+        # "m0" or "a12" parse as times in year 1; no real date column lives there
+        stamps = stamps.where(stamps.dt.year.between(*_PLAUSIBLE_YEARS))
     return stamps
 
 
