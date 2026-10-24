@@ -214,6 +214,24 @@ def test_time_like_marks_datetimes_and_named_ordinals(
     assert schema.columns["dmdeduc2"].is_time_like is False
 
 
+@pytest.mark.parametrize("name", ["WTMEC2YR", "WTINT2YR", "wt_2yr", "return_5_year", "avg3month"])
+def test_a_time_word_after_a_number_is_a_duration_not_an_axis(
+    name: str, config: SchemaInferenceConfig
+) -> None:
+    """'2YR' in a survey weight means "2-year"; trends must never be tested against it."""
+    series = pd.Series([1.0, 3.0, 2.0, 4.0] * 30)
+    profile = infer_column(series, name, config)
+    assert profile.role is ColumnRole.ORDINAL
+    assert profile.is_time_like is False
+
+
+def test_a_known_survey_variable_is_never_a_time_axis(config: SchemaInferenceConfig) -> None:
+    series = pd.Series([1, 2, 3, 1] * 30)
+    assert infer_column(series, "RIDAGEYR", config).is_time_like is False
+    # an ordinary time-named ordinal still is one
+    assert infer_column(series, "survey_year_wave", config).is_time_like is True
+
+
 def test_name_tokens_match_whole_words_only(config: SchemaInferenceConfig) -> None:
     """`avoidance` contains "id"; a substring match would call it an identifier."""
     series = pd.Series(np.arange(N_ROWS))

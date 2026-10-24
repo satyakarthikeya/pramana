@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -157,6 +158,52 @@ def test_the_model_summary_is_written_after_upload_without_blocking_it(
         assert calls == [("api", __import__("uuid").UUID(view["dataset_id"]))]
         client.get(f"/api/datasets/{view['dataset_id']}")
         assert len(calls) == 1  # never re-asked once a model summary is stored
+
+
+def test_a_failed_rebuild_is_not_retried_on_every_open(tmp_path: Path, monkeypatch) -> None:
+    import json
+    import sqlite3
+
+    from pramana.api import datasets
+
+    calls = []
+    monkeypatch.setattr(datasets, "compute_exact_tier", lambda *a, **k: calls.append(1))
+    with TestClient(create_app(service=service_for(tmp_path))) as client:
+        sign_in(client)
+        view = client.post("/api/datasets", files={"file": ("pl.csv", _finance_csv())}).json()
+        with sqlite3.connect(tmp_path / "api/runs.sqlite3") as connection:
+            stored = json.loads(connection.execute("SELECT view_json FROM datasets").fetchone()[0])
+            stored["computed"]["version"] = 1  # older: one rebuild is due
+            connection.execute("UPDATE datasets SET view_json = ?", (json.dumps(stored),))
+        for _ in range(3):
+            assert client.get(f"/api/datasets/{view['dataset_id']}").status_code == 200
+        assert len(calls) == 1
+
+
+def test_a_pending_summary_is_not_requested_twice(tmp_path: Path) -> None:
+    from pramana.analysis.computed.models import ReportSummary
+    from pramana.api.datasets import DatasetRepository
+
+    with TestClient(create_app(service=service_for(tmp_path))) as client:
+        sign_in(client)
+        view = client.post("/api/datasets", files={"file": ("pl.csv", _finance_csv())}).json()
+    stored = DatasetRepository._load(json.dumps(view))
+    assert stored.computed is not None
+    pending = stored.computed.model_copy(
+        update={"summary": ReportSummary(source="template", lines=[], pending=True)}
+    )
+    assert not DatasetRepository.needs_model_summary(
+        stored.model_copy(update={"computed": pending})
+    )
+
+
+def test_the_upload_route_does_not_block_the_event_loop() -> None:
+    import inspect
+
+    from pramana.api.routes import datasets as route
+
+    source = inspect.getsource(route.upload_dataset)
+    assert "run_in_threadpool(" in source  # model calls happen off the event loop
 
 
 def test_an_older_analysis_version_is_rebuilt_on_open(tmp_path: Path) -> None:

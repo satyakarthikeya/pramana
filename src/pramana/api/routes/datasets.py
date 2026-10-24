@@ -5,6 +5,7 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from starlette.concurrency import run_in_threadpool
 
 from pramana.api.auth import User
 from pramana.api.datasets import DatasetReadError, profile_file
@@ -52,7 +53,10 @@ async def upload_dataset(
         if total == 0:
             raise HTTPException(422, "The uploaded file is empty.")
         try:
-            view = profile_file(
+            # Profiling may wait on DeepSeek (the sector reader); run it off the event loop
+            # so one upload never stalls every other request.
+            view = await run_in_threadpool(
+                profile_file,
                 path,
                 dataset_id=dataset_id,
                 name=name,
@@ -64,6 +68,7 @@ async def upload_dataset(
         service.datasets.add(view, path, user.user_id)
         stored = True
         if service.datasets.needs_model_summary(view):
+            view = service.datasets.schedule_summary(view)
             background.add_task(service.datasets.refine_summary, dataset_id, user.user_id)
         return view
     finally:
@@ -89,6 +94,7 @@ def get_dataset(
         view = service.datasets.backfill_brief(view, user.user_id)
         view = service.datasets.backfill_computed(view, user.user_id)
         if service.datasets.needs_model_summary(view):
+            view = service.datasets.schedule_summary(view)
             background.add_task(service.datasets.refine_summary, dataset_id, user.user_id)
         return view
     except KeyError:

@@ -163,6 +163,7 @@ def profile_file(
         overview=overview,
         brief=brief,
         computed=computed,
+        computed_failed_version=COMPUTED_VERSION if computed is None else 0,
     )
 
 
@@ -258,41 +259,65 @@ class DatasetRepository:
         `COMPUTED_VERSION` (new figures or chart data), or stored in a stale format."""
         if view.computed is not None and view.computed.version >= COMPUTED_VERSION:
             return view
+        if view.computed_failed_version >= COMPUTED_VERSION:
+            return view  # this version was already tried and could not be built
         computed = compute_exact_tier(
             self.file_path(view.dataset_id, owner_id), trace_id=view.dataset_id
         )
-        if computed is None:
-            return view
-        updated = view.model_copy(update={"computed": computed})
+        update: dict[str, object] = (
+            {"computed_failed_version": COMPUTED_VERSION}
+            if computed is None
+            else {"computed": computed, "computed_failed_version": 0}
+        )
+        updated = view.model_copy(update=update)
         self._save(updated)
         return updated
 
     @staticmethod
     def needs_model_summary(view: DatasetView) -> bool:
-        """A code summary that the model has not tried to reword yet, with the model on."""
+        """A code summary the model has not tried to reword, none scheduled, model on."""
         summary = view.computed.summary if view.computed else None
         return (
             summary is not None
             and summary.source == "template"
             and summary.fallback_reason is None
+            and not summary.pending
             and load_computed_config().summary_engine == "api"
         )
+
+    def schedule_summary(self, view: DatasetView) -> DatasetView:
+        """Mark the summary as pending before the background task is queued, so a second
+        open while the model is working does not queue another call."""
+        assert view.computed is not None and view.computed.summary is not None
+        summary = view.computed.summary.model_copy(update={"pending": True})
+        updated = view.model_copy(
+            update={"computed": view.computed.model_copy(update={"summary": summary})}
+        )
+        self._save(updated)
+        return updated
 
     def refine_summary(self, dataset_id: UUID, owner_id: UUID | None = None) -> None:
         """Replace the code summary with DeepSeek's wording, or record why it was not used.
 
         Runs after the response (a background task), so the upload never waits on it.
-        The attempt is stored either way, so a failing model is not asked on every open.
+        The outcome is stored either way, so a failing model is not asked on every open.
+        The view is read again just before saving, and nothing is written if the analysis
+        was rebuilt meanwhile, so a slow model reply never overwrites newer figures.
         """
         try:
             view = self.get(dataset_id, owner_id)
         except KeyError:
             return
-        if not self.needs_model_summary(view) or view.computed is None:
+        summary = view.computed.summary if view.computed else None
+        if view.computed is None or summary is None or not summary.pending:
             return
-        summary = summarise(view.computed, engine="api", trace_id=dataset_id)
-        computed = view.computed.model_copy(update={"summary": summary})
-        self._save(view.model_copy(update={"computed": computed}))
+        version = view.computed.version
+        refined = summarise(view.computed, engine="api", trace_id=dataset_id)
+        latest = self.get(dataset_id, owner_id)
+        if latest.computed is None or latest.computed.version != version:
+            return
+        computed = latest.computed.model_copy(update={"summary": refined})
+        self._save(latest.model_copy(update={"computed": computed}))
 
     def claim_unowned(self, owner_id: UUID) -> None:
         """Hand datasets stored before accounts existed to the first account."""

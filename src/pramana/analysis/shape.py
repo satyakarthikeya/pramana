@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field
 
-from pramana.analysis.schema_inference import ColumnRole, SchemaProfile
+from pramana.analysis.schema_inference import ColumnRole, SchemaProfile, parse_timestamps
 
 Period = Literal["day", "week", "month", "quarter", "year", "index"]
 
@@ -99,7 +99,7 @@ def period_keys(
     """
     profile = schema.columns.get(column)
     if profile is not None and profile.role is ColumnRole.DATETIME:
-        stamps = pd.to_datetime(frame[column], errors="coerce", format="mixed")
+        stamps = parse_timestamps(frame[column])
         unique = np.sort(stamps.dropna().unique())
         gaps = (
             np.diff(unique).astype("timedelta64[D]").astype(float)
@@ -129,8 +129,10 @@ def period_keys(
         keys = stamps.dt.to_period(code).astype(str).where(stamps.notna())
         return keys, period
     values = pd.to_numeric(frame[column], errors="coerce")
-    period = "year" if _is_year_column(column, frame[column]) else "index"
-    return values, period
+    if _is_year_column(column, frame[column]):
+        # whole years, even when a gap made pandas read the column as float ("2023.0")
+        return values.round().astype("Int64"), "year"
+    return values, "index"
 
 
 def _full_cycles(keys: pd.Series, period: Period) -> int:

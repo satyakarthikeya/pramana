@@ -13,8 +13,9 @@ from pramana.analysis.shape import ShapeProfile
 Scalar = float | int | str | bool | None
 
 #: Bumped whenever stored analyses should be rebuilt (new figures or chart data).
-#: 2 = chart data on figures and the report summary; 3 = clearer change wording.
-COMPUTED_VERSION = 3
+#: 2 = chart data on figures and the report summary; 3 = clearer change wording;
+#: 4 = review fixes (blank segments, calendar windows, inf, signs, non-answers).
+COMPUTED_VERSION = 4
 
 
 class ExactItem(BaseModel):
@@ -56,6 +57,8 @@ class ReportSummary(BaseModel):
     source: Literal["template", "model"]
     lines: list[SummaryLine]
     fallback_reason: str | None = None
+    #: A model rewording has been scheduled; nobody should schedule another.
+    pending: bool = False
 
 
 class ComputedAnalysis(BaseModel):

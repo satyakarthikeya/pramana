@@ -58,6 +58,7 @@ from typing import Protocol
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field
 
+from pramana.analysis import codebook
 from pramana.analysis.config import SchemaInferenceConfig
 
 #: Name fragments that corroborate an identifier. Vocabulary, not a threshold, so it
@@ -247,6 +248,23 @@ def _name_matches(column: str, vocabulary: frozenset[str]) -> bool:
     return bool(tokens & vocabulary)
 
 
+def _names_a_time_axis(column: str) -> bool:
+    """Whether the name says the column advances in time, as opposed to naming a span.
+
+    A time word straight after a number is a duration: `WTMEC2YR` is the NHANES
+    "2-year" exam weight, `return_5_year` a five-year return. Calling those a time axis
+    would let a trend be tested against a survey weight. A known codebook variable is
+    never an axis either: the codebook says what it is.
+    """
+    if codebook.lookup(str(column)) is not None:
+        return False
+    parts = [part.casefold() for part in _WORD_BOUNDARY.split(str(column)) if part]
+    return any(
+        part in TIME_NAME_TOKENS and not (i > 0 and parts[i - 1].isdigit())
+        for i, part in enumerate(parts)
+    )
+
+
 #: What `pd.api.types.infer_dtype` calls values that are actually numbers. Checked on
 #: the VALUES rather than the column dtype, because an object column holding floats
 #: reports dtype `object` and would otherwise be handled as text.
@@ -276,8 +294,24 @@ def _parseable_as_datetime(series: pd.Series) -> float:
     non_null = series.dropna()
     if non_null.empty or _value_kind(non_null) not in _TEXTUAL_VALUE_KINDS:
         return 0.0
-    parsed = pd.to_datetime(non_null, errors="coerce", format="mixed")
+    parsed = parse_timestamps(non_null)
     return float(parsed.notna().sum()) / float(len(non_null))
+
+
+def parse_timestamps(series: pd.Series) -> pd.Series:
+    """Timestamps for text or datetime values, unparseable ones missing, always naive.
+
+    Values with different UTC offsets ("+05:30" next to "+00:00") make pandas raise
+    rather than coerce; they are read as UTC instead, and the zone is dropped so every
+    caller compares like with like.
+    """
+    try:
+        stamps = pd.to_datetime(series, errors="coerce", format="mixed")
+    except (ValueError, TypeError):
+        stamps = pd.to_datetime(series, errors="coerce", format="mixed", utc=True)
+    if isinstance(stamps, pd.Series) and getattr(stamps.dt, "tz", None) is not None:
+        stamps = stamps.dt.tz_convert(None)
+    return stamps
 
 
 def _classify_numeric(
@@ -460,7 +494,7 @@ def infer_column(
         role = ColumnRole.UNKNOWN
 
     is_time_like = role is ColumnRole.DATETIME or (
-        role is ColumnRole.ORDINAL and _name_matches(name, TIME_NAME_TOKENS)
+        role is ColumnRole.ORDINAL and _names_a_time_axis(name)
     )
     levels = (
         sorted(str(value) for value in non_null.unique())

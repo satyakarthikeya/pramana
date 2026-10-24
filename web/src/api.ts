@@ -305,6 +305,7 @@ export interface ReportSummary {
   source: "template" | "model";
   lines: { item_id: string; text: string }[];
   fallback_reason: string | null;
+  pending: boolean;
 }
 export interface ExactItem {
   id: string;

@@ -133,6 +133,9 @@ class DatasetView(Payload):
     brief: DataBrief | None = None
     #: The Exact tier: arithmetic with its formulas. Shown to the user, never to a model.
     computed: ComputedAnalysis | None = None
+    #: The COMPUTED_VERSION whose build failed for this table, so a table the Exact tier
+    #: cannot build is not rebuilt (with a model call) on every open.
+    computed_failed_version: int = Field(default=0, ge=0)
 
 
 class DatasetSummary(Payload):

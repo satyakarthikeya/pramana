@@ -136,7 +136,9 @@ export function Computed({ computed }: { computed: ComputedAnalysis }) {
           tested findings: nothing here is marked verified.{" "}
           {summary?.source === "model"
             ? "The summary was worded by DeepSeek from the figures below, and every number in it was checked against them."
-            : "The summary lists the figures below in code-written words."}
+            : summary?.pending
+              ? "The summary lists the figures below in code-written words; DeepSeek is rewording it, so reopen this page in a moment."
+              : "The summary lists the figures below in code-written words."}
           {summary?.fallback_reason && ` Model wording was not used: ${summary.fallback_reason}.`}
         </p>
       </div>

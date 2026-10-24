@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from collections.abc import Callable, Sequence
 from typing import Literal
 from uuid import UUID
@@ -155,9 +156,15 @@ def _payload(items: Sequence[ExactItem]) -> str:
     return json.dumps({"figures": figures}, allow_nan=False, separators=(",", ":"))
 
 
+#: A summary line that links elsewhere is not describing a figure.
+_LINK = re.compile(r"https?://|www\.|\w+\.(?:com|org|net|io|ai)\b|@\w", re.IGNORECASE)
+
+
 def _problem(line: _Line, item: ExactItem | None) -> str | None:
     if item is None:
         return "model named an unknown figure"
+    if _LINK.search(line.text):
+        return "model wrote a link or an address"
     names = [c for c in item.columns if c]
     if (
         forbidden_words(line.text, names)
@@ -165,6 +172,10 @@ def _problem(line: _Line, item: ExactItem | None) -> str | None:
         or (_matched_terms(line.text, UNIVERSAL_TERMS))
     ):
         return "model used verdict, causal or universal wording"
+    # A line must quote its figure: without one of the figure's numbers it could say
+    # anything (column names reach the model, and a name could carry an instruction).
+    if not re.search(r"\d", line.text):
+        return "model wrote a line with no number from its figure"
     if unsupported_numbers(
         line.text, [item.values, item.table, item.sentence, item.filters], names=names
     ):

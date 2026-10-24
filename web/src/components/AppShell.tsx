@@ -48,7 +48,7 @@ export function AppShell({
   active: { dataset?: string; memory?: boolean };
   children: ReactNode;
 }) {
-  const { datasets, stage, notice, dismiss } = useWorkspace();
+  const { datasets, stage, starting, notice, dismiss } = useWorkspace();
   const { user, signOut } = useAuth();
   const [dragging, setDragging] = useState(false);
 
@@ -73,7 +73,8 @@ export function AppShell({
       depth = 0;
       setDragging(false);
       const file = event.dataTransfer?.files[0];
-      if (file) stage(file);
+      // while a table is uploading, a drop would replace it mid-flight; ignore it
+      if (file && !starting) stage(file);
     };
     window.addEventListener("dragenter", enter);
     window.addEventListener("dragleave", leave);
@@ -85,7 +86,7 @@ export function AppShell({
       window.removeEventListener("dragover", over);
       window.removeEventListener("drop", drop);
     };
-  }, [stage]);
+  }, [stage, starting]);
 
   return (
     <div className="app">

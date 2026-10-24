@@ -47,7 +47,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setNotice(null);
       try {
         const view = await api.uploadDataset(file, name);
-        setStaged(null);
+        // clear only the file that was uploaded; never a newer one chosen meanwhile
+        setStaged((current) => (current === file ? null : current));
         try {
           const run = await api.analyse(view.dataset_id, question);
           await refresh();

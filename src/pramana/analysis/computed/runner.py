@@ -84,8 +84,19 @@ class Context:
 # --- helpers ------------------------------------------------------------------------
 
 
+MISSING_SEGMENT = "(missing)"
+
+
 def _num(series: pd.Series) -> pd.Series:
-    return pd.to_numeric(series, errors="coerce")
+    """Numbers only; text and ±inf become missing, so no sum or share can be infinite."""
+    return pd.to_numeric(series, errors="coerce").replace([np.inf, -np.inf], np.nan)
+
+
+def _segments(ctx: Context) -> pd.Series:
+    """The group label per row; a blank group is its own segment, never dropped, so the
+    segments always add up to the same total as the period change."""
+    assert ctx.group is not None
+    return ctx.frame[ctx.group].astype("string").fillna(MISSING_SEGMENT)
 
 
 def _fmt(value: float) -> str:
@@ -132,13 +143,18 @@ def _windows(ctx: Context) -> tuple[list[object], list[object], str, str] | None
     if len(periods) < 2:
         return None
     if ctx.shape.period == "month" and len(periods) >= 24:
-        current, previous = periods[-12:], periods[-24:-12]
-        return (
-            current,
-            previous,
-            f"the 12 months to {current[-1]}",
-            f"the 12 months to {previous[-1]}",
-        )
+        # Calendar months back from the last one, and only if every one of them is there:
+        # 24 distinct keys with a gap would compare two windows of different lengths.
+        last = pd.Period(str(periods[-1]), freq="M")
+        months = [str(p) for p in pd.period_range(last - 23, last, freq="M")]
+        if set(months) <= set(map(str, periods)):
+            current, previous = months[12:], months[:12]
+            return (
+                current,
+                previous,
+                f"the 12 months to {current[-1]}",
+                f"the 12 months to {previous[-1]}",
+            )
     return [periods[-1]], [periods[-2]], str(periods[-1]), str(periods[-2])
 
 
@@ -182,7 +198,9 @@ def period_change(ctx: Context) -> list[ExactItem]:
         in_prev = ctx.keys.isin(previous) & values.notna()
         now, before = float(values[in_cur].sum()), float(values[in_prev].sum())
         change = now - before
-        pct = 100.0 * change / before if before != 0 else None
+        # A percentage of a zero or negative base reads backwards ("up" while the ratio is
+        # negative), so it is only given against a positive one.
+        pct = 100.0 * change / before if before > 0 else None
         if change == 0:
             movement = "unchanged from"
         elif pct is None:
@@ -228,7 +246,7 @@ def variance_decomposition(ctx: Context) -> list[ExactItem]:
     items = []
     for column in ctx.measures:
         values = _num(ctx.frame[column])
-        segment = ctx.frame[ctx.group].astype(str)
+        segment = _segments(ctx)
         in_cur = ctx.keys.isin(current) & values.notna()
         in_prev = ctx.keys.isin(previous) & values.notna()
         now = values[in_cur].groupby(segment[in_cur]).sum()
@@ -318,13 +336,18 @@ def concentration(ctx: Context) -> list[ExactItem]:
     items = []
     for column in ctx.measures:
         values = _num(ctx.frame[column])
-        valid = values.notna() & ctx.frame[ctx.group].notna()
-        totals = values[valid].groupby(ctx.frame.loc[valid, ctx.group].astype(str)).sum()
+        valid = values.notna()
+        totals = values[valid].groupby(_segments(ctx)[valid]).sum()
         totals = totals.sort_values(ascending=False, kind="stable")
         grand = float(totals.sum())
-        if grand <= 0 or totals.empty:
+        if totals.empty or grand <= 0 or bool((totals < 0).any()):
+            # A share of a total that some segments subtract from can exceed 100%.
             items.append(
-                _not_run("concentration", f"Shares of {column} need a positive total.", column)
+                _not_run(
+                    "concentration",
+                    f"Shares of {column} are not given when a segment total is below zero.",
+                    column,
+                )
             )
             continue
         top, share = str(totals.index[0]), float(totals.iloc[0]) / grand
@@ -372,8 +395,10 @@ def segment_ranking(ctx: Context) -> list[ExactItem]:
         return []
     column = ctx.measures[0]
     values = _num(ctx.frame[column])
-    valid = values.notna() & ctx.frame[ctx.group].notna()
-    grouped = values[valid].groupby(ctx.frame.loc[valid, ctx.group].astype(str))
+    valid = values.notna()
+    if not valid.any():
+        return []
+    grouped = values[valid].groupby(_segments(ctx)[valid])
     table = pd.DataFrame({"total": grouped.sum(), "mean": grouped.mean(), "n": grouped.size()})
     additive = ctx.pack.additive_measures
     key, word = ("total", "total") if additive else ("mean", "average")
@@ -513,7 +538,16 @@ def seasonality(ctx: Context) -> list[ExactItem]:
         totals = values[mask].groupby([years[mask], position[mask]]).sum()
         means = totals.groupby(level=1).mean()
         overall = float(means.mean())
-        if overall == 0:
+        if overall <= 0:
+            # An index against a negative average flips: the worst month would read as the
+            # peak. Seasonality is only described for a positive average.
+            items.append(
+                _not_run(
+                    "seasonality",
+                    f"A seasonal index needs a positive average {column}.",
+                    column,
+                )
+            )
             continue
         index = means / overall
         peak, low = int(index.idxmax()), int(index.idxmin())
@@ -742,6 +776,18 @@ def _breakdowns(ctx: Context, valid: pd.Series) -> list[tuple[str, str, pd.Serie
     return out
 
 
+#: Codebook labels that record a non-answer rather than a measurement.
+_NON_ANSWER_LABELS = frozenset({"refused", "don't know"})
+
+
+def _non_answers(column: str) -> list[float]:
+    """Codes that mean "Refused" or "Don't know" for a codebook column. They leave the
+    denominator of a share entirely: counting them as "no" understates the share."""
+    known = codebook.lookup(column)
+    coding = (known.coding or {}) if known else {}
+    return [float(code) for code, label in coding.items() if label.lower() in _NON_ANSWER_LABELS]
+
+
 def prevalence(ctx: Context) -> list[ExactItem]:
     weights = _weights(ctx)
     items = []
@@ -750,6 +796,7 @@ def prevalence(ctx: Context) -> list[ExactItem]:
         if column is None:
             continue
         values = _num(ctx.frame[column])
+        values = values.where(~values.isin(_non_answers(column)))
         valid = values.notna()
         if weights is not None:
             valid &= weights.notna() & (weights > 0)
@@ -891,9 +938,7 @@ def rates(ctx: Context) -> list[ExactItem]:
     rate = 1000.0 * float(c[valid].sum()) / float(p[valid].sum())
     table = []
     if ctx.group is not None:
-        grouped = pd.DataFrame(
-            {"c": c[valid], "p": p[valid], "g": ctx.frame.loc[valid, ctx.group].astype(str)}
-        )
+        grouped = pd.DataFrame({"c": c[valid], "p": p[valid], "g": _segments(ctx)[valid]})
         sums = grouped.groupby("g")[["c", "p"]].sum()
         sums["rate"] = 1000.0 * sums["c"] / sums["p"]
         sums = sums.sort_values("rate", ascending=False, kind="stable").iloc[
