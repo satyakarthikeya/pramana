@@ -1,7 +1,6 @@
 # Datasets never go in the repo (AGENTS.md §6)
 data/*
 !data/README.md
-!data/.gitkeep
 *.csv
 *.xlsx
 *.parquet
