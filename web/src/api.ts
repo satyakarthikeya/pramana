@@ -413,6 +413,23 @@ export interface ExactItem {
   values: Record<string, Scalar>;
   table: Record<string, Scalar>[];
   chart: ExactChart | null;
+  section?: string;
+  importance?: number;
+  also?: string[];
+}
+export interface StorySection {
+  key: string;
+  title: string;
+  item_ids: string[];
+}
+export interface WatchQuestion {
+  text: string;
+  item_id: string;
+}
+export interface Story {
+  lead_ids: string[];
+  sections: StorySection[];
+  questions: WatchQuestion[];
 }
 export interface SectorMatch {
   sector: string;
@@ -437,6 +454,7 @@ export interface ComputedAnalysis {
   scope_note: string;
   items: ExactItem[];
   summary: ReportSummary | null;
+  story?: Story | null;
 }
 export type MeasuredKind =
   | "driver_regression"

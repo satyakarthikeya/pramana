@@ -72,7 +72,8 @@ function Work({ item }: { item: ExactItem }) {
   );
 }
 
-function Figure({ item }: { item: ExactItem }) {
+function Figure({ item, byId }: { item: ExactItem; byId: Map<string, ExactItem> }) {
+  const also = (item.also ?? []).map((id) => byId.get(id)).filter((i): i is ExactItem => !!i);
   return (
     <li className="exact-item" id={`fig-${item.id}`}>
       <div className="exact-top">
@@ -82,6 +83,20 @@ function Figure({ item }: { item: ExactItem }) {
       <p className="exact-sentence">{item.sentence}</p>
       <ExactChartView item={item} />
       <Work item={item} />
+      {also.length > 0 && (
+        <details className="work">
+          <summary>
+            Same question on {also.length} other measure{also.length === 1 ? "" : "s"}
+          </summary>
+          <ul className="exact-skipped">
+            {also.map((a) => (
+              <li key={a.id} id={`fig-${a.id}`}>
+                <span>{a.sentence}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </li>
   );
 }
@@ -92,12 +107,22 @@ export function Computed({ computed }: { computed: ComputedAnalysis }) {
   const skipped = computed.items.filter((i) => i.status === "not_run");
   const { shape, summary } = computed;
   const placed = new Set(SECTIONS.flatMap((s) => s.kinds));
-  const sections = [
-    ...SECTIONS,
-    { title: "Other figures", kinds: [...new Set(done.map((i) => i.kind))].filter((k) => !placed.has(k)) },
-  ]
-    .map((s) => ({ title: s.title, items: done.filter((i) => s.kinds.includes(i.kind)) }))
-    .filter((s) => s.items.length > 0);
+  const byId = new Map(computed.items.map((i) => [i.id, i]));
+  const story = computed.story ?? null;
+  // A report built with the story is read in its order; an older one keeps the theme layout.
+  const sections = story
+    ? story.sections
+        .map((s) => ({
+          title: s.title,
+          items: s.item_ids.map((id) => byId.get(id)).filter((i): i is ExactItem => !!i),
+        }))
+        .filter((s) => s.items.length > 0)
+    : [
+        ...SECTIONS,
+        { title: "Other figures", kinds: [...new Set(done.map((i) => i.kind))].filter((k) => !placed.has(k)) },
+      ]
+        .map((s) => ({ title: s.title, items: done.filter((i) => s.kinds.includes(i.kind)) }))
+        .filter((s) => s.items.length > 0);
 
   return (
     <section className="report" aria-label="What the data says">
@@ -148,11 +173,34 @@ export function Computed({ computed }: { computed: ComputedAnalysis }) {
           <h3>{section.title}</h3>
           <ol className="exact-list">
             {section.items.map((item) => (
-              <Figure key={item.id} item={item} />
+              <Figure key={item.id} item={item} byId={byId} />
             ))}
           </ol>
         </div>
       ))}
+
+      {story && story.questions.length > 0 && (
+        <div className="panel report-section">
+          <h3>What to watch next</h3>
+          <p className="explain">Questions the figures raise. They are not findings and not advice.</p>
+          <ul className="exact-skipped">
+            {story.questions.map((q) => (
+              <li key={q.text}>
+                <span className="note-level">ASK</span>
+                <a
+                  href={`#fig-${q.item_id}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    document.getElementById(`fig-${q.item_id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                >
+                  {q.text}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {skipped.length > 0 && (
         <div className="panel report-section">
