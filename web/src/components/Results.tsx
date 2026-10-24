@@ -113,7 +113,7 @@ function RejectedRow({
       <span className="rej-reason">
         <b>{fragile ? "BROKEN BY" : "REASON"}</b>
         {fragile && broke
-          ? `${broke.attack_id} ${broke.name}: ${broke.reason} It passed the gate first, so it is not shown as verified.`
+          ? `${broke.attack_id} ${broke.name}: ${broke.reason}. It passed the gate first, so it is not shown as verified.`
           : (row.explanation ?? "Rejected by the gate.")}
         {row.proof.q_value !== null ? ` q = ${fmtP(row.proof.q_value)}.` : ""}
       </span>
@@ -184,7 +184,7 @@ export function ProofDrawer({
             <p>
               This claim passed the gate, then did not survive a falsification attack, so it is
               rejected and nothing was stored.
-              {broke ? ` ${broke.attack_id} ${broke.name}: ${broke.reason}` : ""}
+              {broke ? ` ${broke.attack_id} ${broke.name}: ${broke.reason}.` : ""}
             </p>
           </div>
         )}
@@ -192,7 +192,7 @@ export function ProofDrawer({
         {presentation(p.gate_outcome) === "not_testable" && (
           <div className="sec">
             <span className="label">Not testable</span>
-            <p>{p.failure_reason ?? row.explanation ?? "The claim could not be tested."}</p>
+            <p>{row.explanation ?? "The claim could not be tested."}</p>
           </div>
         )}
 
