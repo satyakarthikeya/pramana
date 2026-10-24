@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 
+import numpy as np
 import pandas as pd
 
 from pramana.analysis.computed.charts import Bar, BarChart, WaterfallChart, WaterfallStep
@@ -398,8 +399,137 @@ def customer_view(ctx: Context) -> list[ExactItem]:
     ]
 
 
+# --- RFM -----------------------------------------------------------------------------
+
+_RFM_ORDER = ["Champions", "Loyal", "Lapsed regulars", "Recent", "Lost", "Middle"]
+
+
+def _rfm_segment(r: int, f: int) -> str:
+    if r >= 4 and f >= 4:
+        return "Champions"
+    if f >= 4 and r >= 2:
+        return "Loyal"
+    if f >= 4:
+        return "Lapsed regulars"
+    if r >= 4 and f <= 2:
+        return "Recent"
+    if r <= 2 and f <= 2:
+        return "Lost"
+    return "Middle"
+
+
+def _score(values: pd.Series, *, higher_is_better: bool) -> pd.Series:
+    """1-5 from the average rank, so customers with equal values always get equal scores
+    (a split of ties by row order would put identical customers in different groups)."""
+    ranks = values.rank(method="average", ascending=higher_is_better)
+    return np.ceil(5 * ranks / len(values)).clip(1, 5).astype(int)
+
+
+def rfm(ctx: Context) -> list[ExactItem]:
+    """Recency, frequency and money per customer, scored 1-5 and grouped by fixed rules.
+
+    Recency is the number of periods since the customer's last row, frequency the number of
+    distinct periods with a row (not orders: the table has none), money the net total.
+    Rows with no customer id are left out. A description of past behaviour, not a forecast.
+    """
+    column = _customer_column(ctx)
+    if column is None or ctx.keys is None:
+        return []
+    amount = _pick(ctx, "amount", r"revenue|sales") or (ctx.measures[0] if ctx.measures else None)
+    if amount is None:
+        return []
+    ids = ctx.frame[column].astype("string").str.replace(r"\.0$", "", regex=True)
+    money = _num(ctx.frame[amount])
+    known = ids.notna() & money.notna() & ctx.keys.notna()
+    n_customers = int(ids[known].nunique())
+    periods = sorted(set(ctx.keys[known].astype(str)))
+    if n_customers < max(ctx.config.customer_min_customers, 20) or len(periods) < 3:
+        return [
+            _not_run(
+                "rfm",
+                f"Needs at least 20 distinct {column} values and 3 periods; found {n_customers} and {len(periods)}.",
+                column,
+            )
+        ]
+    position = {p: i for i, p in enumerate(periods)}
+    last = len(periods) - 1
+    key = ctx.keys[known].astype(str)
+    grouped = pd.DataFrame({"id": ids[known], "pos": key.map(position), "money": money[known]})
+    per = grouped.groupby("id").agg(
+        last=("pos", "max"), active=("pos", "nunique"), money=("money", "sum")
+    )
+    per = per[per["money"] > 0]
+    if len(per) < 20:
+        return [_not_run("rfm", f"Fewer than 20 customers have a positive total {amount}.", column)]
+    per["recency"] = last - per["last"]
+    per["r"] = _score(per["recency"], higher_is_better=False)
+    per["f"] = _score(per["active"], higher_is_better=True)
+    per["segment"] = [_rfm_segment(r, f) for r, f in zip(per["r"], per["f"], strict=True)]
+    total_money = float(per["money"].sum())
+    rows = []
+    for name in _RFM_ORDER:
+        members = per[per["segment"] == name]
+        if members.empty:
+            continue
+        rows.append(
+            _row(
+                segment=name,
+                customers=len(members),
+                share_of_customers=len(members) / len(per),
+                share_of_money=float(members["money"].sum()) / total_money,
+                mean_periods_since_last=float(members["recency"].mean()),
+                mean_periods_active=float(members["active"].mean()),
+                mean_total=float(members["money"].mean()),
+            )
+        )
+    by = {r["segment"]: r for r in rows}
+    values: dict[str, object] = {
+        "customers": len(per),
+        "periods": len(periods),
+        "reference_period": periods[-1],
+    }
+    parts = []
+    for name in ("Champions", "Lapsed regulars"):
+        if name in by:
+            r = by[name]
+            values[f"{name.lower().replace(' ', '_')}_customers_pct"] = 100 * float(r["share_of_customers"])
+            values[f"{name.lower().replace(' ', '_')}_money_pct"] = 100 * float(r["share_of_money"])
+            parts.append(
+                f"{name} are {100 * float(r['share_of_customers']):.1f}% of customers and "
+                f"{100 * float(r['share_of_money']):.1f}% of {amount}"
+            )
+    sentence = (
+        f"Grouping {len(per):,} customers by how recently, how often (periods with a row) and how "
+        f"much they bought up to {periods[-1]}: " + ("; ".join(parts) if parts else "no group stands out") + "."
+    )
+    return [
+        ExactItem(
+            id=f"rfm:{column}",
+            kind="rfm",
+            title="Customer groups (recency, frequency, money)",
+            sentence=sentence,
+            formula="recency = periods since last row; frequency = periods with a row; money = net total; "
+            "each scored 1-5 by rank (equal values score alike); groups by fixed rules on the recency and frequency scores",
+            columns=[column, amount, ctx.shape.time_column or ""],
+            n_rows=int(known.sum()),
+            values={k: _row(v=v)["v"] for k, v in values.items()},
+            table=rows,
+            chart=BarChart(
+                x_label="Customer group",
+                y_label=f"share of {amount}",
+                value_format="percent",
+                bars=[
+                    Bar(label=str(r["segment"]), value=float(r["share_of_money"]), n=int(r["customers"]))
+                    for r in rows
+                ],
+            ),
+        )
+    ]
+
+
 ANALYST_ANALYSES = {
     "price_volume_mix": price_volume_mix,
     "segment_growth": segment_growth,
     "customer_view": customer_view,
+    "rfm": rfm,
 }

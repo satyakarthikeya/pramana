@@ -140,8 +140,8 @@ def run_components(
         )
     stable = stability >= cfg.stability_cutoff
     sentence = (
-        f"{n_keep} component{'s' if n_keep != 1 else ''} stand above shuffled copies, together "
-        f"holding {explained:.1f}% of the variation in {len(varying)} columns."
+        f"{n_keep} component{'s stand' if n_keep != 1 else ' stands'} above shuffled copies, "
+        f"together holding {explained:.1f}% of the variation in {len(varying)} columns."
     )
     if text:
         sentence += f" The first loads on {text}."

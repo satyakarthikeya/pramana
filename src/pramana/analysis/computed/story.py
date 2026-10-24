@@ -31,7 +31,7 @@ SECTIONS: list[tuple[str, str, frozenset[str]]] = [
     (
         "stands_out",
         "What stands out",
-        frozenset({"outliers", "customer_view", "seasonality", "segment_ranking"}),
+        frozenset({"outliers", "customer_view", "rfm", "seasonality", "segment_ranking"}),
     ),
     ("measures", "Measures", frozenset({"prevalence", "weighted_means", "rates"})),
     ("checks", "Checks on the data", frozenset({"identity", "data_quality"})),
@@ -186,6 +186,17 @@ def _q_customers(item: ExactItem) -> str | None:
     )
 
 
+def _q_rfm(item: ExactItem) -> str | None:
+    v = item.values
+    pct = v.get("lapsed_regulars_money_pct")
+    if pct is None:
+        return None
+    return (
+        f"Lapsed regular customers hold {_num(pct):.1f}% of {item.columns[1]}: "
+        "what happened to them, and can it be checked?"
+    )
+
+
 _QUESTIONS: dict[str, Callable[[ExactItem], str | None]] = {
     "variance_decomposition": _q_variance,
     "price_volume_mix": _q_pvm,
@@ -194,6 +205,7 @@ _QUESTIONS: dict[str, Callable[[ExactItem], str | None]] = {
     "seasonality": _q_seasonality,
     "segment_growth": _q_growth,
     "customer_view": _q_customers,
+    "rfm": _q_rfm,
 }
 
 

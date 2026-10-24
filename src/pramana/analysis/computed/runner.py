@@ -59,6 +59,7 @@ TITLES: dict[str, str] = {
     "price_volume_mix": "Price, volume and mix",
     "segment_growth": "Growth by segment",
     "customer_view": "Customers",
+    "rfm": "Customer groups (recency, frequency, money)",
     "identity": "Columns that restate others",
     "data_quality": "Data quality",
     "prevalence": "Prevalence",

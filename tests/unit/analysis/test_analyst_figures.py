@@ -217,3 +217,35 @@ def test_a_numeric_customer_id_prints_without_a_decimal() -> None:
     frame = _orders(ids, [10.0] * 300)
     item = _item(_run(frame), "customer_view")
     assert not any(str(r["customer"]).endswith(".0") for r in item.table)
+
+
+# --- RFM -----------------------------------------------------------------------------
+
+
+def _rfm_orders() -> pd.DataFrame:
+    """60 customers over 12 months: 20 buy every month, 20 stop after month 9, 20 buy once
+    in month 1. Everyone spends 100 a month."""
+    months = [m.to_timestamp().date().isoformat() for m in pd.period_range("2024-01", "2024-12", freq="M")]
+    rows = []
+    for i in range(60):
+        active = months if i < 20 else months[:9] if i < 40 else months[:1]
+        for m in active:
+            rows.append({"month": m, "customer_id": f"c{i:02d}", "revenue": 100.0, "cost": 60.0})
+    return pd.DataFrame(rows)
+
+
+def test_rfm_groups_match_the_planted_behaviour() -> None:
+    item = _item(_run(_rfm_orders()), "rfm")
+    by = {r["segment"]: r for r in item.table}
+    assert by["Champions"]["customers"] == 20  # active every month, latest month included
+    assert by["Lost"]["customers"] == 20  # one early order only
+    assert by["Champions"]["share_of_money"] == pytest.approx(24000 / 44000)
+    assert sum(float(r["share_of_money"]) for r in item.table) == pytest.approx(1.0)
+    assert item.values["customers"] == 60
+
+
+def test_rfm_does_not_run_on_a_handful_of_customers() -> None:
+    frame = _rfm_orders()
+    frame = frame[frame["customer_id"].isin([f"c{i:02d}" for i in range(0, 60, 6)])]
+    item = _item(_run(frame), "rfm")
+    assert item.status == "not_run"

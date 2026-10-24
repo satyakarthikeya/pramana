@@ -155,6 +155,7 @@ computed:
     variance_decomposition: 80
     segment_growth: 72
     customer_view: 70
+    rfm: 64
     outliers: 66
     seasonality: 60
     concentration: 55
