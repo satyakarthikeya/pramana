@@ -40,6 +40,10 @@ class ClaimType(StrEnum):
     GROUP_DIFFERENCE = "group_difference"
     TREND = "trend"
     DISTRIBUTION = "distribution"
+    #: T4: the latest period differs from the one before (PLAN 5, P7).
+    PERIOD_CHANGE = "period_change"
+    #: T6: some months (or quarters) sit consistently above others (PLAN 5, P7).
+    SEASONALITY = "seasonality"
 
 
 class Verdict(StrEnum):
@@ -76,6 +80,7 @@ class EffectMetric(StrEnum):
     CLIFFS_DELTA = "cliffs_delta"
     EPSILON_SQUARED = "epsilon_squared"
     CRAMERS_V = "cramers_v"
+    RELATIVE_CHANGE = "relative_change"
 
 
 class TableShape(StrEnum):
@@ -107,6 +112,8 @@ class PermutationScheme(StrEnum):
     BLOCK_DIFFERENCED = "block_differenced"
     STRATIFIED = "stratified"
     CLUSTER = "cluster"
+    #: The same entities in two periods: each entity's change is sign-flipped.
+    PAIRED = "paired"
 
 
 class GateOutcome(StrEnum):

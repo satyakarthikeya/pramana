@@ -59,7 +59,6 @@ from pramana.contracts.enums import (
     ClaimType,
     EffectMetric,
     GateOutcome,
-    PermutationScheme,
     Verdict,
 )
 from pramana.contracts.proof_object import ProofObject
@@ -101,6 +100,8 @@ _METRIC_BY_CLAIM_TYPE: dict[ClaimType, EffectMetric] = {
     ClaimType.CORRELATION: EffectMetric.SPEARMAN_RHO,
     ClaimType.TREND: EffectMetric.KENDALL_TAU_B,
     ClaimType.GROUP_DIFFERENCE: EffectMetric.CLIFFS_DELTA,
+    ClaimType.PERIOD_CHANGE: EffectMetric.RELATIVE_CHANGE,
+    ClaimType.SEASONALITY: EffectMetric.EPSILON_SQUARED,
 }
 
 #: Prefix on every family identifier, so the string is self-describing in a log line.
@@ -356,7 +357,7 @@ def _run_one(
     try:
         program = (
             generate(candidate, config)
-            if plan.scheme is PermutationScheme.FREE
+            if plan == FREE_PLAN
             else generate(candidate, config, plan)
         )
         if program.scheme is not plan.scheme:

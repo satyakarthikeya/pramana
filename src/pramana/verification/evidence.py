@@ -59,7 +59,12 @@ from pramana.verification.config import EffectBand, EvidenceConfig
 #: epsilon-squared is a variance ratio and Cramer's V a normalised chi-square, and both
 #: are non-negative by construction.
 SIGNED_METRICS: frozenset[EffectMetric] = frozenset(
-    {EffectMetric.SPEARMAN_RHO, EffectMetric.KENDALL_TAU_B, EffectMetric.CLIFFS_DELTA}
+    {
+        EffectMetric.SPEARMAN_RHO,
+        EffectMetric.KENDALL_TAU_B,
+        EffectMetric.CLIFFS_DELTA,
+        EffectMetric.RELATIVE_CHANGE,
+    }
 )
 
 #: Metrics reported as a squared quantity, gated on their square root so the band sits

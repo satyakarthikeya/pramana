@@ -173,6 +173,8 @@ def _structural_constants(plan: TestPlan | None, config: VerificationConfig) -> 
         found["BLOCK_LENGTH"] = plan.block_length
     if plan.min_periods is not None:
         found["MIN_PERIODS"] = plan.min_periods
+    if plan.cycle_length is not None:
+        found["CYCLE_LENGTH"] = plan.cycle_length
     return found
 
 
@@ -235,6 +237,7 @@ def _template_scheme_arguments(plan: TestPlan | None, config: VerificationConfig
         "entity_column": constants.get("ENTITY"),
         "block_length": constants.get("BLOCK_LENGTH"),
         "min_periods": constants.get("MIN_PERIODS"),
+        "cycle_length": constants.get("CYCLE_LENGTH"),
     }
 
 

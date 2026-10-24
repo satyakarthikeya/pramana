@@ -10,7 +10,6 @@ import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from pramana.contracts import CandidateInsight, DataStructure, ProofObject, SplitRecord
-from pramana.contracts.enums import PermutationScheme
 from pramana.verification.admissibility import screen
 from pramana.verification.config import VerificationConfig
 from pramana.verification.falsification.generator import (
@@ -117,7 +116,7 @@ def prepare_verification(
                 raise GeneratorError(plan)
             program = (
                 generate(candidate, config)
-                if plan.scheme is PermutationScheme.FREE
+                if plan == FREE_PLAN
                 else generate(candidate, config, plan)
             )
             programs.append(

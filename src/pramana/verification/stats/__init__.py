@@ -21,6 +21,16 @@ Scope: SCOPE.md 4 step 2
 """
 
 from pramana.verification.stats.bootstrap import BootstrapResult, bootstrap_ci
+from pramana.verification.stats.change import (
+    latest_absolute_change,
+    latest_change_test,
+    period_change_test_groups,
+    period_change_test_paired,
+    relative_change,
+    seasonal_range,
+    seasonality_test,
+    seasonality_test_from_periods,
+)
 from pramana.verification.stats.dependence import (
     correlation_test_differenced,
     default_block_length,
@@ -62,6 +72,8 @@ __all__ = [
     "hedges_g",
     "kendall_tau_b",
     "lag1_autocorrelation",
+    "latest_absolute_change",
+    "latest_change_test",
     "outlier_divergence",
     "pearson_r",
     "permutation_test",
@@ -69,6 +81,12 @@ __all__ = [
     "permutation_test_groups_clustered",
     "permutation_test_groups_stratified",
     "permutation_test_stratified",
+    "period_change_test_groups",
+    "period_change_test_paired",
+    "relative_change",
+    "seasonal_range",
+    "seasonality_test",
+    "seasonality_test_from_periods",
     "sens_slope",
     "spearman_rho",
     "table_k",

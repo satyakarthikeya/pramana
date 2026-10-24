@@ -57,13 +57,14 @@ class TestPlan(BaseModel):
     entity_column: str | None = None
     block_length: int | None = Field(default=None, ge=1)
     min_periods: int | None = Field(default=None, ge=1)
+    cycle_length: int | None = Field(default=None, ge=2)
     n_periods: int | None = Field(default=None, ge=0)
 
     @property
     def columns(self) -> tuple[str, ...]:
         if self.scheme is PermutationScheme.CLUSTER:
             return tuple(c for c in (self.entity_column,) if c)
-        return tuple(c for c in (self.period_column,) if c)
+        return tuple(c for c in (self.period_column, self.entity_column) if c)
 
 
 FREE_PLAN = TestPlan(scheme=PermutationScheme.FREE)
@@ -251,6 +252,65 @@ def _movable_rows(frame: pd.DataFrame, columns: list[str]) -> int:
     return int(counts[counts >= 2].sum())
 
 
+_CYCLES = {"month": 12, "quarter": 4}
+
+
+def _time_claim_plan(
+    candidate: CandidateInsight,
+    frame: pd.DataFrame,
+    structure: DataStructure,
+    config: VerificationConfig,
+) -> TestPlan | str:
+    """Plans for T4 (period change) and T6 (seasonality), or the refusal."""
+    var_x, var_y = (candidate.variables + [None, None])[:2]
+    time, entity = structure.time_column, structure.entity_column
+    if structure.shape is TableShape.CROSS_SECTION or time is None:
+        return "the table has no time axis, so there is no period to compare"
+    if var_x != time:
+        return f"a {candidate.claim_type.value} claim is about the time axis {time!r}"
+    rows = pd.DataFrame({"p": frame[PERIOD_COLUMN], "v": _numeric(frame, var_y)})
+    if entity:
+        rows["e"] = frame[entity].astype(str)
+    rows = rows.dropna()
+    if candidate.claim_type is ClaimType.SEASONALITY:
+        cycle = _CYCLES.get(structure.period or "")
+        if cycle is None:
+            return "seasonality is tested on monthly or quarterly data only"
+        ordinals = np.round(np.sort(rows["p"].unique())).astype(int)
+        positions = pd.Series(ordinals % cycle).value_counts()
+        if len(positions) < cycle or int(positions.min()) < 2:
+            return (
+                "too few periods to test: every month (or quarter) needs at least two years "
+                "of values in the confirmation rows"
+            )
+        return TestPlan(
+            scheme=PermutationScheme.STRATIFIED, period_column=PERIOD_COLUMN, cycle_length=cycle
+        )
+    periods = np.sort(rows["p"].unique())
+    if len(periods) < 2:
+        return "a change needs at least two periods in the confirmation rows"
+    last = rows[rows["p"].isin(periods[-2:])]
+    if structure.shape is TableShape.TIME_SERIES:
+        return (
+            "one value per period cannot be tested as a change between two periods; the "
+            "change itself is in the report"
+        )
+    if entity and structure.shape is TableShape.PANEL:
+        both = last.groupby("e")["p"].nunique()
+        n_pairs = int((both == 2).sum())
+        if n_pairs < config.dependence.min_clusters:
+            return (
+                f"{n_pairs} entities have values in both of the last two periods; at least "
+                f"{config.dependence.min_clusters} are needed (dependence.min_clusters)"
+            )
+        return TestPlan(
+            scheme=PermutationScheme.PAIRED, period_column=PERIOD_COLUMN, entity_column=entity
+        )
+    if last.groupby("p").size().min() < 2 or len(last) < config.statistics.min_observations:
+        return "too few rows in the last two periods to compare them"
+    return TestPlan(scheme=PermutationScheme.FREE, period_column=PERIOD_COLUMN)
+
+
 def assign_plan(
     candidate: CandidateInsight,
     frame: pd.DataFrame,
@@ -264,6 +324,8 @@ def assign_plan(
     do; a returned string is a refusal written for the user, and the claim then never
     enters the BH family.
     """
+    if candidate.claim_type in (ClaimType.PERIOD_CHANGE, ClaimType.SEASONALITY):
+        return _time_claim_plan(candidate, frame, structure, config)
     if structure.shape is TableShape.CROSS_SECTION:
         return FREE_PLAN
     dependence = config.dependence

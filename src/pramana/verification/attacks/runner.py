@@ -648,6 +648,11 @@ def run_attacks(
     recorded as NOT_RUN with the error, never as survived; nothing here reads a
     p-value or changes a verdict -- the caller applies the ratchet.
     """
+    if claim.claim_type in (ClaimType.PERIOD_CHANGE, ClaimType.SEASONALITY):
+        return [
+            _not_run(a, f"no attack is defined yet for a {claim.claim_type.value} claim")
+            for a in _NAMES
+        ]
     original = claim.effect(rows)
     if original is None or _sign(original) == 0:
         return [_not_run(a, "the tested effect could not be recomputed") for a in _NAMES]

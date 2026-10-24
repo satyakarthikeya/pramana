@@ -59,6 +59,10 @@ from pramana.verification.stats import (
     permutation_test_groups_clustered,
     permutation_test_groups_stratified,
     permutation_test_stratified,
+    latest_absolute_change,
+    latest_change_test,
+    seasonal_range,
+    seasonality_test_from_periods,
     sens_slope,
     spearman_rho,
     trend_test_differenced,
@@ -348,17 +352,93 @@ def falsify(frame):
     }
 '''
 
+_PERIOD_CHANGE_BODY = '''
+
+def falsify(frame):
+    """Try to disprove the change from the second-latest to the latest period.
+
+    The periods are picked inside the audited stats library; this code only hands it
+    every row. With ENTITY each entity is compared with itself (its change is
+    sign-flipped under the null); without, rows move between the two periods.
+    """
+    rows = frame[[VAR_Y, PERIOD{entity_column}]].copy()
+    rows[VAR_Y] = pd.to_numeric(rows[VAR_Y], errors="coerce")
+    rows = rows.dropna()
+    if len(rows) < MIN_OBSERVATIONS:
+        raise ValueError(
+            f"{len(rows)} usable rows for {VAR_Y} is below the configured minimum of "
+            f"{MIN_OBSERVATIONS}; nothing can be concluded"
+        )
+    values = rows[VAR_Y].to_numpy(dtype=float)
+    periods = rows[PERIOD].to_numpy(dtype=float)
+    result = latest_change_test(
+        values, periods{entity_argument},
+        n_permutations=N_PERMUTATIONS, seed=SEED, alternative="two-sided",
+    )
+    return {
+        "p_value": result.p_value,
+        "effect_size": result.statistic,
+        "effect_metric": "relative_change",
+        "reported_effect": latest_absolute_change(values, periods),
+        "reported_effect_metric": "absolute_change",
+        "n_observations": int(values.size),
+        "seed": result.seed,
+        "n_permutations": result.n_permutations,
+        "statistic": result.statistic,
+        "scheme": result.scheme.value,
+        "provenance": result.provenance,
+    }
+'''
+
+_SEASONALITY_BODY = '''
+
+def falsify(frame):
+    """Try to disprove a month-of-year (or quarter) pattern.
+
+    Each year is centred on its own mean so a rise across years is not a season; the
+    month labels are then shuffled only within each year.
+    """
+    rows = frame[[VAR_Y, PERIOD]].apply(pd.to_numeric, errors="coerce").dropna()
+    if len(rows) < MIN_OBSERVATIONS:
+        raise ValueError(
+            f"{len(rows)} usable rows for {VAR_Y} is below the configured minimum of "
+            f"{MIN_OBSERVATIONS}; nothing can be concluded"
+        )
+    values = rows[VAR_Y].to_numpy(dtype=float)
+    periods = rows[PERIOD].to_numpy(dtype=float)
+    result = seasonality_test_from_periods(
+        values, periods, cycle_length=CYCLE_LENGTH,
+        n_permutations=N_PERMUTATIONS, seed=SEED,
+    )
+    return {
+        "p_value": result.p_value,
+        "effect_size": result.statistic,
+        "effect_metric": "epsilon_squared",
+        "reported_effect": seasonal_range(values, periods, cycle_length=CYCLE_LENGTH),
+        "reported_effect_metric": "peak_to_trough_of_average_year",
+        "n_observations": int(values.size),
+        "seed": result.seed,
+        "n_permutations": result.n_permutations,
+        "statistic": result.statistic,
+        "scheme": result.scheme.value,
+        "provenance": result.provenance,
+    }
+'''
+
 _NULL_HYPOTHESES: dict[ClaimType, str] = {
     ClaimType.CORRELATION: "{var_x} and {var_y} are unrelated; the observed rank "
     "correlation is an accident of this sample.",
     ClaimType.TREND: "{var_y} has no monotonic relationship with {var_x}.",
     ClaimType.GROUP_DIFFERENCE: "the levels of {var_x} carry no information about {var_y}.",
+    ClaimType.PERIOD_CHANGE: "the latest period's {var_y} is no different from the one before.",
+    ClaimType.SEASONALITY: "no month (or quarter) of the year sits apart in {var_y}.",
 }
 
 _BODIES: dict[ClaimType, str] = {
     ClaimType.CORRELATION: _NUMERIC_PAIR_HELPER + _CORRELATION_BODY,
     ClaimType.TREND: _NUMERIC_PAIR_HELPER + _TREND_BODY,
     ClaimType.GROUP_DIFFERENCE: _GROUP_DIFFERENCE_BODY,
+    ClaimType.PERIOD_CHANGE: _PERIOD_CHANGE_BODY,
 }
 
 #: Bodies for the dependence-aware schemes (PLAN D6), keyed by (claim type, scheme).
@@ -373,6 +453,8 @@ _SCHEME_BODIES: dict[tuple[ClaimType, PermutationScheme], str] = {
     (ClaimType.CORRELATION, PermutationScheme.STRATIFIED): _CORRELATION_STRATIFIED_BODY,
     (ClaimType.GROUP_DIFFERENCE, PermutationScheme.STRATIFIED): _GROUP_DIFFERENCE_BODY,
     (ClaimType.GROUP_DIFFERENCE, PermutationScheme.CLUSTER): _GROUP_DIFFERENCE_BODY,
+    (ClaimType.PERIOD_CHANGE, PermutationScheme.PAIRED): _PERIOD_CHANGE_BODY,
+    (ClaimType.SEASONALITY, PermutationScheme.STRATIFIED): _SEASONALITY_BODY,
 }
 
 _GROUP_CALLS: dict[PermutationScheme, str] = {
@@ -383,7 +465,7 @@ _GROUP_CALLS: dict[PermutationScheme, str] = {
 
 #: Claim types this renderer can build. Anything else fails closed upstream, in the
 #: admissibility screen -- there is deliberately no generic fallback template.
-SUPPORTED_CLAIM_TYPES = frozenset(_BODIES)
+SUPPORTED_CLAIM_TYPES = frozenset(_BODIES) | {key[0] for key in _SCHEME_BODIES}
 
 
 def render(
@@ -402,6 +484,7 @@ def render(
     entity_column: str | None = None,
     block_length: int | None = None,
     min_periods: int | None = None,
+    cycle_length: int | None = None,
 ) -> str:
     """Render the falsification module for one claim.
 
@@ -410,12 +493,14 @@ def render(
     record of what ran. Raises for a claim type with no template rather than
     substituting a generic one.
     """
-    if claim_type not in _BODIES:
+    if claim_type not in _BODIES and not any(k[0] is claim_type for k in _SCHEME_BODIES):
         raise ValueError(
             f"no falsification template for claim_type {claim_type!r}; the gateway "
             f"fails closed rather than substituting a generic test (SCOPE.md 4 step 8)"
         )
-    if scheme is not PermutationScheme.FREE and (claim_type, scheme) not in _SCHEME_BODIES:
+    if (scheme is PermutationScheme.FREE and claim_type not in _BODIES) or (
+        scheme is not PermutationScheme.FREE and (claim_type, scheme) not in _SCHEME_BODIES
+    ):
         raise ValueError(
             f"no falsification template for a {claim_type.value} claim under the "
             f"{scheme.value} scheme; the gateway fails closed"
@@ -441,6 +526,8 @@ def render(
         structural += f"BLOCK_LENGTH = {block_length}\n"
     if min_periods is not None:
         structural += f"MIN_PERIODS = {min_periods}\n"
+    if cycle_length is not None:
+        structural += f"CYCLE_LENGTH = {cycle_length}\n"
 
     body = (
         _BODIES[claim_type]
@@ -456,5 +543,11 @@ def render(
             body.replace("{reference_group!r}", repr(reference_group))
             .replace("{structure_columns}", extra)
             .replace("{group_call}", _GROUP_CALLS[scheme])
+        )
+    if claim_type is ClaimType.PERIOD_CHANGE:
+        paired = entity_column is not None
+        body = body.replace("{entity_column}", ", ENTITY" if paired else "").replace(
+            "{entity_argument}",
+            ", rows[ENTITY].astype(str).to_numpy()" if paired else "",
         )
     return header + structural + body

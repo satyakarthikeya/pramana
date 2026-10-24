@@ -82,6 +82,9 @@ evidence:
     cramers_v:               # contingency association; threshold scales down with table size
       min: 0.10
       strong: 0.50
+    relative_change:         # T4 period change, (cur - prev) / |prev|; CONVENTION, PROVISIONAL
+      min: 0.05
+      strong: 0.25
 
 executor:
   timeout_seconds: 60

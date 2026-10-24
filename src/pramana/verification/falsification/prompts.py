@@ -48,7 +48,13 @@ if TYPE_CHECKING:
 #: comparison. `DISTRIBUTION` is absent from both, and the admissibility screen
 #: refuses it earlier.
 SUPPORTED_CLAIM_TYPES = frozenset(
-    {ClaimType.CORRELATION, ClaimType.GROUP_DIFFERENCE, ClaimType.TREND}
+    {
+        ClaimType.CORRELATION,
+        ClaimType.GROUP_DIFFERENCE,
+        ClaimType.TREND,
+        ClaimType.PERIOD_CHANGE,
+        ClaimType.SEASONALITY,
+    }
 )
 
 #: Stated once, applied to every claim type. The rules are phrased as hard refusals
@@ -103,6 +109,16 @@ HOW YOU ANSWER
 #: The null each claim type is tested against, and the procedure that destroys it.
 #: Phrased per type because "shuffle it and look" means something different for a
 #: paired correlation than for group labels.
+#: T4 framing, shared by the free (ledger) and paired (panel) variants.
+_CHANGE_FRAMING = (
+    "NULL HYPOTHESIS: the latest period's {var_y} is no different from the period before.\n"
+    "HOW TO DESTROY IT: hand EVERY row to the audited test; it picks the last two periods "
+    "itself (you may not filter rows). Use `rows = frame[[VAR_Y, PERIOD{entity}]].copy()`, "
+    'convert VAR_Y with `pd.to_numeric(..., errors="coerce")`, `.dropna()`, then call '
+    "`latest_change_test(rows[VAR_Y].to_numpy(dtype=float), rows[PERIOD].to_numpy(dtype=float)"
+    '{entity_argument}, n_permutations=N_PERMUTATIONS, seed=SEED, alternative="two-sided")`.'
+)
+
 _NULL_FRAMING: dict[ClaimType, str] = {
     ClaimType.CORRELATION: (
         "NULL HYPOTHESIS: {var_x} and {var_y} are unrelated, and the observed rank "
@@ -134,6 +150,7 @@ _NULL_FRAMING: dict[ClaimType, str] = {
         "`columns.loc[columns[VAR_X].astype(str) == level, VAR_Y].to_numpy(dtype=float)` "
         "for each `level` in `sorted(columns[VAR_X].astype(str).unique())`."
     ),
+    ClaimType.PERIOD_CHANGE: _CHANGE_FRAMING.format(var_y="{var_y}", entity="", entity_argument=""),
 }
 
 #: Framing for the dependence-aware schemes (PLAN D6), keyed by (claim type, scheme).
@@ -141,68 +158,93 @@ _NULL_FRAMING: dict[ClaimType, str] = {
 #: shuffle on these rows is the bug the scheme exists to prevent.
 _PERIOD_SERIES = (
     "Build ONE value per period first: `series = frame[[PERIOD, {names}]]"
-    ".apply(pd.to_numeric, errors=\"coerce\").dropna().groupby(PERIOD).mean().sort_index()`. "
+    '.apply(pd.to_numeric, errors="coerce").dropna().groupby(PERIOD).mean().sort_index()`. '
     "If `len(series) < MIN_PERIODS`, raise a ValueError. "
 )
 _GROUPS_FORM = (
     "Build the rows as `columns = frame[[VAR_X, VAR_Y, {extra}]].copy()`, convert VAR_Y with "
-    "`pd.to_numeric(..., errors=\"coerce\")`, `.dropna()`, and order the levels as "
+    '`pd.to_numeric(..., errors="coerce")`, `.dropna()`, and order the levels as '
     "`labels = sorted(columns[VAR_X].astype(str).unique())` (reference group first when one "
     "is named). For exactly two groups the statistic is "
     "`lambda parts: cliffs_delta(parts[0], parts[1])`; for more, "
     "`lambda parts: epsilon_squared(list(parts))`. "
 )
+
 _SCHEME_FRAMING: dict[tuple[ClaimType, PermutationScheme], str] = {
+    (ClaimType.PERIOD_CHANGE, PermutationScheme.PAIRED): _CHANGE_FRAMING.format(
+        var_y="{var_y}",
+        entity=", ENTITY",
+        entity_argument=", rows[ENTITY].astype(str).to_numpy()",
+    ),
+    (ClaimType.SEASONALITY, PermutationScheme.STRATIFIED): (
+        "NULL HYPOTHESIS: no month (or quarter) of the year sits apart in {var_y}.\n"
+        "HOW TO DESTROY IT: use `rows = frame[[VAR_Y, PERIOD]].apply(pd.to_numeric, "
+        'errors="coerce").dropna()` and call `seasonality_test_from_periods('
+        "rows[VAR_Y].to_numpy(dtype=float), rows[PERIOD].to_numpy(dtype=float), "
+        "cycle_length=CYCLE_LENGTH, n_permutations=N_PERMUTATIONS, seed=SEED)`. It centres "
+        "each year and shuffles months within years; do not pass `alternative`."
+    ),
     (ClaimType.TREND, PermutationScheme.BLOCK_DIFFERENCED): (
         "NULL HYPOTHESIS: the period-to-period changes of {var_y} average zero; the series "
         "only wanders.\n"
         "HOW TO DESTROY IT: the rows are time-ordered, so a free shuffle would call a random "
-        "walk a trend and is refused. " + _PERIOD_SERIES.format(names="VAR_Y") +
-        "Then call `trend_test_differenced(series.index.to_numpy(dtype=float), "
+        "walk a trend and is refused. "
+        + _PERIOD_SERIES.format(names="VAR_Y")
+        + "Then call `trend_test_differenced(series.index.to_numpy(dtype=float), "
         "series[VAR_Y].to_numpy(dtype=float), block_length=BLOCK_LENGTH, "
-        "n_permutations=N_PERMUTATIONS, seed=SEED, alternative=\"two-sided\")`."
+        'n_permutations=N_PERMUTATIONS, seed=SEED, alternative="two-sided")`.'
     ),
     (ClaimType.CORRELATION, PermutationScheme.BLOCK_DIFFERENCED): (
         "NULL HYPOTHESIS: the period-to-period changes of {var_x} and {var_y} are "
         "unrelated.\n"
         "HOW TO DESTROY IT: the rows are time-ordered, so a free shuffle would call two "
         "drifting series related and is refused. "
-        + _PERIOD_SERIES.format(names="VAR_X, VAR_Y") +
-        "Then call `correlation_test_differenced(series.index.to_numpy(dtype=float), "
+        + _PERIOD_SERIES.format(names="VAR_X, VAR_Y")
+        + "Then call `correlation_test_differenced(series.index.to_numpy(dtype=float), "
         "series[VAR_X].to_numpy(dtype=float), series[VAR_Y].to_numpy(dtype=float), "
         "block_length=BLOCK_LENGTH, n_permutations=N_PERMUTATIONS, seed=SEED, "
-        "alternative=\"two-sided\")`."
+        'alternative="two-sided")`.'
     ),
     (ClaimType.CORRELATION, PermutationScheme.STRATIFIED): (
         "NULL HYPOTHESIS: within each period, {var_x} and {var_y} are unrelated.\n"
         "HOW TO DESTROY IT: shuffle only within periods, so a common movement over time is "
         "not counted. Use `rows = frame[[VAR_X, VAR_Y, PERIOD]].apply(pd.to_numeric, "
-        "errors=\"coerce\").dropna()`, then call `permutation_test_stratified(x, y, "
+        'errors="coerce").dropna()`, then call `permutation_test_stratified(x, y, '
         "rows[PERIOD].to_numpy(), spearman_rho, n_permutations=N_PERMUTATIONS, seed=SEED, "
-        "alternative=\"two-sided\")` with x and y the float arrays of VAR_X and VAR_Y."
+        'alternative="two-sided")` with x and y the float arrays of VAR_X and VAR_Y.'
     ),
     (ClaimType.GROUP_DIFFERENCE, PermutationScheme.STRATIFIED): (
         "NULL HYPOTHESIS: within each period, the levels of {var_x} carry no information "
         "about {var_y}.\n"
-        "HOW TO DESTROY IT: move labels only within periods. " + _GROUPS_FORM.format(extra="PERIOD")
+        "HOW TO DESTROY IT: move labels only within periods. "
+        + _GROUPS_FORM.format(extra="PERIOD")
         + "Call `permutation_test_groups_stratified(columns[VAR_Y].to_numpy(dtype=float), "
         "columns[VAR_X].astype(str).to_numpy(), columns[PERIOD].to_numpy(), statistic, "
-        "order=labels, n_permutations=N_PERMUTATIONS, seed=SEED, alternative=\"two-sided\")`."
+        'order=labels, n_permutations=N_PERMUTATIONS, seed=SEED, alternative="two-sided")`.'
     ),
     (ClaimType.GROUP_DIFFERENCE, PermutationScheme.CLUSTER): (
         "NULL HYPOTHESIS: the levels of {var_x}, which are fixed for each entity, carry no "
         "information about {var_y}.\n"
         "HOW TO DESTROY IT: move labels between whole entities, never between rows of one "
-        "entity. " + _GROUPS_FORM.format(extra="ENTITY")
+        "entity. "
+        + _GROUPS_FORM.format(extra="ENTITY")
         + "Call `permutation_test_groups_clustered(columns[VAR_Y].to_numpy(dtype=float), "
         "columns[VAR_X].astype(str).to_numpy(), columns[ENTITY].astype(str).to_numpy(), "
         "statistic, order=labels, n_permutations=N_PERMUTATIONS, seed=SEED, "
-        "alternative=\"two-sided\")`."
+        'alternative="two-sided")`.'
     ),
 }
 
 #: The reported effect under an ordered scheme is about the per-period series.
 _SCHEME_REPORTED_EFFECT: dict[tuple[ClaimType, PermutationScheme], tuple[str, str]] = {
+    (ClaimType.PERIOD_CHANGE, PermutationScheme.PAIRED): (
+        "latest_absolute_change(values, periods) on the same arrays",
+        "absolute_change",
+    ),
+    (ClaimType.SEASONALITY, PermutationScheme.STRATIFIED): (
+        "seasonal_range(values, periods, cycle_length=CYCLE_LENGTH) on the same arrays",
+        "peak_to_trough_of_average_year",
+    ),
     (ClaimType.TREND, PermutationScheme.BLOCK_DIFFERENCED): (
         "sens_slope(np.arange(n, dtype=float), values) on the per-period values",
         "sens_slope_per_period",
@@ -253,6 +295,10 @@ _REPORTED_EFFECT: dict[ClaimType, tuple[str, str]] = {
         "for more than two, called on the same groups the test used",
         "hedges_g' for two groups or 'eta_squared",
     ),
+    ClaimType.PERIOD_CHANGE: (
+        "latest_absolute_change(values, periods) on the same arrays",
+        "absolute_change",
+    ),
 }
 
 
@@ -277,7 +323,9 @@ def _return_contract(
         )
     reported, reported_metric = reported_effect or _REPORTED_EFFECT[claim_type]
     lines = [
-        f'  "{key}"'.ljust(26) + "-- " + _KEY_DESCRIPTIONS[key].format(
+        f'  "{key}"'.ljust(26)
+        + "-- "
+        + _KEY_DESCRIPTIONS[key].format(
             metric=metric, reported=reported, reported_metric=reported_metric
         )
         for key in _KEY_DESCRIPTIONS
@@ -297,6 +345,8 @@ _METRIC_FOR: dict[ClaimType, str] = {
     ClaimType.CORRELATION: "spearman_rho",
     ClaimType.TREND: "kendall_tau_b",
     ClaimType.GROUP_DIFFERENCE: "cliffs_delta' for two groups or 'epsilon_squared",
+    ClaimType.PERIOD_CHANGE: "relative_change",
+    ClaimType.SEASONALITY: "epsilon_squared",
 }
 
 
@@ -345,11 +395,11 @@ def build_prompt(
 
     direction = (
         f"The claim asserts a {candidate.asserted_direction.value} direction. Do NOT "
-        f"use that to pick a one-sided test: always pass alternative=\"two-sided\". "
+        f'use that to pick a one-sided test: always pass alternative="two-sided". '
         f"The direction is checked separately, and a one-sided test would count the "
         f"same assumption twice."
         if candidate.asserted_direction is not None
-        else "The claim asserts no direction. Pass alternative=\"two-sided\"."
+        else 'The claim asserts no direction. Pass alternative="two-sided".'
     )
 
     reference = (
