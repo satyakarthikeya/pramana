@@ -28,8 +28,9 @@ statistics correctness. Anything marked owner needs the verification owner's app
 - Why: the Exact tier reports them as figures; the plan (`docs/PLAN_data_analyst.md` §8)
   wants the inferential version checked. Today the gateway mostly tests pairwise
   associations, which a reviewer finds the least useful part.
-- Effort: segment growth tested claim 2 h (plan §10); the other two [estimate] 4-6 h
-  each, including vetted templates, null schemes, attack applicability and tests.
+- Effort: [estimate] 4-6 h each, including vetted templates, null schemes, attack
+  applicability and tests (the plan's 2 h in §10 covered the Exact comparison and its
+  claim together; the comparison is already built).
 - Files: `src/pramana/contracts/enums.py` (new `ClaimType` values), `verification/admissibility.py`,
   `verification/falsification/templates.py`, `verification/schemes.py`,
   `verification/attacks/runner.py`, `analysis/planner/`, `configs/verification.yaml`, tests.

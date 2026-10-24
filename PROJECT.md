@@ -38,9 +38,10 @@ unless marked otherwise.
 UPLOAD (CSV / XLSX, up to configs/analysis.yaml max_rows)
   ingest, clean (rules, logged), profile, schema inference (rules)
   Data reader brief (code)
-  sector match       rules, or DeepSeek from column NAMES only (sector_engine: api)
+  sector match       DeepSeek from column names, detected roles and codebook labels, never
+                     a value (sector_engine: api, the default), or rules (offline)
   EXACT tier         code, on the full table; story order + "what to watch" questions
-  summary            code-written; DeepSeek may reword it (summary_engine: api), checked
+  summary            code-written; DeepSeek may reword it (summary_engine: api, default), checked
                      number by number; falls back to the code text with the reason shown
   MEASURED tier      background task after upload; closed model menu, held-out scoring
 
@@ -326,7 +327,7 @@ Measured (each with its caveat):
   alpha 0.05, seed 20261024): null false-positive rate 0.080 (free shuffle), 0.060
   (block-differenced), 0.040 (stratified), 0.040 (cluster); power 0.970 (rho about 0.3,
   100 rows) and 1.000 (within-month link, 216 rows); attack false-kill 0.000 on one
-  planted shape. Standard errors 0.02-0.03. Source: `docs/GATEWAY_V3_STATUS_AND_SIGNOFF.md` §4.
+  planted shape. Standard errors of the null rows 0.020-0.027. Source: `docs/GATEWAY_V3_STATUS_AND_SIGNOFF.md` §4.
 - BH is pinned against statsmodels in `tests/unit/verification/test_fdr.py`.
 
 Not measured: BH on families of correlated claims (the report card uses families of one);

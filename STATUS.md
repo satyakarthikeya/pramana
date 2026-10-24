@@ -102,6 +102,7 @@ Left for a follow-up (they are outside this change's file list):
 | `docs/DESIGN_verification_gateway_v3.md:3` | "Nothing here is built" | S1-S8 built |
 | `docker/README.md:49` | live profile selects `llm` | default should be `template` |
 | `web/src/components/Results.tsx:369` | heading "Verified findings" | badges say HELD UP |
+| `docs/README.md` (Current table) | lists `V1.md` as current | V1-era plan; historical |
 
 ## 7. Before the 27 Oct review
 
