@@ -7,6 +7,7 @@ import { AppShell } from "./AppShell";
 import { Ask } from "./Ask";
 import { Brief } from "./Brief";
 import { Computed } from "./Computed";
+import { Measured } from "./Measured";
 import { Overview } from "./Charts";
 import { Arrow } from "./Icons";
 import { Processing } from "./Processing";
@@ -25,6 +26,9 @@ function Overviewtab({ dataset }: { dataset: DatasetView }) {
   return (
     <>
     {dataset.computed && <Computed computed={dataset.computed} />}
+    <div className="report">
+      <Measured dataset={dataset} />
+    </div>
     <div className="results split">
       <div className="col-stack">
         {dataset.brief && <Brief brief={dataset.brief} />}
@@ -226,6 +230,16 @@ export function DatasetPage({ id, tab, runId }: { id: string; tab: Tab; runId: s
     api.dataset(id).then(setDataset, (e: Error) => setProblem(e.message));
     loadRuns();
   }, [id, loadRuns]);
+
+  // Measured results are built after the upload response; follow them without faking progress.
+  const pending = Boolean(dataset?.measured_pending);
+  useEffect(() => {
+    if (!pending) return;
+    const timer = window.setTimeout(() => {
+      api.dataset(id).then(setDataset, () => undefined);
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [pending, id, dataset]);
 
   const finished = useCallback(() => {
     loadRuns();
