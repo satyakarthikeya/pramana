@@ -17,6 +17,7 @@ statistics:
   # n_permutations could not resolve a p-value small enough to pass BH at this size:
   # n_permutations >= m_max / alpha - 1.
   m_max: 40
+  power_target: 0.8          # S1: detection probability for the "could have found" note; descriptive only
 
 dependence:
   # PLAN D5 / D6 / D6b (P1). Signed off by the verification owner on 2026-10-24:

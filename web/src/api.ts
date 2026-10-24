@@ -84,6 +84,15 @@ export interface Proof {
   reported_effect?: number | null;
   reported_effect_metric?: string | null;
   permutation_scheme?: PermutationScheme | null;
+  /** Smallest effect the rows could have found; only on a tested, non-significant claim. */
+  power?: {
+    effect_metric: string;
+    detectable_effect: number;
+    n_effective: number;
+    unit: "observations" | "periods" | "entities";
+    alpha: number;
+    target_power: number;
+  } | null;
   split?: SplitRecord | null;
   attacks?: AttackResult[];
 }

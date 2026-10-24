@@ -113,9 +113,9 @@ function RejectedRow({
       <span className="rej-sentence">{row.claim}</span>
       <Badge proof={row.proof} />
       <span className="rej-reason">
-        <b>{fragile ? "BROKEN BY" : "REASON"}</b>
+        <b>{fragile ? "DID NOT HOLD UNDER" : "REASON"}</b>
         {fragile && broke
-          ? `${broke.attack_id} ${broke.name}: ${broke.reason}. It passed the gate first, so it is not shown as verified.`
+          ? `${broke.attack_id} ${broke.name}: ${broke.reason}. It passed the significance test first, but it is not shown as a finding.`
           : (row.explanation ?? "Rejected by the gate.")}
         {row.proof.q_value !== null ? ` q = ${fmtP(row.proof.q_value)}.` : ""}
       </span>
@@ -182,10 +182,10 @@ export function ProofDrawer({
 
         {presentation(p.gate_outcome) === "fragile" && (
           <div className="sec fragile-note" role="note">
-            <span className="label">Broke under attack</span>
+            <span className="label">Not robust</span>
             <p>
-              This claim passed the gate, then did not survive a falsification attack, so it is
-              rejected and nothing was stored.
+              This claim passed the significance test, but did not hold up under a further check,
+              so it is not shown as a finding and nothing was stored.
               {broke ? ` ${broke.attack_id} ${broke.name}: ${broke.reason}.` : ""}
             </p>
           </div>

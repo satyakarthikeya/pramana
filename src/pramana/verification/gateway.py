@@ -77,7 +77,14 @@ from pramana.verification.falsification.generator import (
     get_generator,
 )
 from pramana.verification.fdr import apply_bh
-from pramana.verification.schemes import FREE_PLAN, TestPlan, assign_plan, with_period_column
+from pramana.verification.power import power_note
+from pramana.verification.schemes import (
+    FREE_PLAN,
+    PERIOD_COLUMN,
+    TestPlan,
+    assign_plan,
+    with_period_column,
+)
 
 _log = logging.getLogger(__name__)
 
@@ -502,6 +509,48 @@ def _proof_for_result(
     )
 
 
+def _with_power(
+    proof: ProofObject,
+    tested: _Tested,
+    frame: pd.DataFrame,
+    structure: DataStructure,
+    config: VerificationConfig,
+) -> ProofObject:
+    """`proof` with a note on the smallest effect these rows could have found.
+
+    Guarantees: changes nothing but `power`; never raises (a note that cannot be worked
+    out is simply absent); the verdict, q-value and family are untouched.
+    """
+    try:
+        payload = tested.payload or {}
+        n_observations = payload.get("n_observations")
+        if n_observations is None or proof.effect_metric is None:
+            return proof
+        entity = structure.entity_column
+        candidate = tested.candidate
+        groups = (
+            int(frame[candidate.variables[0]].dropna().nunique())
+            if candidate.claim_type is ClaimType.GROUP_DIFFERENCE
+            else None
+        )
+        note = power_note(
+            proof.effect_metric,
+            tested.plan.scheme,
+            n_observations=int(n_observations),
+            n_periods=(
+                int(frame[PERIOD_COLUMN].nunique()) if PERIOD_COLUMN in frame else None
+            ),
+            n_entities=int(frame[entity].nunique()) if entity and entity in frame else None,
+            groups=groups,
+            alpha=config.statistics.alpha,
+            power=config.statistics.power_target,
+        )
+    except Exception as error:  # descriptive only: a missing note changes no verdict
+        _emit("power_note_failed", proof.insight_id, error=f"{type(error).__name__}: {error}")
+        return proof
+    return proof if note is None else proof.model_copy(update={"power": note})
+
+
 def _attacked(
     proof: ProofObject,
     tested: _Tested,
@@ -806,8 +855,18 @@ def verify_batch_with_summary(
                 _proof_for_result(item, family_id, q_value, family_size, config, split)
             )
 
-    # --- falsification attacks (PLAN §7): a one-way ratchet on every PASS -----
     by_id = {item.candidate.insight_id: item for item in tested}
+    # --- power note: descriptive, on claims that were tested and not significant ----
+    proofs = [
+        _with_power(proof, by_id[proof.insight_id], frame, structure, config)
+        if proof.gate_outcome is GateOutcome.INCONCLUSIVE
+        and proof.failure_reason is None
+        and proof.insight_id in by_id
+        else proof
+        for proof in proofs
+    ]
+
+    # --- falsification attacks (PLAN §7): a one-way ratchet on every PASS -----
     proofs = [
         _attacked(proof, by_id[proof.insight_id], frame, structure, config)
         if proof.verdict is Verdict.PASS

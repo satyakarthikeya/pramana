@@ -9,7 +9,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from pramana.common.config import load_config
-from pramana.contracts import EffectMetric, GateOutcome, ProofObject
+from pramana.contracts import AttackOutcome, EffectMetric, GateOutcome, ProofObject
 from pramana.verification.config import load_config as load_verification_config
 
 
@@ -27,24 +27,64 @@ def v1_settings() -> V1Settings:
     return load_config("v1", V1Settings)
 
 
+def _checks(proof: ProofObject) -> tuple[int, int]:
+    """(checks survived, checks that ran) among the attacks; not-run ones count for neither."""
+    ran = [a for a in proof.attacks if a.outcome is not AttackOutcome.NOT_RUN]
+    return sum(a.outcome is AttackOutcome.SURVIVED for a in ran), len(ran)
+
+
+def _could_detect(proof: ProofObject) -> str:
+    """The power note as a sentence: what the rows could have found, never a verdict."""
+    note = proof.power
+    if note is None:
+        return ""
+    scale = note.effect_metric.value.replace("_", " ")
+    return (
+        f" With {note.n_effective:,} {note.unit}, an effect of about "
+        f"{note.detectable_effect:.2f} ({scale}) or larger would usually have been found; "
+        f"a smaller one could be missed."
+    )
+
+
+def _held_up(proof: ProofObject) -> str:
+    survived, ran = _checks(proof)
+    text = "Held up: passed the significance test after correction for multiple tests"
+    if ran:
+        text += f" and survived {survived} of {ran} further checks"
+    return text + ". An association in this data, not a causal conclusion."
+
+
+def _did_not_hold(proof: ProofObject) -> str:
+    broken = next((a for a in proof.attacks if a.outcome is AttackOutcome.BROKEN), None)
+    if broken is None:
+        return "Passed the significance test, but did not hold under a further check."
+    reason = broken.reason.strip()
+    return (
+        f"Passed the significance test, but did not hold under the {broken.name.lower()} "
+        f"check: {reason[:1].lower() + reason[1:]}"
+    )
+
+
 def rejection_reason(proof: ProofObject) -> str:
     """Explain an existing verdict without leaking provider errors or deciding it."""
     if (proof.failure_reason or "").startswith("generator unavailable"):
         return "The configured verifier is unavailable. Check its credentials and connection."
     return {
-        GateOutcome.SUPPORTED: "Supported on this dataset; not a causal conclusion.",
+        GateOutcome.SUPPORTED: _held_up(proof),
         GateOutcome.REFUTED: "The observed direction does not support the proposed direction.",
-        GateOutcome.NEGLIGIBLE: "The effect is below the configured meaningful-effect floor.",
+        GateOutcome.NEGLIGIBLE: (
+            "Unlikely to be chance, but the effect is below the minimum size that counts as "
+            "meaningful, so it is not reported as a finding."
+        ),
         GateOutcome.INCONCLUSIVE: (
             "The test could not run successfully; this claim is not verified."
             if proof.failure_reason
-            else "Not statistically significant after correction for multiple tests."
+            else "Not enough evidence at this sample size after correction for multiple "
+            "tests, so it is not shown as a finding. That does not mean the claim is false."
+            + _could_detect(proof)
         ),
         GateOutcome.NOT_TESTABLE: _untested_reason(proof),
-        GateOutcome.FRAGILE: (
-            proof.failure_reason
-            or "Passed the gate but did not survive a falsification attack."
-        ),
+        GateOutcome.FRAGILE: _did_not_hold(proof),
     }[proof.gate_outcome]
 
 

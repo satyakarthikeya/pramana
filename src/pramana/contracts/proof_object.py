@@ -38,6 +38,7 @@ from pramana.contracts.enums import (
     TestType,
     Verdict,
 )
+from pramana.contracts.power import PowerNote
 from pramana.contracts.structure import SplitRecord
 
 #: Fields that only exist because a test was executed. Null exactly when the claim
@@ -135,6 +136,11 @@ class ProofObject(BaseModel):
         default_factory=list,
         description="Falsification attacks run after the gate (PLAN §7); empty unless the "
         "claim passed. A BROKEN attack makes the outcome FRAGILE.",
+    )
+    power: PowerNote | None = Field(
+        default=None,
+        description="How small an effect these rows could have detected (design v3, S1). "
+        "Set only on a claim that was tested and not significant; descriptive, never gated.",
     )
     outlier_warning: bool = Field(
         default=False, description="The result moved materially when outliers were trimmed."

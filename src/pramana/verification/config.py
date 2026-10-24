@@ -90,6 +90,12 @@ class StatisticsConfig(BaseModel):
         ge=1,
         description="Largest BH family a run may test; n_permutations must resolve it.",
     )
+    power_target: float = Field(
+        gt=0.5,
+        lt=1.0,
+        description="Probability of detection used for the 'smallest effect these rows could "
+        "have found' note on a non-significant claim. Descriptive; never gates a verdict.",
+    )
 
 
 class DependenceConfig(BaseModel):

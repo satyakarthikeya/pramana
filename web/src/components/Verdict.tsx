@@ -51,9 +51,9 @@ export function Badge({
       return (
         <span
           className="badge badge-fragile"
-          aria-label="Rejected, broke under attack: it passed the gate, then did not survive a falsification attack"
+          aria-label="Not robust: it passed the significance test, but did not hold under a further check"
         >
-          <Broken /> BROKE UNDER ATTACK
+          <Broken /> NOT ROBUST
         </span>
       );
     case "verified":
@@ -64,11 +64,11 @@ export function Badge({
           className="badge badge-pass"
           aria-label={
             single
-              ? `Verified as a single test: q = ${fmtP(proof.q_value)} is below ${a}, not corrected for earlier tests`
-              : `Verified: q = ${fmtP(proof.q_value)} is below ${a} and the effect reached its band`
+              ? `Held up as a single test: q = ${fmtP(proof.q_value)} is below ${a}, not corrected for earlier tests`
+              : `Held up: q = ${fmtP(proof.q_value)} is below ${a} and the effect reached its band`
           }
         >
-          <Check /> {single ? "VERIFIED · SINGLE TEST" : "VERIFIED"}
+          <Check /> {single ? "HELD UP · SINGLE TEST" : "HELD UP"}
         </span>
       );
     case "rejected":
@@ -79,7 +79,7 @@ export function Badge({
     }
   }
   return (
-    <span className="badge badge-reject" aria-label="Rejected: the claim did not pass the gate">
+    <span className="badge badge-reject" aria-label="Rejected: not enough evidence, or too small an effect, to show as a finding">
       <Cross /> REJECTED
     </span>
   );
