@@ -1,6 +1,6 @@
 # E1: the gate versus no gate on planted-truth tables (2026-10-25)
 
-Status: DESIGN, written before the first full run. Results are appended in a later commit below the line "RESULTS". Nothing in the design section is edited after the run.
+Status: design (sections 1-6) written and committed before the first full run; results are in the RESULTS section at the end. Nothing in the design section is edited after the run.
 
 Experiment E1 of `docs/RESEARCH_improvements.md` (branch `docs/satya/research-improvements`). Script: `scripts/calibration/eval_gate_ablation.py`.
 
@@ -69,3 +69,83 @@ C:\Users\pasar\Desktop\pramana\.venv\Scripts\python.exe scripts/calibration/eval
 ```
 
 Fast plumbing test: `pytest tests/unit/verification/test_eval_gate_ablation.py`.
+
+---
+
+# RESULTS
+
+Run on 2026-10-25, once. Command in section 6. 200 tables, 2,400 claims, 782 truly related claims (pooled), 1,000 permutations, in-process executor, 8 worker processes, wall time 1,102 s (18 minutes) on a machine shared with about 14 other busy Python processes. Raw output: `artifacts/e1_gate_ablation.json` (git-ignored; regenerate with the command). Gateway errors: 0. NOT_TESTABLE claims: 0 of 2,400. Every claim entered the BH family (12 per table).
+
+Notation: mean over the 200 tables, (Monte-Carlo SE across tables), [normal 95% interval]. FDP is V/R per table, 0 when nothing is reported, so its mean is the empirical FDR, E[V/R] with V/R = 0 when R = 0.
+
+## Headline
+
+| arm | reported / table | false reports / table | recall (true claims kept) | FDP (empirical FDR) | tables with at least one false report (Wilson 95%) |
+|---|---|---|---|---|---|
+| A naive, p < 0.05, all rows | 6.73 (0.29) [6.16, 7.29] | 3.31 (0.26) [2.80, 3.81] | 0.867 (0.018) [0.831, 0.903] | 0.364 (0.022) [0.320, 0.408] | 134/200 = 0.670 [0.602, 0.731] |
+| B BH only, confirmation half | 1.92 (0.15) [1.62, 2.21] | 0.085 (0.022) [0.042, 0.128] | 0.465 (0.031) [0.405, 0.525] | 0.022 (0.007) [0.008, 0.035] | 15/200 = 0.075 [0.046, 0.120] |
+| B+ BH and effect floor | 1.92 (0.15) | 0.085 (0.022) | 0.465 (0.031) | 0.022 (0.007) | 15/200 = 0.075 |
+| C full gate (PASS) | 1.86 (0.15) [1.57, 2.15] | 0.080 (0.022) [0.037, 0.123] | 0.455 (0.030) [0.396, 0.514] | 0.021 (0.007) [0.008, 0.034] | 14/200 = 0.070 [0.042, 0.114] |
+
+Pooled over all tables (counts): A reported 1,345 claims, 661 false (49%), kept 684 of 782 true. B reported 383, 17 false (4.4%), kept 366. C reported 372, 16 false (4.3%), kept 356 of 782 (45.5%). Tables where C reported nothing: 76 of 200.
+
+Cost: arm A takes 0.06 s per table. B, B+ and C share one gateway call and cannot be separated: 39.8 s per table per worker on the shared machine (about 15 s in a quiet single-process probe). The shipped config with 10,000 permutations would make the permutation part about ten times longer.
+
+Reading: the naive rule makes 3.3 false reports per table and 36% of what it reports is false; the gate makes 0.08 false reports per table (about one table in 14 has any) and keeps 45% of the true claims.
+
+## Where the gate loses true findings (recall of C)
+
+By effect size (rho of the true claims):
+
+| rho | tables | A recall | C recall | A false / table | C false / table | C FDP |
+|---|---|---|---|---|---|---|
+| 0.15 | 68 | 0.651 | 0.069 | 3.28 | 0.03 | 0.020 |
+| 0.30 | 66 | 0.963 | 0.548 | 3.36 | 0.11 | 0.019 |
+| 0.50 | 66 | 0.994 | 0.760 | 3.27 | 0.11 | 0.024 |
+
+By structure:
+
+| structure | tables | A reported | A false / table | A FDP | C reported | C false / table | C recall | C FDP |
+|---|---|---|---|---|---|---|---|---|
+| independent rows (200 rows) | 67 | 3.37 | 0.18 | 0.068 | 2.28 | 0.04 | 0.577 | 0.011 |
+| shared season (216 rows) | 67 | 12.00 | 8.09 | 0.674 | 2.73 | 0.16 | 0.638 | 0.029 |
+| entity clusters (40 entities) | 66 | 4.77 | 1.62 | 0.348 | 0.55 | 0.03 | 0.145 | 0.023 |
+
+C recall by structure and rho (true kept / true claims): independent 8/90, 59/86, 83/86 at rho 0.15, 0.3, 0.5; season 12/90, 74/86, 86/86; entity 1/86, 8/86, 25/86.
+
+By number of true claims out of 12 (2, 4, 6): C false reports per table 0.042, 0.046, 0.159; C pooled false share 0.045, 0.024, 0.056.
+
+## Which stage does the work
+
+* **BH on the confirmation half (arm B) does almost all of it.** Going from A to B removes 3.2 of 3.3 false reports per table. The null that matches the rows (stratified for the season table, cluster for the entity table) is part of B, not an extra.
+* **The effect floor (B to B+) removed nothing** in these tables: same 383 reports. The design was built for the BH question and does not test the floor.
+* **The attacks (B+ to C) removed 11 reports (FRAGILE), of which 10 were true and 1 was false.** Net effect on false reports: 17 to 16 in 200 tables, a difference that is not distinguishable from noise, at a cost of 10 of 366 true findings (2.7%). The attacks were calibrated on a true moderate effect (design doc); this run does not show them catching null claims that BH let through. This is the least flattering line for the attack set and it is reported as found.
+
+## Against the pre-registered "bad result" lines (section 5)
+
+1. Mean FDP of C is 0.021 with upper 95% limit 0.034, below 0.05; 7.0% of tables had a false report (upper limit 11.4%). Not triggered. BH at 0.05 with 6 to 10 null claims out of 12 is expected to give an FDR of about alpha times the null share (0.025 to 0.042), so 0.021 is consistent with a working procedure.
+2. Arm A is much worse than C (3.31 against 0.08 false per table). Not triggered; the tables are not too easy.
+3. C keeps 0.76 of the true claims at rho 0.5 and 0.455 overall. Not triggered by the stated thresholds, but the cost is large and uneven: 0.069 at rho 0.15, and 0.145 on entity-cluster tables (0.29 even at rho 0.5), where the confirmation half has only 20 entities. This is the price of a 50/50 split and an honest cluster null on small samples. It is reported, not tuned.
+4. No gateway errors, no NOT_TESTABLE claims. Not triggered.
+
+Not pre-registered but worth saying: at rho 0.15 arm C reports 0.34 claims per table with recall 0.069; at that effect size and sample the gate mostly returns "nothing found", which is a statement about the evidence, not about the absence of an effect.
+
+## Executor check
+
+Section 3 describes the in-process executor. The p-value and effect size from it were compared with those from the real subprocess sandbox on sample claims (a throwaway parity script, not committed). Result: for 6 claims (one true and one null on each of the independent-rows, season and entity tables, timeout raised to 400 s so a loaded machine could not fail the sandbox) the p-value and effect size were IDENTICAL to every digit in all 6. In an earlier attempt with the shipped 60 s timeout, one sandbox execution failed under machine load and returned the fail-closed p = 1.0; the in-process run does not have that failure mode, which is another reason it was used. 6 claims is a spot check, not a proof of equivalence.
+
+## Limits (honest)
+
+* **Synthetic and author-built.** One planted family (monotone association on normal data with sinusoidal season and Gaussian entity effects), written by the same person who built the gate. A gate looks good on its author's generators. It says nothing about heavy tails, missing data, skewed or discrete columns, or non-monotone relations.
+* **One rule for truth.** A claim is true only if it is a planted pair with the planted sign. Null columns have no dependence by construction; real tables do.
+* **Direction is asserted by code on every arm** (positive), so the gate's direction check is not exercised against claims proposed from data.
+* **Claims are enumerated by code and fixed by construction, not proposed by a planner from the exploration half.** The 50/50 split protects against selecting claims on the same rows that test them; this experiment never uses the exploration half, so it measures only the cost of testing on half the rows, not what the split buys against a proposer that looks first.
+* **Arm A is a naive baseline of my own choosing** (row-level Spearman or Mann-Whitney at 0.05, no correction, all rows). Other naive tools would differ. On independent-row tables it is only mildly bad (FDP 0.068); the large gap comes from the season and cluster tables, where row-level tests are known to be invalid.
+* **Arm B already uses the gateway's scheme-matched null**, so it is stricter than a typical user's BH. The gap from A to B mixes a "right null" effect, a multiple-testing effect and a half-the-rows effect; this run does not separate them.
+* **Approximations:** 1,000 permutations instead of the shipped 10,000 (coarser p-values, smallest 0.001); in-process execution instead of the subprocess sandbox; one gateway seed per table (20261025 + k); a cycled 27-cell design, not randomised (about 7 tables per cell); Monte-Carlo SE across tables. With 200 tables, FDP 0.021 has a 95% interval of [0.008, 0.034]: evidence against gross leakage, not a certificate of exact control. Claims within a table are independent by construction (separate columns), so dependence between claims is not stressed (that is E2).
+* **Cost** was measured on a loaded machine and is a rough upper bound.
+* No number here has been signed off by the verification owner (AGENTS.md 8.10).
+
+## What this lets the author say at a thesis review, and what it does not
+
+On synthetic tables built to contain a known set of real and fake relationships, the gate as implemented reported about 0.08 false findings per table of twelve claims, where a plain "p below 0.05 on all the rows" rule reported about 3.3; the share of reports that were false fell from about 36% to about 2%, and 134 of 200 tables carried at least one false report under the naive rule against 14 under the gate. The price was recall: the gate kept 45% of the real relationships, and most of what it missed was weak (rho 0.15), small-sample cluster effects, or both. The correction on the held-back half, not the effect floor and not the attacks, accounts for nearly all of the improvement; in this test the attacks removed ten real findings and one false one. What the author cannot say is that the gate "finds the truth" or "is accurate": every table, every effect shape and the definition of truth were chosen by the author, the claims were handed to the gate rather than proposed from data, the 0.021 error rate has a margin of about 0.013 either side, correlated claims were not tested, and a PASS still means "held up on these rows", never "proven". A defensible sentence is: "On 200 author-built planted tables the gate's false-discovery proportion was 0.02 (95% interval 0.01 to 0.03) against 0.36 for an uncorrected test, at a recall of 0.46."

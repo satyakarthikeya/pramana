@@ -74,6 +74,12 @@ STRUCTURE_OF = {"independent": INDEPENDENT, "season": TRANSACTIONS, "entity": PA
 _SUBPROCESS_RUN_ONCE = _runner._run_once
 
 
+def _plain(value):
+    """numpy scalars are not JSON types; everything else is text (as in the harness)."""
+    item = getattr(value, "item", None)
+    return item() if callable(item) else str(value)
+
+
 def _run_once_in_process(program, frame, config):
     """Same checks as the sandbox runner, minus the subprocess.
 
@@ -98,7 +104,7 @@ def _run_once_in_process(program, frame, config):
         module = types.ModuleType("falsification_program")
         exec(compile(program.source, "falsification_program.py", "exec"), module.__dict__)  # noqa: S102
         payload = module.falsify(frame.copy())
-        payload = _json.loads(_json.dumps(payload, default=lambda v: getattr(v, "item", lambda: str(v))()))
+        payload = _json.loads(_json.dumps(payload, default=_plain))
     except Exception as error:  # same shape as a crashed subprocess: retryable failure
         return None, f"execution raised {type(error).__name__}: {error}", True
     finally:
@@ -339,7 +345,8 @@ def main() -> None:
     agg = aggregate(rows)
     meta = {"tables": args.tables, "claims_per_table": N_CLAIMS,
             "permutations": args.permutations, "base_seed": BASE_SEED,
-            "workers": args.workers, "sandbox": args.sandbox, "wall_seconds": time.perf_counter() - t0,
+            "workers": args.workers, "sandbox": args.sandbox,
+            "wall_seconds": time.perf_counter() - t0,
             "alpha": experiment_config(args.permutations).statistics.alpha}
     print(render(agg))
     print(f"wall {meta['wall_seconds']:.0f}s, gateway errors: {len(agg['gateway_errors'])}")
