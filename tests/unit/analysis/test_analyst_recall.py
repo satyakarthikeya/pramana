@@ -7,6 +7,7 @@ it finds unknown ones. Baseline before the analyst layer was 3 of 7.
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[3] / "scripts" / "calibration" / "analyst_recall.py"
@@ -15,6 +16,7 @@ SCRIPT = Path(__file__).resolve().parents[3] / "scripts" / "calibration" / "anal
 def _load():
     spec = importlib.util.spec_from_file_location("analyst_recall", SCRIPT)
     module = importlib.util.module_from_spec(spec)
+    sys.modules["analyst_recall"] = module  # dataclasses look the module up by name
     spec.loader.exec_module(module)
     return module
 
