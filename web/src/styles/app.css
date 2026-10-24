@@ -61,12 +61,6 @@ a {
   color: var(--on-dark-3);
 }
 
-.wrap {
-  max-width: var(--page);
-  margin: 0 auto;
-  padding: 0 var(--s5);
-}
-
 .skip {
   position: absolute;
   left: var(--s4);
@@ -324,9 +318,6 @@ button.chip:hover {
 }
 .error-card p {
   color: var(--text-1);
-}
-.error-card .actions {
-  margin-top: var(--s2);
 }
 .note-card {
   background: var(--surface);
@@ -994,21 +985,6 @@ details summary {
   padding: var(--s7) var(--s7) var(--s9);
   min-width: 0;
   max-width: 1240px;
-}
-.upload-card {
-  background: var(--surface);
-  border: 1.5px dashed var(--border-strong);
-  border-radius: var(--r-card);
-  padding: var(--s6);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s5);
-  flex-wrap: wrap;
-}
-.upload-card h2 {
-  font: 500 22px/28px var(--font-sans);
-  letter-spacing: -0.01em;
 }
 .drop-overlay {
   position: fixed;
