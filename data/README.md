@@ -21,4 +21,4 @@ data/
 - Datasets are reproduced by the download/curation scripts in `scripts/`, not by passing
   files around.
 
-Curation is P. Rohith's scope (`scope/SCOPE_P_Rohith.md` §2 item 6).
+Curation is described in `SCOPE.md` and `PROJECT.md`.

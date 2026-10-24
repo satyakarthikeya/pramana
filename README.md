@@ -2,21 +2,16 @@
 
 **Self-evolving data analysis agent with execution-grounded verification.**
 
-V1 proposes relationships in uploaded tables, executes statistical tests, and reports
-only findings that PASS verification. Each finding has a proof, and only PASS findings
-enter local memory. The default rule scan and template tests need no model API key;
-approved LLM proposal/code generation are explicit opt-ins, never silent fallbacks.
+1. **What it is:** upload a table; PRAMANA proposes relationships, runs the statistical tests as code, and reports only findings that pass verification, each with a proof object. Only PASS findings enter local memory.
+2. **Three evidence levels:** *Exact* (arithmetic on your table, recomputed by code), *Measured* (a model scored on data it did not see) and *Tested* (passed the verification gateway). Exact and Tested are built; see `docs/ANALYST_LAYER_STATUS.md` for how far Measured has got.
+3. **Run it:** `python -m pramana` after the Setup steps below, then open http://127.0.0.1:8080. The live profile needs a DeepSeek API key and Langfuse credentials in `.env`; the first run downloads a local embedding model (about 79 MB) used only for memory search.
+4. **Test it:** `python -m pytest` (the full suite takes a while; run it for the current count).
+5. **Docs:** [docs/README.md](docs/README.md) is the index, [STATUS.md](STATUS.md) is the current state, [PROJECT.md](PROJECT.md) the architecture, [SCOPE.md](SCOPE.md) the scope and [AGENTS.md](AGENTS.md) the rules.
+
+The default rule scan and template tests need no model API key; LLM proposal and code
+generation are explicit opt-ins, never silent fallbacks.
 
 Capstone project, Team AB-07, Amrita School of AI. Supervisor: Rayappa David Amar Raj.
-
-## Start here
-
-| File | Read it for |
-|---|---|
-| `PROJECT.md` | what PRAMANA is, architecture, contracts, evaluation design |
-| `AGENTS.md` | rules every contributor and AI coding agent must follow |
-| `OWNERSHIP.md` | which folder belongs to whom |
-| `SCOPE.md`, `scope/SCOPE_*.md` | what each member is building right now |
 
 ## Layout
 
@@ -82,7 +77,7 @@ On Linux/macOS, use `.venv/bin/python` instead. No Redis, Celery worker or
 local generative model is needed. The live profile requires DeepSeek and Langfuse
 credentials in the ignored `.env` file; no keys belong in browser JavaScript.
 Internet is needed for package installation and the first local MiniLM embedding
-model download; allow that first-use download to finish. Memory persists locally.
+model download (about 79 MB); allow that first-use download to finish. Memory persists locally.
 If port 8080 is already used (for example by the Docker API), start with
 `--port 8081` and visit that port. The app binds to loopback, not a public interface.
 
@@ -162,6 +157,9 @@ existing keys. Both analysis and verification use `DEEPSEEK_API_KEY` and the off
 Live calls require `LANGFUSE_HOST`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` and
 `PRAMANA_LANGFUSE_ENABLED=true`. All calls are traced under the workflow run ID.
 
+The default generator is `template` (a vetted test per claim type, rendered by code). The
+command below opts in to `llm`, where DeepSeek writes each falsification test:
+
 ```powershell
 .venv\Scripts\python.exe -m pramana --generator llm
 ```
@@ -216,7 +214,7 @@ Working on one module only? Install just what you need:
 
 ## Working agreement
 
-- Edit your own folders; import everyone else's (`OWNERSHIP.md`).
+- Edit your own folders; import everyone else's (each `src/pramana/*/OWNERSHIP.md` names its owner).
 - Import the contracts from `pramana.contracts` — never redefine them locally.
 - Thresholds and seeds live in `configs/`, never in code.
 - **The invariant:** `memory_write ⟹ verdict == PASS`. If a change would weaken it,
@@ -231,3 +229,12 @@ Working on one module only? Install just what you need:
 
 Tests explicitly select template verification and use labelled model/embedding
 fixtures where appropriate. They are not proof of paid-provider availability.
+
+## Contributing
+
+`main` is protected; every change goes through a pull request from a branch named
+`<type>/<owner>/<short-task>` (for example `fix/satya/executor-relative-imports`), with
+Conventional Commit subjects. Run the targeted tests and the full suite before you push, and
+fill in the PR description. The full rules, including review and merge, are in
+[AGENTS.md](AGENTS.md) section 8. Changes that touch `memory_write => verdict == PASS`,
+p-values, FDR correction or sandbox safety need the verification owner's approval.

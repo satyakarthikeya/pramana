@@ -1,5 +1,7 @@
 # IMPLEMENTATION_STATUS.md — verification gateway, current state
 
+> **Historical snapshot.** Current project status is in [STATUS.md](../STATUS.md). Figures and branch names below are from the date of writing and may be out of date.
+
 > Scope: `src/pramana/verification/`, `src/pramana/contracts/`, `tests/`, and
 > `configs/verification.yaml` (Satya Karthikeya's module). Other members' folders are
 > not tracked here. Last updated 2026-10-14, after the finishing pass (WP1-WP7, below).

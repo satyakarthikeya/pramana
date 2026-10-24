@@ -1,13 +1,21 @@
-# STATUS.md — where we are (22 October 2026)
+# STATUS.md — where we are
 
-> Sources: `docs/V1.md`, `docs/team/V1_TEST_LOG.md`, git history. Figures are from the
+> This is the single current-status file. Other status documents under `docs/` are
+> historical snapshots. For the current test count, run `pytest`; no figure is
+> kept here.
+
+> Last edited 25 October 2026 for facts that could be checked; the body below was
+> written on 22 and 23 October.
+
+> Sources: `docs/V1.md`, `docs/evidence/V1_TEST_LOG.md`, git history. Figures are from the
 > repo's own logs; they were not re-run when this file was written.
 
 ## Branches
 
 | Branch | State |
 |---|---|
-| `main` | at `2a436ec`: PR #25 (V1 product) and PR #26 (DeepSeek-only) merged |
+| `main` | PR #25 (V1 product) and PR #26 (DeepSeek-only) merged at `2a436ec`; later work has landed since, see `git log` |
+| PR #31 (`feat/satya/analyst-layer`) | holds the analyst layer and verification gateway v3 (see `docs/ANALYST_LAYER_STATUS.md`, `docs/GATEWAY_V3_STATUS_AND_SIGNOFF.md`) |
 | `feat/b-karthikeya/deepseek-only` | merged via PR #26 |
 | `review/v1-product` | local review branch, same V1 content as `main` |
 | other `feat/*` branches | older work already folded into V1 or superseded; check before deleting |
@@ -26,14 +34,14 @@
   JSON/CSV export, sample dataset, memory panel with source links, historical hints
 - PASS-only memory (API, graph, gateway and memory tests assert it)
 - README, `.env.example`
-- Full suite 771 passed (414 s) at last log; ruff, mypy, `pip check` clean
+- Full suite: run `pytest` for the current count; ruff, mypy and `pip check` were clean at the last log
 - Headless-Chrome journey on two datasets passes. Planted check: true pair PASS, shuffled decoy REJECT
 
 **Open before the 27 Oct review**
 - [ ] Clean-clone test on a second machine (A5)
 - [ ] Full suite and ruff green on `main` after merge (G2)
 - [ ] Affected owners acknowledge the review notices (PR #25 comment)
-- [ ] Close the DeepSeek-only follow-ups in `docs/team/DEEPSEEK_ONLY_TODO.md`; read `DEEPSEEK_LIVE_TEST_LOG.md` (it records an extra decoy-coverage check that did not pass)
+- [ ] Close the DeepSeek-only follow-ups in `docs/team/DEEPSEEK_ONLY_TODO.md`; read `docs/evidence/DEEPSEEK_LIVE_TEST_LOG.md` (it records an extra decoy-coverage check that did not pass)
 - [ ] Confirm Langfuse credentials work: a DeepSeek key alone is not enough under the tracing rules
 - [ ] `docs/V1.md` and the V1 test log still describe the earlier template/Gemma setup (historical)
 - [ ] Independent human rehearsal of the journey
@@ -93,7 +101,7 @@ and whether model-worded sentences should ever be on by default.
 **Not built:** a lesson-curator agent, per-user verified memory (still shared across accounts), a hold-out split,
 and counting chat or exploration in the BH family.
 
-**The Docker stack is left on the live profile** (engine `api`, generator `llm`, Explainer `template`). The
+**The Docker stack is left on the live profile** (engine `api`, Explainer `template`). The project default generator is `template` (`configs/verification.yaml`, AGENTS.md section 2); this Docker profile and `.env.example` select `llm` explicitly through `PRAMANA_VERIFICATION_GENERATOR`. The
 offline overlay (`docker-compose.offline.yml`) is only for testing without keys and shows "rule scan, no model".
 
 **Verified by running:** full suite exit 0 at `45a24f7` (0 failures), `ruff` clean, web build clean;

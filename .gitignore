@@ -1,13 +1,14 @@
 # Datasets never go in the repo (AGENTS.md §6)
 data/*
 !data/README.md
-!data/.gitkeep
 *.csv
 *.xlsx
 *.parquet
 
 # Secrets
 .env
+.env.*
+!.env.example
 *.pem
 *.key
 
@@ -28,6 +29,8 @@ build/
 dist/
 
 # Tooling
+*.log
+.claude/*.local.json
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/

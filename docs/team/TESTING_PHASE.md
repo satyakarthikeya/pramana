@@ -6,7 +6,7 @@ DeepSeek and require Langfuse credentials. The earlier keyless/Gemma evidence
 below is historical and must not be reported as live DeepSeek acceptance.
 
 For the local **V1 product**, start with the root README, `docs/V1.md` and
-[V1_TEST_LOG.md](V1_TEST_LOG.md): no Docker/Celery/Redis or paid key is required for
+[V1_TEST_LOG.md](../evidence/V1_TEST_LOG.md): no Docker/Celery/Redis or paid key is required for
 the explicit template/in-process profile. The remainder of this file records the
 broader deployment/live-service workflow checks, not V1 startup prerequisites.
 
@@ -140,7 +140,7 @@ docker compose -f docker/docker-compose.yml ps
 ```
 
 On this machine Docker's executable is at:
-`C:/Users/karth/AppData/Local/Programs/DockerDesktop/resources/bin/docker.exe`.
+`<Docker Desktop install folder>/resources/bin/docker.exe`.
 Use that executable if `docker` is absent from PATH.
 
 The smoke script uploads synthetic data to `http://localhost:8080`, polls for

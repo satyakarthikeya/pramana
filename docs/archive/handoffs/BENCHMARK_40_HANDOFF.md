@@ -42,8 +42,8 @@ Raw files and extracts stay gitignored. Teammates get the code, full plan, sourc
 checksums, aggregate build report and per-extract metadata through GitHub, and run
 the command above to obtain the real files locally.
 
-See [build audit](../data/benchmark_40_build.json), [metadata](../data/benchmark_40_metadata.json),
-[fixed plan](../../configs/benchmark_40.yaml), and [source lock](../../configs/benchmark_40_sources.json).
+See [build audit](../../evidence/benchmark/benchmark_40_build.json), [metadata](../../evidence/benchmark/benchmark_40_metadata.json),
+[fixed plan](../../../configs/benchmark_40.yaml), and [source lock](../../../configs/benchmark_40_sources.json).
 The metadata-aware schema helper and unchanged responsibility split are described
 in [the original handoff](ROHITH_HANDOFF.md).
 
