@@ -588,7 +588,7 @@ def _with_interval(
         found = effect_interval(
             _claim_view(proof, tested, structure),
             frame,
-            n_resamples=config.statistics.n_bootstrap,
+            n_resamples=config.statistics.interval_resamples,
             confidence=config.statistics.interval_confidence,
             seed=config.statistics.seed,
         )

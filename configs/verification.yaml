@@ -17,6 +17,7 @@ statistics:
   # n_permutations could not resolve a p-value small enough to pass BH at this size:
   # n_permutations >= m_max / alpha - 1.
   m_max: 40
+  interval_resamples: 1000   # S5: resamples per interval (each recomputes the effect: about 3 s a claim)
   interval_confidence: 0.95  # S5: level of the interval beside an effect; descriptive only
   power_target: 0.8          # S1: detection probability for the "could have found" note; descriptive only
 

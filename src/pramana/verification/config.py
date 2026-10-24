@@ -90,6 +90,11 @@ class StatisticsConfig(BaseModel):
         ge=1,
         description="Largest BH family a run may test; n_permutations must resolve it.",
     )
+    interval_resamples: int = Field(
+        ge=200,
+        description="Resamples for the interval beside an effect. Far fewer than n_bootstrap: "
+        "each resample recomputes the effect, and the interval is descriptive.",
+    )
     interval_confidence: float = Field(
         gt=0.5,
         lt=1.0,
