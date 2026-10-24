@@ -45,3 +45,25 @@ export function useRun(id: string | null, onFinished?: () => void) {
 
   return { run, results, problem };
 }
+
+let alphaPromise: Promise<number | null> | null = null;
+
+/** The gate's alpha, read once from the server's config; null until known or if unavailable. */
+export function useAlpha(): number | null {
+  const [alpha, setAlpha] = useState<number | null>(null);
+  useEffect(() => {
+    alphaPromise ??= api.system().then(
+      (s) => s.alpha,
+      () => {
+        alphaPromise = null;
+        return null;
+      },
+    );
+    let live = true;
+    alphaPromise.then((a) => live && setAlpha(a));
+    return () => {
+      live = false;
+    };
+  }, []);
+  return alpha;
+}

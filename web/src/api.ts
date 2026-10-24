@@ -244,6 +244,7 @@ export interface SystemStatus {
   };
   chat_ready: boolean;
   chat_blockers: string[];
+  alpha: number;
 }
 export type AnswerKind =
   | "descriptive"

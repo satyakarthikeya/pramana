@@ -1559,3 +1559,87 @@ text.axis {
   display: grid;
   gap: var(--s1);
 }
+
+/* ---------- proof cards, attacks, fragile ---------- */
+.badge-fragile {
+  background: var(--reject-tint);
+  color: var(--reject-ink);
+  border: 3px double var(--reject);
+}
+.tested-badge {
+  border-color: var(--text-2);
+  color: var(--text-1);
+}
+.proof-cards {
+  display: grid;
+  gap: var(--s3);
+}
+.proof-card {
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  padding: var(--s4);
+  display: grid;
+  gap: var(--s2);
+}
+.proof-card p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text-1);
+}
+.proof-card p.explain {
+  color: var(--text-2);
+}
+.attack-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: var(--s3);
+}
+.attack {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: var(--s3);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--text-2);
+}
+.attack-tag {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  font: 600 11px/16px var(--font-mono);
+  letter-spacing: 0.06em;
+  color: var(--text-1);
+}
+.attack-tag svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+.attack[data-outcome="broken"] .attack-tag {
+  color: var(--reject-ink);
+}
+.attack[data-outcome="not_run"] .attack-tag {
+  color: var(--text-3);
+}
+.attack-nums {
+  display: block;
+  color: var(--text-3);
+}
+.fragile-note {
+  border: 3px double var(--reject);
+  border-radius: var(--r-panel);
+  background: var(--reject-tint);
+  padding: var(--s4);
+}
+.fragile-note p {
+  margin: var(--s1) 0 0;
+  color: var(--reject-ink);
+}
+.rej-row[data-fragile="true"] {
+  border-style: double;
+  border-width: 3px;
+}

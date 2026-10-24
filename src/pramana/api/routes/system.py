@@ -27,6 +27,8 @@ class SystemStatus(BaseModel):
     #: Chat always needs a model; these name what is missing for it (never values).
     chat_ready: bool
     chat_blockers: list[str]
+    #: The gate's alpha from the verification config, so the UI never hardcodes it.
+    alpha: float
 
 
 @router.get("", response_model=SystemStatus)
@@ -56,4 +58,5 @@ def system_status(_user: Annotated[User, Depends(current_user)]) -> SystemStatus
         budgets=load_workspace_config().agent,
         chat_ready=not chat_blockers,
         chat_blockers=chat_blockers,
+        alpha=load_verification_config().statistics.alpha,
     )

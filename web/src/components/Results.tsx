@@ -6,12 +6,13 @@ import { CaveatLine, ConfoundCheck, PlainWords } from "./Advice";
 import { ClaimChart } from "./Charts";
 import { Exploration } from "./Exploration";
 import { Arrow, Close, Download } from "./Icons";
-import { Badge } from "./Verdict";
+import { ProofCards, brokenAttack } from "./ProofCards";
+import { Badge, TestedTag, presentation } from "./Verdict";
 
 /** Insight IDs are built as `<claim_type>-<columns>`; fall back to the chart's kind. */
 function typeOf(row: ResultRow): string {
   const prefix = row.insight_id.split("-")[0];
-  if (["correlation", "trend", "distribution"].includes(prefix)) return claimTypeLabel(prefix);
+  if (["correlation", "trend", "distribution", "period_change", "seasonality"].includes(prefix)) return claimTypeLabel(prefix);
   if (row.insight_id.startsWith("group")) return "GROUP DIFFERENCE";
   if (row.chart?.kind === "groups") return "GROUP DIFFERENCE";
   return "CLAIM";
@@ -44,7 +45,10 @@ function ClaimCard({
     <article className="claim" data-selected={selected}>
       <div className="claim-top">
         <span className="label">{typeOf(row)}</span>
-        <Badge proof={p} />
+        <span style={{ display: "flex", gap: 8 }}>
+          <TestedTag />
+          <Badge proof={p} />
+        </span>
       </div>
       <p className="claim-sentence">{row.claim}</p>
       <div className="chips">
@@ -93,10 +97,13 @@ function RejectedRow({
   selected: boolean;
   onOpen: (id: string) => void;
 }) {
+  const broke = brokenAttack(row.proof);
+  const fragile = presentation(row.proof.gate_outcome) === "fragile";
   return (
     <button
       type="button"
       className="rej-row"
+      data-fragile={fragile}
       data-selected={selected}
       onClick={() => onOpen(row.insight_id)}
       aria-label={`Open proof for rejected claim: ${row.claim}`}
@@ -104,8 +111,10 @@ function RejectedRow({
       <span className="rej-sentence">{row.claim}</span>
       <Badge proof={row.proof} />
       <span className="rej-reason">
-        <b>REASON</b>
-        {row.explanation ?? "Rejected by the gate."}
+        <b>{fragile ? "BROKEN BY" : "REASON"}</b>
+        {fragile && broke
+          ? `${broke.attack_id} ${broke.name}: ${broke.reason} It passed the gate first, so it is not shown as verified.`
+          : (row.explanation ?? "Rejected by the gate.")}
         {row.proof.q_value !== null ? ` q = ${fmtP(row.proof.q_value)}.` : ""}
       </span>
     </button>
@@ -136,6 +145,7 @@ export function ProofDrawer({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
   const verified = p.verdict === "PASS";
+  const broke = brokenAttack(p);
   return (
     <aside className="drawer" aria-label="Proof">
       <div className="drawer-head">
@@ -166,6 +176,28 @@ export function ProofDrawer({
           <p className="explain" style={{ marginTop: 8 }}>
             {row.explanation}
           </p>
+        </div>
+
+        {presentation(p.gate_outcome) === "fragile" && (
+          <div className="sec fragile-note" role="note">
+            <span className="label">Broke under attack</span>
+            <p>
+              This claim passed the gate, then did not survive a falsification attack, so it is
+              rejected and nothing was stored.
+              {broke ? ` ${broke.attack_id} ${broke.name}: ${broke.reason}` : ""}
+            </p>
+          </div>
+        )}
+
+        {presentation(p.gate_outcome) === "not_testable" && (
+          <div className="sec">
+            <span className="label">Not testable</span>
+            <p>{p.failure_reason ?? row.explanation ?? "The claim could not be tested."}</p>
+          </div>
+        )}
+
+        <div className="sec">
+          <ProofCards proof={p} effectBand={row.effect_strength} single={Boolean(chat)} />
         </div>
 
         {chat && (

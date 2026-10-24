@@ -64,3 +64,9 @@ export function Logo({ size = 28 }: { size?: number }) {
     </svg>
   );
 }
+export const Broken = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base} {...p}>
+    <rect x="2.5" y="2.5" width="15" height="15" rx="3" />
+    <path d="M10 2.5l-2 5 4 2-2 5 0 3" />
+  </svg>
+);
