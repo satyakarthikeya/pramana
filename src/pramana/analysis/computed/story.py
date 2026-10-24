@@ -26,7 +26,9 @@ SECTIONS: list[tuple[str, str, frozenset[str]]] = [
     (
         "why",
         "Why it moved",
-        frozenset({"variance_decomposition", "price_volume_mix", "segment_growth", "concentration"}),
+        frozenset(
+            {"variance_decomposition", "price_volume_mix", "segment_growth", "concentration"}
+        ),
     ),
     (
         "stands_out",
@@ -277,4 +279,3 @@ def build_story(result: ComputedAnalysis, config: ComputedConfig) -> ComputedAna
             questions.append(WatchQuestion(text=text, item_id=item.id))
     story = Story(lead_ids=lead_ids, sections=sections, questions=questions)
     return result.model_copy(update={"items": items, "story": story})
-

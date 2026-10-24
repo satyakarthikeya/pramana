@@ -42,14 +42,6 @@ def num(series: pd.Series) -> pd.Series:
     return pd.to_numeric(series, errors="coerce").replace([np.inf, -np.inf], np.nan)
 
 
-def is_numeric_column(schema: SchemaProfile, name: str, frame: pd.DataFrame) -> bool:
-    return schema.role_of(name) in _NUMERIC_ROLES and name in frame.columns
-
-
-def is_text_column(schema: SchemaProfile, name: str, frame: pd.DataFrame) -> bool:
-    return schema.role_of(name) in _TEXT_ROLES and name in frame.columns
-
-
 def eligible_columns(
     frame: pd.DataFrame,
     schema: SchemaProfile,

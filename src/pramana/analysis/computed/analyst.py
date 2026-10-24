@@ -67,7 +67,11 @@ def price_volume_mix(ctx: Context) -> list[ExactItem]:
     if amount is None:
         return []
     if quantity is None:
-        return [_not_run("price_volume_mix", "Needs a units (quantity) column beside the amount.", amount)]
+        return [
+            _not_run(
+                "price_volume_mix", "Needs a units (quantity) column beside the amount.", amount
+            )
+        ]
     windows = _windows(ctx)
     if windows is None:
         return []
@@ -99,7 +103,11 @@ def price_volume_mix(ctx: Context) -> list[ExactItem]:
     total_change = float(table["r1"].sum() - table["r0"].sum())
     if total_change == 0:
         return [_not_run("price_volume_mix", f"Total {amount} did not change.", amount)]
-    q0_all, q1_all, r0_all = float(inside["q0"].sum()), float(inside["q1"].sum()), float(inside["r0"].sum())
+    q0_all, q1_all, r0_all = (
+        float(inside["q0"].sum()),
+        float(inside["q1"].sum()),
+        float(inside["r0"].sum()),
+    )
     p0 = inside["r0"] / inside["q0"]
     p1 = inside["r1"] / inside["q1"]
     volume_s = (q1_all * inside["q0"] / q0_all - inside["q0"]) * p0
@@ -118,11 +126,21 @@ def price_volume_mix(ctx: Context) -> list[ExactItem]:
     sentence = (
         f"Total {amount} {movement} by {_fmt(abs(total_change))} from {prev_label} to {cur_label}: "
         f"{parts}"
-        + (f", and {len(outside)} {ctx.group} value(s) in only one window {_signed(other)}" if len(outside) else "")
+        + (
+            f", and {len(outside)} {ctx.group} value(s) in only one window {_signed(other)}"
+            if len(outside)
+            else ""
+        )
         + "."
     )
     detail = pd.DataFrame(
-        {"volume": volume_s, "price": price_s, "mix": mix_s, "price_per_unit_before": p0, "price_per_unit_now": p1}
+        {
+            "volume": volume_s,
+            "price": price_s,
+            "mix": mix_s,
+            "price_per_unit_before": p0,
+            "price_per_unit_now": p1,
+        }
     )
     detail["change"] = detail["volume"] + detail["price"] + detail["mix"]
     detail = detail.reindex(detail["change"].abs().sort_values(ascending=False).index)
@@ -212,8 +230,13 @@ def segment_growth(ctx: Context) -> list[ExactItem]:
     table = pd.DataFrame({"previous": before, "current": now}).fillna(0.0)
     total_before, total_now = float(table["previous"].sum()), float(table["current"].sum())
     if total_before <= 0:
-        return [_not_run("segment_growth", f"Total {amount} in {prev_label} is not positive.", amount)]
-    eligible = table[(table["previous"] > 0) & (table["previous"] >= ctx.config.segment_growth_min_share * total_before)]
+        return [
+            _not_run("segment_growth", f"Total {amount} in {prev_label} is not positive.", amount)
+        ]
+    eligible = table[
+        (table["previous"] > 0)
+        & (table["previous"] >= ctx.config.segment_growth_min_share * total_before)
+    ]
     if len(eligible) < 2:
         return [
             _not_run(
@@ -222,13 +245,21 @@ def segment_growth(ctx: Context) -> list[ExactItem]:
                 amount,
             )
         ]
-    growth = (eligible["current"] / eligible["previous"] - 1.0).sort_values(ascending=False, kind="stable")
+    growth = (eligible["current"] / eligible["previous"] - 1.0).sort_values(
+        ascending=False, kind="stable"
+    )
     overall = total_now / total_before - 1.0
     fastest, slowest = str(growth.index[0]), str(growth.index[-1])
     f_pct, s_pct = 100 * float(growth.iloc[0]), 100 * float(growth.iloc[-1])
     left_out = len(table) - len(eligible)
     if f_pct == s_pct:
-        return [_not_run("segment_growth", f"No {ctx.group} value differs in growth rate from the others.", amount)]
+        return [
+            _not_run(
+                "segment_growth",
+                f"No {ctx.group} value differs in growth rate from the others.",
+                amount,
+            )
+        ]
 
     def move(pct: float) -> str:
         return f"{'up' if pct >= 0 else 'down'} {abs(pct):.1f}%"
@@ -273,7 +304,9 @@ def segment_growth(ctx: Context) -> list[ExactItem]:
                 x_label=ctx.group,
                 y_label=f"growth in {amount}",
                 value_format="percent",
-                bars=[Bar(label=str(name), value=float(g)) for name, g in growth.items()][: ctx.config.max_segments],
+                bars=[Bar(label=str(name), value=float(g)) for name, g in growth.items()][
+                    : ctx.config.max_segments
+                ],
             ),
         )
     ]
@@ -322,7 +355,12 @@ def customer_view(ctx: Context) -> list[ExactItem]:
                 column,
             )
         ]
-    per_customer = money[known].groupby(ids[known].astype(str)).sum().sort_values(ascending=False, kind="stable")
+    per_customer = (
+        money[known]
+        .groupby(ids[known].astype(str))
+        .sum()
+        .sort_values(ascending=False, kind="stable")
+    )
     positive_total = float(per_customer[per_customer > 0].sum())
     if positive_total <= 0:
         return [_not_run("customer_view", f"Total {amount} by customer is not positive.", column)]
@@ -370,7 +408,9 @@ def customer_view(ctx: Context) -> list[ExactItem]:
                     values["new_share_current"] = new_money / cur_total
                     values["returning_share_current"] = 1.0 - new_money / cur_total
                     values["new_customers_current"] = int(cur_money.index.isin(new_ids).sum())
-                    values["returning_customers_current"] = int((~cur_money.index.isin(new_ids)).sum())
+                    values["returning_customers_current"] = int(
+                        (~cur_money.index.isin(new_ids)).sum()
+                    )
                     sentence += (
                         f" In {cur_label}, customers whose first row in this table falls in that window brought "
                         f"{100 * new_money / cur_total:.1f}% of {amount} and earlier customers "
@@ -492,7 +532,9 @@ def rfm(ctx: Context) -> list[ExactItem]:
     for name in ("Champions", "Lapsed regulars"):
         if name in by:
             r = by[name]
-            values[f"{name.lower().replace(' ', '_')}_customers_pct"] = 100 * float(r["share_of_customers"])
+            values[f"{name.lower().replace(' ', '_')}_customers_pct"] = 100 * float(
+                r["share_of_customers"]
+            )
             values[f"{name.lower().replace(' ', '_')}_money_pct"] = 100 * float(r["share_of_money"])
             parts.append(
                 f"{name} are {100 * float(r['share_of_customers']):.1f}% of customers and "
@@ -500,7 +542,9 @@ def rfm(ctx: Context) -> list[ExactItem]:
             )
     sentence = (
         f"Grouping {len(per):,} customers by how recently, how often (periods with a row) and how "
-        f"much they bought up to {periods[-1]}: " + ("; ".join(parts) if parts else "no group stands out") + "."
+        f"much they bought up to {periods[-1]}: "
+        + ("; ".join(parts) if parts else "no group stands out")
+        + "."
     )
     return [
         ExactItem(
@@ -519,7 +563,11 @@ def rfm(ctx: Context) -> list[ExactItem]:
                 y_label=f"share of {amount}",
                 value_format="percent",
                 bars=[
-                    Bar(label=str(r["segment"]), value=float(r["share_of_money"]), n=int(r["customers"]))
+                    Bar(
+                        label=str(r["segment"]),
+                        value=float(r["share_of_money"]),
+                        n=int(r["customers"]),
+                    )
                     for r in rows
                 ],
             ),

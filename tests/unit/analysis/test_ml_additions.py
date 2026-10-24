@@ -34,7 +34,16 @@ def test_components_find_the_two_planted_factors() -> None:
     assert item.values["components_kept"] == 2
     # the first component loads on one block of columns only
     first = str(item.table[0]["loads_on"])
-    assert len({name[0] for name in first.replace("(", " ").split() if name[0] in "ab" and name[1:2].isdigit()}) == 1
+    assert (
+        len(
+            {
+                name[0]
+                for name in first.replace("(", " ").split()
+                if name[0] in "ab" and name[1:2].isdigit()
+            }
+        )
+        == 1
+    )
     assert float(item.values["variance_explained_pct"]) > 60  # type: ignore[arg-type]
 
 
