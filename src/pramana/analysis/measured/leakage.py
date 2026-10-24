@@ -11,6 +11,7 @@ held-out rows.
 
 from __future__ import annotations
 
+import re
 from itertools import combinations
 from typing import Literal
 
@@ -28,6 +29,9 @@ from pramana.analysis.schema_inference import ColumnRole, SchemaProfile
 
 Task = Literal["regression", "classification"]
 
+#: Names that say a column identifies a record.
+_ID_NAME = re.compile(r"(^|_)(id|key|seqn|code|no|num|number|index)$|^id", re.IGNORECASE)
+
 
 def _is_identifier(
     frame: pd.DataFrame, schema: SchemaProfile, name: str, config: MeasuredConfig
@@ -39,7 +43,16 @@ def _is_identifier(
         return False
     if pd.api.types.is_float_dtype(values) and not (values % 1 == 0).all():
         return False  # a continuous measurement is distinct per row without being an id
-    return values.nunique() / len(values) >= config.leakage.id_unique_ratio
+    if values.nunique() / len(values) < config.leakage.id_unique_ratio:
+        return False
+    if not pd.api.types.is_numeric_dtype(values):
+        return True  # distinct text per row names a record
+    # A whole-number column distinct per row is an id only if it is named like one or
+    # runs like a counter; revenue in whole rupees is distinct per row and is a measure.
+    if _ID_NAME.search(name):
+        return True
+    span = float(values.max() - values.min()) + 1.0
+    return span <= 1.5 * values.nunique()
 
 
 def _line_match(y: np.ndarray, f: np.ndarray, config: MeasuredConfig) -> bool:

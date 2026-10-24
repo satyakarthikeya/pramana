@@ -6,8 +6,8 @@ every origin; the headline is the scaled error (MASE) of the better of the two m
 against the baseline's, with the origin-to-origin spread; the prediction interval comes
 from the backtest's own errors and its coverage is checked leave-one-origin-out; a series
 too short for two full seasonal cycles is not modelled seasonally, it is not run, and the
-reason is given. The choice between the two models is made on the same backtest, and the
-sentence says so.
+reason is given. The model is chosen on the earlier backtest origins and scored only on
+the later ones, and the sentence says so.
 """
 
 from __future__ import annotations
@@ -219,13 +219,21 @@ def run_forecast(
     usable = [name for name in candidates if name in scaled and len(scaled[name]) == len(origins)]
     if not usable:
         return not_run(kind, "No forecasting method could be fitted to this series.", target)
-    mase = {name: float(np.mean(scaled[name])) for name in ["baseline", *usable]}
-    best = min(usable, key=lambda name: mase[name])
-    gap = [b - m_ for b, m_ in zip(scaled["baseline"], scaled[best], strict=True)]
+    # The method is picked on the EARLIER origins and scored only on the later ones, so
+    # the reported error comes from periods the choice never saw.
+    n_select = max(1, len(origins) // 2)
+    picked = {name: float(np.mean(scaled[name][:n_select])) for name in usable}
+    best = min(usable, key=lambda name: picked[name])
+    held = {name: scaled[name][n_select:] for name in ["baseline", *usable]}
+    mase = {name: float(np.mean(values)) for name, values in held.items()}
+    gap = [b - m_ for b, m_ in zip(held["baseline"], held[best], strict=True)]
     lift, spread = mase["baseline"] - mase[best], sd(gap)
     relative = lift / mase["baseline"] if mase["baseline"] > 0 else 0.0
     baseline_name = "seasonal-naive" if m > 1 else "last-value"
-    split_text = f"rolling-origin backtest {len(origins)} origins, {h} {_UNIT[period]} ahead"
+    split_text = (
+        f"rolling-origin backtest, method picked on {n_select} earlier origins and scored on "
+        f"{len(origins) - n_select} later ones, {h} {_UNIT[period]} ahead"
+    )
 
     # interval from the backtest errors, coverage checked leaving one origin out
     matrix = np.vstack(errors[best])
@@ -305,7 +313,7 @@ def run_forecast(
             f"with {relative * 100:.0f}% less error than the {baseline_name} baseline on periods "
             f"it did not see (scaled error {mase[best]:.2f} against {mase['baseline']:.2f}, "
             f"± {spread:.2f} between origins; {split_text}). It is the better of "
-            f"{len(candidates)} methods, picked on the same backtest. The "
+            f"{len(candidates)} methods, picked on earlier origins than it is scored on. The "
             f"{cfg.interval_level * 100:.0f}% interval covered {coverage * 100:.0f}% of "
             "backtest values."
         ),

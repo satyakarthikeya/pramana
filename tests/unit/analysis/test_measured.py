@@ -526,3 +526,26 @@ def test_every_number_in_a_sentence_is_a_stored_number(gallery: list[MeasuredIte
             places = len(token.split(".")[1]) if "." in token else 0
             matched = token in allowed or any(f"{v:.{places}f}" == token for v in stored)
             assert matched, f"{token!r} in {item.id}: {item.sentence}"
+
+
+def test_a_whole_number_measure_distinct_per_row_is_not_an_identifier() -> None:
+    import numpy as np
+    import pandas as pd
+
+    from pramana.analysis import infer_schema, load_config
+    from pramana.analysis.measured.config import load_measured_config
+    from pramana.analysis.measured.leakage import _is_identifier
+
+    rng = np.random.default_rng(1)
+    frame = pd.DataFrame(
+        {
+            "revenue": rng.choice(np.arange(10_000, 900_000), size=300, replace=False),
+            "invoice_no": np.arange(1, 301),
+            "row_counter": np.arange(5000, 5300),
+        }
+    )
+    schema = infer_schema(frame, load_config().schema_inference)
+    config = load_measured_config()
+    assert not _is_identifier(frame, schema, "revenue", config)
+    assert _is_identifier(frame, schema, "invoice_no", config)
+    assert _is_identifier(frame, schema, "row_counter", config)
