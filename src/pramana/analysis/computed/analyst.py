@@ -110,7 +110,10 @@ def price_volume_mix(ctx: Context) -> list[ExactItem]:
     assert abs(volume + mix + price + other - total_change) <= 1e-6 * max(1.0, abs(total_change))
 
     movement = "rose" if total_change > 0 else "fell"
-    parts = f"volume {_signed(volume)}, price {_signed(price)} and mix {_signed(mix)}"
+    parts = (
+        f"volume {_signed(volume)}, average price per unit within each {ctx.group} {_signed(price)} "
+        f"and mix between {ctx.group} values {_signed(mix)}"
+    )
     sentence = (
         f"Total {amount} {movement} by {_fmt(abs(total_change))} from {prev_label} to {cur_label}: "
         f"{parts}"
@@ -132,7 +135,8 @@ def price_volume_mix(ctx: Context) -> list[ExactItem]:
             sentence=sentence,
             formula="volume = (Q1 − Q0) × (R0 ÷ Q0); price = Σ q1 × (p1 − p0); "
             "mix = Σ (q1 − Q1 × q0 ÷ Q0) × p0; p = amount ÷ units per "
-            f"{ctx.group}; the parts add up to the change",
+            f"{ctx.group}; the parts add up to the change. Price per unit also moves when the products "
+            f"sold inside a {ctx.group} change",
             columns=[amount, quantity, ctx.group, time],
             filters=[f"{time} in {cur_label}", f"{time} in {prev_label}"],
             n_rows=int((ctx.keys.isin(current + previous) & both).sum()),
@@ -366,8 +370,9 @@ def customer_view(ctx: Context) -> list[ExactItem]:
                     values["new_customers_current"] = int(cur_money.index.isin(new_ids).sum())
                     values["returning_customers_current"] = int((~cur_money.index.isin(new_ids)).sum())
                     sentence += (
-                        f" In {cur_label}, customers first seen then brought {100 * new_money / cur_total:.1f}% "
-                        f"of {amount} and returning customers {100 * (1 - new_money / cur_total):.1f}%."
+                        f" In {cur_label}, customers whose first row in this table falls in that window brought "
+                        f"{100 * new_money / cur_total:.1f}% of {amount} and earlier customers "
+                        f"{100 * (1 - new_money / cur_total):.1f}%."
                     )
     if missing_share > 0:
         sentence += f" {100 * missing_share:.1f}% of rows have no {column} and are left out."
