@@ -210,3 +210,10 @@ def test_what_to_watch_questions_are_questions_tied_to_a_figure() -> None:
     for q in result.story.questions:
         assert q.text.endswith("?") and q.item_id in ids
     assert len(result.story.questions) <= load_computed_config().max_questions
+
+
+def test_a_numeric_customer_id_prints_without_a_decimal() -> None:
+    ids = [float(i % 25 + 1000) for i in range(300)]
+    frame = _orders(ids, [10.0] * 300)
+    item = _item(_run(frame), "customer_view")
+    assert not any(str(r["customer"]).endswith(".0") for r in item.table)

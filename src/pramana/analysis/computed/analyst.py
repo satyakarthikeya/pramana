@@ -307,7 +307,8 @@ def customer_view(ctx: Context) -> list[ExactItem]:
     amount = _pick(ctx, "amount", r"revenue|sales") or (ctx.measures[0] if ctx.measures else None)
     if amount is None:
         return []
-    ids = ctx.frame[column]
+    # a numeric id read as a float prints as 12680.0; show it as 12680
+    ids = ctx.frame[column].astype("string").str.replace(r"\.0$", "", regex=True)
     money = _num(ctx.frame[amount])
     known = ids.notna() & money.notna()
     missing_share = float((ids.isna()).mean())
