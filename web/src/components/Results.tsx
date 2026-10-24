@@ -371,7 +371,7 @@ export function Results({
           </div>
           {sorted.length === 0 ? (
             <div className="empty">
-              <h3>No claim survived testing</h3>
+              <h3>{tested === 0 ? "No claim needed a strict test" : "No claim survived testing"}</h3>
               <p>
                 {tested} tested, 0 verified, {results.rejected_claims.length} rejected. This is a
                 result. Nothing was marked verified, and every reason is below.

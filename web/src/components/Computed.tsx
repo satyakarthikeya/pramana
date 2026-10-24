@@ -204,7 +204,10 @@ export function Computed({ computed }: { computed: ComputedAnalysis }) {
 
       {skipped.length > 0 && (
         <div className="panel report-section">
-          <h3>Not run on this table</h3>
+          <details className="work">
+          <summary>
+            {skipped.length} analys{skipped.length === 1 ? "is" : "es"} did not apply to this table
+          </summary>
           <ul className="exact-skipped">
             {skipped.map((item) => (
               <li key={item.id}>
@@ -215,6 +218,7 @@ export function Computed({ computed }: { computed: ComputedAnalysis }) {
               </li>
             ))}
           </ul>
+          </details>
         </div>
       )}
     </section>

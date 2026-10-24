@@ -26,6 +26,10 @@ function Overviewtab({ dataset }: { dataset: DatasetView }) {
   return (
     <>
     {dataset.computed && <Computed computed={dataset.computed} />}
+    <details className="more">
+    <summary>
+      More detail: model results, the columns PRAMANA understood and charts of every column
+    </summary>
     <div className="report">
       <Measured dataset={dataset} />
     </div>
@@ -108,6 +112,7 @@ function Overviewtab({ dataset }: { dataset: DatasetView }) {
         )}
       </div>
     </div>
+    </details>
     </>
   );
 }
@@ -353,15 +358,23 @@ export function DatasetPage({ id, tab, runId }: { id: string; tab: Tab; runId: s
 
           <div className="tabs" role="tablist" aria-label="Dataset sections">
             <a role="tab" aria-selected={tab === "overview"} href={`#/d/${id}`}>
-              Overview
+              Report
             </a>
             <a role="tab" aria-selected={tab === "findings"} href={`#/d/${id}/findings`}>
-              Findings{runs.length > 0 ? ` (${runs.length})` : ""}
+              Checked claims{runs.length > 0 ? ` (${runs.length})` : ""}
             </a>
             <a role="tab" aria-selected={tab === "ask"} href={`#/d/${id}/ask`}>
               Ask
             </a>
           </div>
+
+          <p className="tab-purpose">
+            {tab === "overview"
+              ? "The report: what happened in this table, why it moved and what to ask next. Every number is calculated by code from your rows."
+              : tab === "ask"
+                ? "Ask a question about this table. Numbers come from tools run on your rows, never from the model."
+                : "Claims tested the strict way: each is checked against shuffled copies of your data and marked verified or rejected. Only claims worth a strict test appear here, so this can be empty."}
+          </p>
 
           {tab === "overview" ? (
             <Overviewtab dataset={dataset} />
