@@ -37,3 +37,13 @@ def test_the_planted_strong_effect_is_found_far_more_often_than_a_null_is() -> N
     null = rows["null: independent rows"]["rate_q_below_alpha"]
     power = rows["power: rho about 0.3, 100 rows"]["rate_q_below_alpha"]
     assert power > null + 0.3
+
+
+def test_the_extra_card_reports_family_and_attack_rows() -> None:
+    module = _load()
+    family = module.family_card(reps=2, n_permutations=200)
+    assert {r["arm"] for r in family} == {"none", "bh", "holm"}
+    assert all(0.0 <= r["any_false_pass"] <= 1.0 for r in family)
+    attacks = module.attack_card(reps=3)
+    assert {r["a2_rule"] for r in attacks} == {"point", "interval"}
+    assert all(0.0 <= r["share_broken"] <= 1.0 for r in attacks)

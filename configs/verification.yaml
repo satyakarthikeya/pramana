@@ -57,6 +57,15 @@ attacks:
   refuter_max_controls: 2      # S8: suggested extra controls kept
   refuter_max_groups: 2        # S8: suggested extra subgroup columns kept
   identity_tolerance: 1.0e-6   # A7: max deviation, as a share of sd(y), for "exactly"
+  # Report-card finding (docs/RESEARCH_verification_agent.md B3): with `point`, A2 wrongly breaks
+  # a true rho 0.2-0.3 effect at n 60-200 in 4-21% of cases, because it compares a noisy half
+  # estimate with the full one. `interval` breaks only on evidence of collapse. `point` stays the
+  # default: `interval` lets more claims reach memory, so the owner flips it after reading the
+  # false-survive rows (scripts/calibration/gate_report_card.py).
+  break_rule: point            # A2: point | interval
+  false_kill_budget: 0.10      # interval rule: share of true claims an attack may wrongly break
+  damage_resamples: 1000       # interval rule: bootstrap resamples per half
+  min_capacity: 2              # fewer checks than this survived-or-broken: shown as "little checked"
 
 evidence:
   # Gating bands per effect metric. `min` is the floor below which a result is

@@ -47,11 +47,31 @@ def _could_detect(proof: ProofObject) -> str:
 
 
 def _held_up(proof: ProofObject) -> str:
+    """The sentence for a claim that passed: what was tried, what could not be judged, the limits.
+
+    Guarantees: states K of M checks that ran, how many applicable checks could not tell, that
+    only this table's columns were checked, and "little checked" when fewer than
+    `attacks.min_capacity` checks ran. Wording only: it never changes a verdict.
+    """
     survived, ran = _checks(proof)
-    text = "Held up: passed the significance test after correction for multiple tests"
+    unable = sum(a.outcome is AttackOutcome.NOT_RUN and a.applicable for a in proof.attacks)
+    little = ran < load_verification_config().attacks.min_capacity
+    text = (
+        "Passed the significance test after correction for multiple tests, but little was "
+        "checked"
+        if little
+        else "Held up: passed the significance test after correction for multiple tests"
+    )
     if ran:
         text += f" and survived {survived} of {ran} further checks"
-    return text + ". An association in this data, not a causal conclusion."
+    elif little:
+        text += ": no further check could be run"
+    if unable:
+        text += f" ({unable} could not tell)"
+    return (
+        text + ". Checked against the columns in this table only: an association in this data,"
+        " not a causal conclusion."
+    )
 
 
 def _did_not_hold(proof: ProofObject) -> str:
