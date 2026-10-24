@@ -267,7 +267,7 @@ label-ordering artifact, so the direction check is SKIPPED for two-group claims 
 not name a reference group.
 
 Additive and optional, so nothing upstream breaks. But `contracts/**` is consumed by all
-four modules and `OWNERSHIP.md` says schema changes are announced before they are merged,
+four modules and the `OWNERSHIP.md` file in each module folder says schema changes are announced before they are merged,
 not after. **This is the announcement — it needs a nod from the team.**
 
 **Phase 9 status (17 September 2026): code side CLOSED, announcement still OWED.** The

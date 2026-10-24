@@ -24,7 +24,7 @@ paid-provider and human report/freeze gates are not implied complete.
 Audited: 20 October 2026. Checkout: `feat/b-karthikeya/workflow-followup`,
 based on refreshed `origin/main` at `2707af0` (gateway PR #21 merged).
 Earlier workflow PR #20 is merged. Ownership follows `PROJECT.md` section 4,
-`OWNERSHIP.md`, `SCOPE.md` and the three member scope files.
+the `OWNERSHIP.md` file in each module folder and `SCOPE.md` (the per-member scope files have been removed).
 
 This is an engineering handoff, not capstone report prose. A checked box means
 implemented in this checkout with the stated evidence. An unchecked box means
@@ -179,7 +179,7 @@ Evidence: `tests/unit/contracts/`, `tests/unit/verification/`,
 
 Scope: verified memory, API, dashboard and deployment. The memory/API implementation
 in this checkout comes from Rohith's published dependency branch; module ownership
-and required review remain as recorded in `OWNERSHIP.md`.
+and required review remain as recorded in each module's `OWNERSHIP.md`.
 
 - [x] Validated lesson schema, complete source proof, fingerprint and provenance.
 - [x] Guarded single write boundary; rejected batches refused, with tests against

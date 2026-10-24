@@ -88,7 +88,7 @@ Findings:
   Romano convention and is left alone; the gap is disclosed, not tuned away.
 * **No metric was found mis-set**, so the remaining open item is only the policy choice of
   a stricter 0.20 tier above. Cramer's V stays uncalibrated because it is out of scope
-  (SCOPE.md section 7 row 2).
+  (a former SCOPE.md section 7 row; see SCOPE.md section 6).
 
 ## Decision (2026-10-20): stricter 0.20 tier NOT adopted for V1
 
