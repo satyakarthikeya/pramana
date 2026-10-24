@@ -21,6 +21,8 @@ class ComputedConfig(BaseModel):
     max_measures: int = Field(ge=1, le=50)
     max_segments: int = Field(ge=2, le=100)
     max_outliers_listed: int = Field(ge=1, le=50)
+    max_margin_columns: int = Field(ge=0, le=10)
+    max_margin_levels: int = Field(ge=2, le=50)
     outlier_robust_z: float = Field(gt=0, le=20)
     seasonality_min_cycles: int = Field(ge=2, le=10)
     min_prevalence_rows: int = Field(ge=1, le=100000)

@@ -10,7 +10,7 @@ const SHAPES: Record<string, string> = {
 
 /** Report sections, in reading order; each lists the kinds of figure it holds. */
 const SECTIONS: { title: string; kinds: string[] }[] = [
-  { title: "What changed", kinds: ["period_change", "variance_decomposition"] },
+  { title: "What changed", kinds: ["period_change", "margins", "variance_decomposition"] },
   { title: "Health measures", kinds: ["prevalence", "weighted_means", "rates"] },
   { title: "Where it is concentrated", kinds: ["concentration", "segment_ranking"] },
   { title: "Patterns across the year", kinds: ["seasonality"] },

@@ -26,7 +26,7 @@ identities:
   - {result: profit, op: difference, inputs: [amount, cost]}
 
 # Core analyses this sector runs, in display order.
-analyses: [period_change, variance_decomposition, concentration, segment_ranking, outliers, seasonality, identity, data_quality]
+analyses: [period_change, margins, variance_decomposition, concentration, segment_ranking, outliers, seasonality, identity, data_quality]
 
 wording:
   scope_note: Figures are computed from this table only. They describe what happened, not why.

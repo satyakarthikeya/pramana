@@ -103,15 +103,16 @@ def test_shipped_config_loads_and_forbids_statistics_libraries() -> None:
     assert "pramana.verification.stats" in config.executor.allowed_imports
 
 
-def test_shipped_config_defaults_to_the_llm_generator(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Follows D1 (docs/DECISIONS_LLM_ROLES.md): DeepSeek writes the tests by default.
+def test_shipped_config_defaults_to_the_vetted_template_generator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Supersedes D1 (docs/DECISIONS_LLM_ROLES.md): a vetted test per claim type is the default.
 
-    Replaces the earlier assertion that the shipped default was `template`. The template
-    generator is not removed: it stays the reference and the explicit offline mode, and
-    the next test pins that it is still selectable.
+    A live run lost claims because model-written tests were refused by the column policy
+    (docs/DESIGN_verification_gateway_v3.md, F1). `llm` stays selectable.
     """
     monkeypatch.delenv(GENERATOR_ENV_VAR, raising=False)
-    assert load_config(SHIPPED_CONFIG).llm.generator == "llm"
+    assert load_config(SHIPPED_CONFIG).llm.generator == "template"
 
 
 def test_template_generator_is_still_selectable(

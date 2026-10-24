@@ -15,7 +15,8 @@ Scalar = float | int | str | bool | None
 #: Bumped whenever stored analyses should be rebuilt (new figures or chart data).
 #: 2 = chart data on figures and the report summary; 3 = clearer change wording;
 #: 4 = review fixes (blank segments, calendar windows, inf, signs, non-answers).
-COMPUTED_VERSION = 4
+#: 5 = margins, single-row outliers, fiscal-year window names.
+COMPUTED_VERSION = 5
 
 
 class ExactItem(BaseModel):

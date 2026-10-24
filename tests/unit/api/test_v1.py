@@ -55,7 +55,7 @@ def test_one_command_start_defaults_are_explicit_and_keys_are_not_required(
     main()
     import os
 
-    assert os.environ["PRAMANA_VERIFICATION_GENERATOR"] == "llm"
+    assert os.environ["PRAMANA_VERIFICATION_GENERATOR"] == "template"
     assert os.environ["PRAMANA_API_VERIFICATION_MODE"] == "inprocess"
     assert captured == {"app": "pramana.api.main:app", "host": "127.0.0.1", "port": 8089}
 

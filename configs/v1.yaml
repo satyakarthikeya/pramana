@@ -1,4 +1,4 @@
 # V1 product defaults; not verification thresholds or a silent model fallback.
-generator: llm
+generator: template
 max_candidates: 8
 preview_rows: 5

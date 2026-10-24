@@ -105,6 +105,7 @@ class DependenceConfig(BaseModel):
     min_series_length: dict[Literal["trend", "correlation"], int]
     min_clusters: int = Field(ge=2)
     min_split_entities: int = Field(ge=2)
+    min_exploration_periods: int = Field(ge=2)
 
     @model_validator(mode="after")
     def _complete(self) -> Self:
