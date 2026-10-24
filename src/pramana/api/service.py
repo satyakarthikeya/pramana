@@ -325,6 +325,13 @@ class RunService:
                             "Check DEEPSEEK_API_KEY and Langfuse configuration; "
                             "no unverified findings were published."
                         )
+                    elif failure.node == "memory":
+                        error = (
+                            "The claims were tested, but saving the verified ones to memory "
+                            "failed (the memory model may still be downloading, or could not be "
+                            "reached). The verdicts shown are the gate's; nothing unverified "
+                            "was stored. Run it again once the model has finished downloading."
+                        )
                     elif failure.node == "ingest":
                         error = (
                             "The file could not be read as a table. "

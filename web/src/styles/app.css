@@ -1697,3 +1697,17 @@ text.axis {
   max-width: 760px;
   margin-top: var(--s3);
 }
+
+.how-checked {
+  margin-bottom: var(--s5);
+}
+.how-list {
+  margin: var(--s3) 0 0;
+  padding-left: var(--s5);
+  display: grid;
+  gap: var(--s3);
+  max-width: 720px;
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 20px;
+}

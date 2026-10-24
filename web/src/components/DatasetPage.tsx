@@ -173,6 +173,35 @@ function FindingsTab({
             <p>{run.error}</p>
           </div>
         )}
+        <details className="work how-checked">
+          <summary>How is a claim checked?</summary>
+          <ol className="how-list">
+            <li>
+              <strong>It is a plain statement</strong> about two columns, such as "revenue is
+              higher in group A than in group B". The model only names the columns; code writes
+              the sentence.
+            </li>
+            <li>
+              <strong>Your data is shuffled 10,000 times.</strong> If a gap as large as the real
+              one shows up often in shuffled data, the claim is just chance.
+            </li>
+            <li>
+              <strong>Many claims, one correction.</strong> Testing many claims makes lucky ones
+              likely, so all of them are corrected together. A claim needs a corrected
+              q-value under 0.05 and an effect big enough to matter.
+            </li>
+            <li>
+              <strong>Then it is attacked.</strong> A passing claim is re-checked
+              with outliers removed, on each half of the data, with a third column held fixed,
+              within subgroups and with a different statistic. Checks that do not apply to
+              the claim are marked N/A. If it breaks, it is marked not robust and not verified.
+            </li>
+            <li>
+              <strong>Only verified claims are remembered.</strong> A rejected claim is shown
+              with its reason and is never stored.
+            </li>
+          </ol>
+        </details>
         <Results results={results} selected={selected} onSelect={setSelected} />
       </>
     );
