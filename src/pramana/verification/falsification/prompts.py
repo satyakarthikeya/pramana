@@ -368,7 +368,9 @@ def build_prompt(
     a claim type with no framing rather than sending a vague prompt and hoping -- the
     gateway fails closed on an untestable claim, it does not improvise a test.
     """
-    if candidate.claim_type not in _NULL_FRAMING:
+    if candidate.claim_type not in _NULL_FRAMING and not any(
+        key[0] is candidate.claim_type for key in _SCHEME_FRAMING
+    ):
         raise ValueError(
             f"no falsification prompt for claim_type {candidate.claim_type!r}; the "
             f"gateway fails closed rather than asking for a generic test "
