@@ -183,7 +183,7 @@ is agreed.
 | S6 | G2 registry | every claim type has a registry test; parity test vs generated code | yes (§2 role) |
 | S7 | G4 look budget | ledger + fresh-split path; tests | yes (split) |
 | S8 | G7 agent | closed-menu validation tests; fail-closed tests; Langfuse trace | yes (§2 role) |
-| S9 | G8 online FDR | simulated stream keeps FDR at or below alpha | yes (statistics) |
+| S9 | G8 online FDR | PARKED (decision 4) | yes (statistics) |
 | S10 | G10 | only if S2 shows a problem | yes |
 
 Rule for every step: the invariant `memory_write => verdict == PASS` and "REJECT can
@@ -198,7 +198,23 @@ is not done.
   `configs/verification.yaml` and G9 numbers.
 - No raw rows to any model.
 
-## 7. Open questions for the verification owner
+## 7. Decisions (verification owner, in chat, 2026-10-24)
+
+The owner accepted the recommendation on each question. Recorded here so the build
+steps can cite them; the PR for each step still needs the owner's review (§8.10).
+
+1. G2 test registry: **approved in direction.** Vetted tests are chosen by claim type;
+   model-written tests only for claim types with no registry entry. AGENTS.md §2 must
+   be amended in the same PR as S6.
+2. G3 interval: **show the interval only.** The band rule does not change until the
+   report card (S2) shows its effect on power.
+3. G4 look budget: **approved**; the limit is set from the report card, not guessed.
+4. G8 online FDR for chat claims: **PARKED.** Chat is for testing in this phase, not
+   long sessions. S9 is not built now; the chat ledger stays as it is.
+5. G6 wording ("held up", "did not hold under X", "not enough evidence"): **approved.**
+6. Demo first: no step may break the demo flow (section 9).
+
+## 8. Original open questions (kept for the record)
 
 1. G2: may the gate use a registry of vetted tests instead of model-written programs
    for standard claim types?
@@ -208,7 +224,15 @@ is not done.
 4. G8: alpha-investing or LORD, and is treating chat claims as independent acceptable?
 5. FRAGILE wording: "held up" and "did not hold under X" as above?
 
-## 8. Limits of this document
+## 9. Demo check (done 2026-10-24)
+
+Dataset `data/demo/nhanes_demo.csv` on the live preview API with the planner engine and
+real DeepSeek: completed in about 4.7 minutes; 3 PASS, 2 REJECT (1 negligible, 1
+fragile), 0 unverified; split `random_rows`; 7 attacks on each claim that reached
+them; 4 planned Measured items; every claim has a proof. This was before S1-S10, so it
+is the baseline. Every step must repeat this check and not make it worse.
+
+## 10. Limits of this document
 
 Literature notes come from search summaries and have not been read in full. The size
 of the W1 and W3 problems is not measured; G9 exists to measure them. I have not

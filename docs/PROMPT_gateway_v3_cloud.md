@@ -41,9 +41,18 @@ and do not start coding before you have:
   the background before opening a PR and report the result honestly, including any
   failure.
 
+## Decisions already made (design doc §7)
+
+Registry of vetted tests (S6): approved in direction. Interval: show only, band rule
+unchanged. Look budget: approved, limit from the report card. Wording: approved.
+**Online FDR for chat (S9) is PARKED: do not build it.** The demo must keep working:
+`data/demo/nhanes_demo.csv` gives 3 PASS and 2 REJECT today; after each step the demo
+flow (upload, run, results, proof drawer) must still complete with a proof on every
+claim and nothing unverified.
+
 ## Stop and ask the owner (do not decide these yourself)
 
-The verification owner is P.P. Satya Karthikeya. Steps S4 to S10 in the design doc
+The verification owner is P.P. Satya Karthikeya. Steps S4 to S8 in the design doc
 touch contracts, the model's role in the gateway, the split, or FDR. Before coding one
 of those, write a short "decision needed" note in the PR description (what, why, the
 options) and stop. S1, S2 and S3 do not need a decision.
