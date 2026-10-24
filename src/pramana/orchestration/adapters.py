@@ -152,9 +152,8 @@ def inprocess_verification_adapter(
             return generator(candidate, current, *plan)
 
         options["generate"] = generate
-    from pramana.orchestration.verification_integration import gate_rows
-
     from pramana.common.paths import DATA_DIR
+    from pramana.orchestration.verification_integration import gate_rows
 
     rows, split = gate_rows(
         state.dataset,
