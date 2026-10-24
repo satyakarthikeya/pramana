@@ -138,6 +138,12 @@ class ProofObject(BaseModel):
         description="Falsification attacks run after the gate (PLAN §7); empty unless the "
         "claim passed. A BROKEN attack makes the outcome FRAGILE.",
     )
+    spec_hash: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+        description="Fingerprint of the test plan (code, seed, permutations, null, rows seen, "
+        "direction, alpha), computed before the held-back rows were read (design v3, S4).",
+    )
     effect_interval: EffectInterval | None = Field(
         default=None,
         description="How precisely the tested rows pin down the effect (design v3, S5). "

@@ -79,6 +79,7 @@ from pramana.verification.falsification.generator import (
 from pramana.verification.fdr import apply_bh
 from pramana.verification.interval import effect_interval
 from pramana.verification.power import power_note
+from pramana.verification.spec import declared_permutations, spec_hash
 from pramana.verification.schemes import (
     FREE_PLAN,
     PERIOD_COLUMN,
@@ -348,6 +349,41 @@ class _ColumnCheckTally:
         }
 
 
+def _spec_drift(program: FalsificationProgram, payload: dict[str, Any]) -> str | None:
+    """A reason when the result was produced under a different seed or resample count than
+    the frozen spec, else None. Such a result is treated as a failed execution."""
+    if int(payload["seed"]) != program.seed:
+        return (
+            f"the result used seed {payload['seed']} but the frozen plan said {program.seed}; "
+            f"a result produced under a different plan is not accepted"
+        )
+    if int(payload["n_permutations"]) != program.n_permutations:
+        return (
+            f"the result used {payload['n_permutations']} resamples but the frozen plan said "
+            f"{program.n_permutations}; a result produced under a different plan is not accepted"
+        )
+    return None
+
+
+def _frozen_spec(
+    program: FalsificationProgram,
+    plan: TestPlan,
+    split: SplitRecord | None,
+    candidate: CandidateInsight,
+    config: VerificationConfig,
+) -> str:
+    """The plan's fingerprint, from the program and what the gate assigned (S4)."""
+    return spec_hash(
+        code=program.source,
+        seed=program.seed,
+        n_permutations=declared_permutations(program.source),
+        scheme=plan.scheme,
+        split_digest=split.confirmation_digest if split else None,
+        direction=candidate.asserted_direction.value if candidate.asserted_direction else None,
+        alpha=config.statistics.alpha,
+    )
+
+
 def _run_one(
     candidate: CandidateInsight,
     frame: pd.DataFrame,
@@ -355,6 +391,7 @@ def _run_one(
     generate: Generator,
     tally: _ColumnCheckTally,
     plan: TestPlan = FREE_PLAN,
+    split: SplitRecord | None = None,
 ) -> _Tested | str:
     """Generate and execute one claim's falsification test.
 
@@ -390,6 +427,8 @@ def _run_one(
             f"Nothing was executed, so the claim has not been tested."
         )
 
+    frozen = _frozen_spec(program, plan, split, candidate, config)
+    _emit("spec_frozen", candidate.insight_id, spec_hash=frozen)
     result = execute(program, frame, config)
     tally.record(candidate, program.generator, result.ok, result.failure_reason)
     if not result.ok:
@@ -410,6 +449,11 @@ def _run_one(
         _emit("payload_incomplete", candidate.insight_id, reason=incomplete)
         return _Tested(candidate, program, None, incomplete, plan)
 
+    drifted = _spec_drift(program, result.payload)
+    if drifted is not None:
+        _emit("spec_drift", candidate.insight_id, reason=drifted)
+        return _Tested(candidate, program, None, drifted, plan)
+
     _emit("execution_verified", candidate.insight_id, attempts=result.attempts)
     return _Tested(candidate, program, result.payload, None, plan)
 
@@ -421,6 +465,7 @@ def _proof_for_failed_execution(
     family_size: int,
     seed: int,
     split: SplitRecord | None = None,
+    config: VerificationConfig | None = None,
 ) -> ProofObject:
     """A crash or timeout, recorded as a tested claim that concluded nothing.
 
@@ -446,6 +491,11 @@ def _proof_for_failed_execution(
         failure_reason=tested.failure_reason,
         permutation_scheme=tested.plan.scheme,
         split=split,
+        spec_hash=(
+            None
+            if config is None
+            else _frozen_spec(tested.program, tested.plan, split, tested.candidate, config)
+        ),
     )
 
 
@@ -507,6 +557,7 @@ def _proof_for_result(
         score_components=decision.score_components,
         permutation_scheme=tested.plan.scheme,
         split=split,
+        spec_hash=_frozen_spec(tested.program, tested.plan, split, tested.candidate, config),
     )
 
 
@@ -831,7 +882,7 @@ def verify_batch_with_summary(
             outcomes.append(_not_testable(candidate, family_id, seed, plan, split))
             continue
 
-        outcome = _run_one(candidate, frame, config, generator, tally, plan)
+        outcome = _run_one(candidate, frame, config, generator, tally, plan, split)
         if isinstance(outcome, str):
             outcomes.append(_not_testable(candidate, family_id, seed, outcome, split))
         else:
@@ -877,7 +928,9 @@ def verify_batch_with_summary(
         q_value = next(corrected)
         if item.payload is None:
             proofs.append(
-                _proof_for_failed_execution(item, family_id, q_value, family_size, seed, split)
+                _proof_for_failed_execution(
+                    item, family_id, q_value, family_size, seed, split, config
+                )
             )
         else:
             proofs.append(
