@@ -94,9 +94,13 @@ def _family(item: ExactItem) -> str:
 def _primary_measure(result: ComputedAnalysis) -> str | None:
     roles = result.sector.roles
     for item in result.items:
-        if item.kind == "period_change" and item.status == "ok" and item.columns:
-            if roles.get(item.columns[0]) == "amount":
-                return item.columns[0]
+        if (
+            item.kind == "period_change"
+            and item.status == "ok"
+            and item.columns
+            and roles.get(item.columns[0]) == "amount"
+        ):
+            return item.columns[0]
     first = next((i for i in result.items if i.status == "ok" and i.columns), None)
     return first.columns[0] if first else None
 
@@ -119,7 +123,10 @@ def _q_variance(item: ExactItem) -> str | None:
     top = item.values.get("top_segment")
     share = _num(item.values.get("top_share"))
     if top and 0 < share <= 1:
-        return f"What is behind {group} {top}, which accounts for {100 * share:.1f}% of the change in {column}?"
+        return (
+            f"What is behind {group} {top}, which accounts for {100 * share:.1f}% of the "
+            f"change in {column}?"
+        )
     return None
 
 
@@ -166,7 +173,8 @@ def _q_seasonality(item: ExactItem) -> str | None:
     names = {int(_num(r["position"])): str(r["name"]) for r in item.table}
     peak = int(_num(v.get("peak_month") or v.get("peak_quarter")))
     return (
-        f"Does {names.get(peak, 'the peak')} running {_num(v.get('peak_index')):.2f} times the usual "
+        f"Does {names.get(peak, 'the peak')} running {_num(v.get('peak_index')):.2f} times the "
+        "usual "
         "level match what was expected?"
     )
 
@@ -257,7 +265,7 @@ def build_story(result: ComputedAnalysis, config: ComputedConfig) -> ComputedAna
     by_id = {i.id: i for i in items}
     hidden = {m for ids in also.values() for m in ids}
     sections = []
-    for key, title, kinds in [*SECTIONS, ("other", "Other figures", frozenset())]:
+    for key, title, _kinds in [*SECTIONS, ("other", "Other figures", frozenset())]:
         ids = [
             i.id
             for i in sorted(items, key=lambda i: (-i.importance, items.index(i)))
