@@ -323,7 +323,7 @@ export function Results({
     <>
       <div className="summary" role="group" aria-label="Run summary">
         <div>
-          <span className="label">Tested</span>
+          <span className="label">Claims</span>
           <b>{tested}</b>
         </div>
         <div>
@@ -352,7 +352,14 @@ export function Results({
 
       {results.exploration && (
         <div style={{ marginBottom: 32 }}>
-          <Exploration summary={results.exploration} />
+          <Exploration
+            summary={results.exploration}
+            split={
+              [...results.verified_insights, ...results.rejected_claims]
+                .map((row) => row.proof.split)
+                .find((s) => s != null) ?? null
+            }
+          />
         </div>
       )}
 

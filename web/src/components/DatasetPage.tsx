@@ -319,7 +319,14 @@ export function DatasetPage({ id, tab, runId }: { id: string; tab: Tab; runId: s
           {system && (
             <div className="system-line">
               <span className="chip">
-                Analyst: {system.analysis_engine === "deterministic" ? "rule scan, no model" : system.analysis_engine === "agent" ? "model agent with tools" : "model proposer"}
+                Analyst:{" "}
+                {
+                  {
+                    deterministic: "rule scan, no model",
+                    agent: "model agent with tools",
+                    planner: "model planner",
+                  }[system.analysis_engine] ?? "model proposer"
+                }
               </span>
               <span className="chip">
                 Test code: {system.verification_generator === "llm" ? "model-written" : "built-in templates"}

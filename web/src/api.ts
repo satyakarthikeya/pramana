@@ -221,8 +221,29 @@ export interface LedgerEntry {
   examined: number;
   duration_ms: number;
 }
+export interface PlanDrop {
+  what: "claim" | "measured_request" | "narrative_focus";
+  item: string;
+  reason_code: string;
+  reason: string;
+}
+export interface PlanRecord {
+  model: string;
+  shape: string;
+  shape_confirmation: { verdict: "confirm" | "flag"; note: string };
+  accepted_claims: { claim_type: string; variables: string[]; insight_id: string }[];
+  accepted_measured: { task: string; target: string | null }[];
+  accepted_focus: string[];
+  dropped: PlanDrop[];
+  turns: number;
+  repaired: boolean;
+  input_tokens: number;
+  output_tokens: number;
+}
 export interface ExplorationSummary {
-  engine: "scan" | "agent" | "api";
+  engine: "scan" | "agent" | "api" | "planner";
+  /** Planner runs only: what the plan asked for and what code accepted or dropped. */
+  plan?: PlanRecord | null;
   examined: number;
   proposed: number;
   tested: number;
