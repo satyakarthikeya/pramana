@@ -34,7 +34,7 @@ from pramana.analysis.computed.config import ComputedConfig, load_computed_confi
 from pramana.analysis.computed.models import COMPUTED_VERSION, ComputedAnalysis, ExactItem, Scalar
 from pramana.analysis.computed.story import build_story
 from pramana.analysis.computed.summary import template_summary
-from pramana.analysis.schema_inference import ColumnRole, SchemaProfile
+from pramana.analysis.schema_inference import ColumnRole, SchemaProfile, parse_timestamps
 from pramana.analysis.sectors import (
     GENERAL,
     SectorMatch,
@@ -602,6 +602,22 @@ def segment_ranking(ctx: Context) -> list[ExactItem]:
     ]
 
 
+def _ratio_reads_well(value: float, median: float, raw_median: float) -> bool:
+    """A "times the median" ratio only where the segment's own median is positive and the
+    ratio does not round to zero; otherwise it reads as nonsense ("0.0 times")."""
+    return bool(raw_median > 0 and median > 0 and round(value / median, 1) > 0)
+
+
+def _against_median(value: float, median: float, raw_median: float, basis: str, z: float) -> str:
+    """The clause that places a flagged row against its segment: a ratio when one reads
+    well, robust deviations alone (never a ratio) when the median is not positive."""
+    if _ratio_reads_well(value, median, raw_median):
+        return f"{value / median:.1f} times {basis}."
+    if raw_median <= 0:
+        basis = basis.replace("median", "typical non-zero value")
+    return f"{abs(z):.1f} robust deviations {'above' if z > 0 else 'below'} {basis}."
+
+
 def _row_outliers(ctx: Context, column: str, values: pd.Series) -> ExactItem | None:
     """Single rows far from their segment's usual size (robust z of log(value / segment
     median)). Needed where several rows share a period: period totals hide one bad row."""
@@ -611,6 +627,7 @@ def _row_outliers(ctx: Context, column: str, values: pd.Series) -> ExactItem | N
         return None
     segment = _segments(ctx) if ctx.group else pd.Series("all", index=values.index)
     median = positive.groupby(segment).transform("median")
+    raw_median = values.groupby(segment).transform("median")
     ratio = np.log(positive / median).replace([np.inf, -np.inf], np.nan).dropna()
     x = ratio.to_numpy(dtype=float)
     centre = float(np.median(x))
@@ -630,7 +647,7 @@ def _row_outliers(ctx: Context, column: str, values: pd.Series) -> ExactItem | N
         sentence = (
             f"{len(order)} of {len(x)} rows of {column} sit {cutoff:g} or more robust deviations "
             f"from {basis}; the largest is row {int(top) + 1} ({ctx.keys[top]}) at "
-            f"{_fmt(float(positive[top]))}, {float(positive[top] / median[top]):.1f} times {basis}."
+            f"{_fmt(float(positive[top]))}, {_against_median(float(positive[top]), median[top], raw_median[top], basis, float(z[order[0]]))}"
         )
     listed = order[: ctx.config.max_outliers_listed]
     return ExactItem(
@@ -646,7 +663,15 @@ def _row_outliers(ctx: Context, column: str, values: pd.Series) -> ExactItem | N
             _row(
                 where=f"row {int(ratio.index[i]) + 1} ({ctx.keys[ratio.index[i]]})",
                 value=float(positive[ratio.index[i]]),
-                times_median=float(positive[ratio.index[i]] / median[ratio.index[i]]),
+                times_median=(
+                    float(positive[ratio.index[i]] / median[ratio.index[i]])
+                    if _ratio_reads_well(
+                        float(positive[ratio.index[i]]),
+                        median[ratio.index[i]],
+                        raw_median[ratio.index[i]],
+                    )
+                    else None
+                ),
                 robust_z=float(z[i]),
             )
             for i in listed
@@ -969,6 +994,76 @@ def identity(ctx: Context) -> list[ExactItem]:
     return items
 
 
+_PARTIAL_PERIOD_NOTE = (
+    "The last {period} ({label}) looks incomplete ({why}); figures involving it should be "
+    "read with care."
+)
+_PARTIAL_KINDS = {
+    "period_change",
+    "seasonality",
+    "variance_decomposition",
+    "segment_growth",
+    "trend",
+}
+
+
+def _incomplete_last_period(ctx: Context) -> tuple[str, str] | None:
+    """(last period label, reason) when the table's last period looks only partly filled.
+
+    Judged from the table's own data, never a calendar guess: the last period has far
+    fewer rows than the median earlier period, or (monthly and daily tables) its last date
+    falls well short of the day reached in a typical earlier period. Tables stamped on one
+    fixed day of the month are therefore never flagged by the date test.
+    """
+    if ctx.keys is None or ctx.shape.period not in _PERIOD_CODE:
+        return None
+    keys = ctx.keys.dropna()
+    counts = keys.value_counts().sort_index()
+    if len(counts) < 4:
+        return None
+    last = counts.index[-1]
+    typical = float(counts.iloc[:-1].median())
+    if typical >= 4 and float(counts.iloc[-1]) < 0.5 * typical:
+        return str(last), (
+            f"{int(counts.iloc[-1])} rows against a typical {typical:g} per {ctx.shape.period}"
+        )
+    profile = ctx.schema.columns.get(ctx.shape.time_column or "")
+    if (
+        ctx.shape.period == "month"
+        and profile is not None
+        and profile.role is ColumnRole.DATETIME
+        and ctx.shape.time_column in ctx.frame
+    ):
+        stamps = parse_timestamps(ctx.frame[ctx.shape.time_column])
+        days = stamps.dt.day.reindex(keys.index)
+        reach = days.groupby(keys).max().sort_index()
+        usual = float(reach.iloc[:-1].median())
+        if usual > 1 and float(reach.iloc[-1]) < 0.7 * usual:
+            return str(last), (
+                f"its data stops on day {int(reach.iloc[-1])} of the month, where earlier "
+                f"months reach day {usual:g}"
+            )
+    return None
+
+
+def _flag_incomplete_last_period(
+    ctx: Context, items: list[ExactItem]
+) -> list[ExactItem]:
+    """Append the incomplete-period caveat to every figure that involves the last period.
+    Nothing is dropped or recomputed."""
+    found = _incomplete_last_period(ctx)
+    if found is None:
+        return items
+    label, why = found
+    note = _PARTIAL_PERIOD_NOTE.format(period=ctx.shape.period, label=label, why=why)
+    return [
+        item.model_copy(update={"sentence": f"{item.sentence} {note}"})
+        if item.kind in _PARTIAL_KINDS and item.status == "ok"
+        else item
+        for item in items
+    ]
+
+
 def _missing_periods(ctx: Context) -> int:
     if ctx.keys is None or ctx.shape.period not in _PERIOD_CODE:
         return 0
@@ -1024,6 +1119,16 @@ def data_quality(ctx: Context) -> list[ExactItem]:
                 column=ctx.shape.time_column or "",
                 count=gaps,
                 detail=f"{ctx.shape.period}s with no rows between the first and last",
+            )
+        )
+    partial = _incomplete_last_period(ctx)
+    if partial is not None:
+        issues.append(
+            _row(
+                check="incomplete last period",
+                column=ctx.shape.time_column or "",
+                count=1,
+                detail=f"{partial[0]} looks incomplete ({partial[1]}); read figures involving it with care",
             )
         )
     if issues:
@@ -1389,6 +1494,7 @@ def compute_analysis(
         except Exception:
             logger.exception("computed_analysis_failed", analysis=name)
             items.append(_not_run(name, _FAILED))
+    items = _flag_incomplete_last_period(ctx, items)
     result = ComputedAnalysis(
         version=COMPUTED_VERSION,
         sector=match,
