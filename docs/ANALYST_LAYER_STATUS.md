@@ -14,6 +14,14 @@ Nothing here changes the gateway, a p-value, FDR, the sandbox or memory.
 | What to watch next | Up to 5 questions written from templates using each figure's own numbers. Questions, not advice. |
 | Claim filters | A correlation between an amount and what it is made of (orders, units, price, cost, profit) or against a time label (quarter, month, year) is dropped by the planner before the gate, with a recorded reason. |
 
+## Built (Measured tier and customers, added after the first version of this note)
+| Item | What it does |
+|---|---|
+| Segment profiles | Stable KMeans segments now say what sets each apart (standard deviations from the overall mean) and its share of the main amount. A grouping that is not stable is still reported as "no stable segments". |
+| Nearest neighbours (KNN) | Joins the closed driver menu beside ridge, forest, boosting, SVM and logistic; scored on held-out rows against the baseline like the rest; left out above `knn_max_rows` (20,000). |
+| Components (PCA) | New measured kind. Components are kept only where their eigenvalue beats the 95th percentile of column-shuffled copies (parallel analysis) and the kept components reappear when rows are resampled. The planner may ask for it. |
+| RFM | Exact tier: recency, frequency (periods with a row, because the table has no orders) and money per customer, scored 1-5 by average rank (equal values score alike), grouped by fixed rules. Known-answer test on 60 planted customers. |
+
 Weights and limits: `configs/analysis.yaml` (`computed.story_weights`, `lead_items`, `max_questions`,
 `segment_growth_min_share`, `customer_*`). They are provisional and only order the reading.
 `COMPUTED_VERSION` is 6; old stored reports are rebuilt.
@@ -42,7 +50,9 @@ moves when the products sold inside a country change; the sentence says so.
 ## Not done
 - Forecast headline from the Measured tier is not moved into the story (still under the planner's
   analyses at the bottom of the results page).
-- KMeans segment profiles, KNN, hierarchical/DBSCAN, PCA, RFM (plan section 12) and the drill-down round.
+- Hierarchical / DBSCAN clustering (plan section 12) and the drill-down round.
+- KNN, components and segment profiles are tested on planted tables and run on the real retail tables; there is no head-to-head showing KNN is chosen when it should be.
+- On the customer x month retail table the Measured tier has only two numeric columns, so models, segments and components do not run there; on the country x month table components found one direction (79.4% of the variation, orders/units/customers) and segments were not stable.
 - A9 / "concentration is rising" as tested claims for the gateway.
 - The deterministic proposer does not use the claim filters (the planner path does).
 - The DeepSeek reword of the summary fell back to code wording on the retail table ("a number that
