@@ -502,3 +502,10 @@ def test_accepted_measured_requests_run_on_the_whole_table(
     planned = update["planned_measured"]
     assert [item["kind"] for item in planned["items"]] == ["driver_regression"]
     assert planned["items"][0]["target"] == "units"
+
+
+def test_the_prompt_steers_time_tables_away_from_latest_month_claims() -> None:
+    from pramana.analysis.planner.planner import _SYSTEM
+
+    assert "Avoid period_change on daily, weekly or monthly rows" in _SYSTEM
+    assert "seasonality claim" in _SYSTEM and "group_difference of the main amount" in _SYSTEM

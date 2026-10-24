@@ -159,6 +159,73 @@ def held_out_blocker(shape: ShapeProfile) -> str | None:
     return None
 
 
+@dataclass(frozen=True)
+class Aggregated:
+    """A transactions table rolled up to one row per period and entity."""
+
+    frame: pd.DataFrame
+    schema: SchemaProfile
+    shape: ShapeProfile
+    note: str
+
+
+#: Sector roles whose values add up across rows (revenue, cost, units). Anything else is
+#: averaged, because a price or a rate summed over rows means nothing.
+_SUMMED_ROLES = {"amount", "cost", "profit", "quantity"}
+
+
+def aggregate_transactions(
+    frame: pd.DataFrame,
+    schema: SchemaProfile,
+    shape: ShapeProfile,
+    roles: dict[str, str],
+) -> Aggregated | None:
+    """Roll a transactions table up to period x entity so rows can be held out whole.
+
+    Guarantees: every row of one period and entity lands in exactly one aggregate row, so
+    no period-entity cell is ever split between training and testing; additive measures
+    are summed, other numbers averaged; a label column is kept only if it is constant
+    within every cell. Returns None when the table has no entity or time column, or the
+    roll-up would leave too few rows to model.
+    """
+    from pramana.analysis import infer_schema, load_config
+    from pramana.analysis.shape import classify_shape
+
+    time, entity = shape.time_column, shape.entity_column
+    if shape.shape is not DataShape.TRANSACTIONS or not time or not entity:
+        return None
+    keys, _ = period_keys(frame, time, schema)
+    cell = pd.DataFrame({"__period__": keys, "__entity__": frame[entity].astype(str)})
+    valid = keys.notna() & frame[entity].notna()
+    grouped = frame[valid].groupby([cell.loc[valid, "__period__"], cell.loc[valid, "__entity__"]])
+    parts: dict[str, pd.Series] = {}
+    for name in frame.columns:
+        if name in (time, entity):
+            continue
+        role = schema.role_of(name)
+        if role in _NUMERIC_ROLES:
+            how = "sum" if roles.get(name) in _SUMMED_ROLES else "mean"
+            parts[name] = grouped[name].apply(lambda s, h=how: getattr(num(s), h)())
+        elif role in _TEXT_ROLES:
+            constant = grouped[name].nunique(dropna=True).le(1).all()
+            if constant:
+                parts[name] = grouped[name].first()
+    if not parts:
+        return None
+    out = pd.DataFrame(parts).reset_index()
+    out = out.rename(columns={"__period__": time, "__entity__": entity})
+    if len(out) < 30:
+        return None
+    new_schema = infer_schema(out, load_config().schema_inference)
+    new_shape = classify_shape(out, new_schema, roles)
+    note = (
+        f"Fitted on totals per {shape.period or 'period'} and {entity} "
+        f"({len(out):,} rows from {int(valid.sum()):,}), so rows that share a period are "
+        "never split between training and testing."
+    )
+    return Aggregated(out, new_schema, new_shape, note)
+
+
 def split_kind(shape: ShapeProfile) -> SplitKind:
     if shape.shape is DataShape.PANEL and shape.entity_column:
         return "group"
