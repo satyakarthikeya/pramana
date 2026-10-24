@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -70,7 +71,10 @@ def test_worker_runs_prepared_source_without_calling_the_model(
     run_id = uuid4()
     path = tmp_path / "runs" / str(run_id) / "cleaned.pkl"
     path.parent.mkdir(parents=True)
-    frame = pd.DataFrame({"x": range(40), "y": range(40)})
+    # A strong but not exact relationship: y == x would be an identity, which the
+    # falsification attacks (A7) correctly reject as arithmetic rather than a finding.
+    noise = np.random.default_rng(3).normal(0, 4, 40)
+    frame = pd.DataFrame({"x": np.arange(40.0), "y": np.arange(40.0) + noise})
     frame.to_pickle(path)
     item = candidate("a").model_copy(update={"dataset_ref": str(path)})
 
