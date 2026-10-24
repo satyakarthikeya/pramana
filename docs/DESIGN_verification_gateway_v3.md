@@ -237,3 +237,26 @@ is the baseline. Every step must repeat this check and not make it worse.
 Literature notes come from search summaries and have not been read in full. The size
 of the W1 and W3 problems is not measured; G9 exists to measure them. I have not
 checked how the 50/50 split behaves at very small n beyond the existing tests.
+
+## 11. Financial-year check (2026-10-24, synthetic data with planted effects)
+
+Table: 36 months (Apr 2022 to Mar 2025) x 4 regions x 3 products = 432 rows. Planted:
+South grows fastest, Oct-Dec is high and Jun-Jul low, the Lite product's cost ratio
+climbs, one revenue row is multiplied by 6. Real DeepSeek, planner engine. The data is
+synthetic, so this shows what the platform does with each planted fact, not how it
+does on real books.
+
+Found by the Exact tier (good): revenue +11.5% year on year; South is 73.8% of the
+rise; December is 1.34x an average month, June 0.78x.
+
+Gaps (each is a work item):
+
+| # | Gap | Evidence | Fix |
+|---|---|---|---|
+| F1 | Run ends "degraded": 2 of 7 claims lost | Model-written tests for the two group claims were refused by the column policy ("indexed by a slice, mask or expression the claim does not state") | S6 registry of vetted tests; priority up |
+| F2 | Trend claim NOT_TESTABLE | 36 months split 50/50 leaves 18 in the confirmation rows; the minimum is 20 | Owner decision: claims fixed before looking at the data (the standard checklist) could be tested on all rows, since nothing was chosen from them |
+| F3 | Tested claims are weak | "latest month lower than the month before"; revenue vs units; revenue vs marketing spend | Steer the planner to year-on-year change, seasonality and segment-drove-change (T5) |
+| F4 | No margin or ratio | Cost +16.2% against revenue +11.5% is never stated | Build E7 ratios and margins |
+| F5 | Planted 6x revenue row not listed | Outliers checked on month totals only; the isolation forest flags 9 rows | Row-level robust outliers in the Exact tier |
+| F6 | No fiscal-year wording | Shown as "12 months to 2025-03"; no FY labels or fiscal quarters | Fiscal-year start in config or detected from a fiscal column |
+| F7 | Measured models not run on transaction tables | "Rows share periods, so they cannot be held out in time order" | Aggregate to period x segment, then model |
