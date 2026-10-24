@@ -35,7 +35,7 @@ def system_status(_user: Annotated[User, Depends(current_user)]) -> SystemStatus
     generator = (
         os.getenv("PRAMANA_VERIFICATION_GENERATOR") or load_verification_config().llm.generator
     )
-    uses_model = proposer.engine in {"api", "agent"} or generator == "llm"
+    uses_model = proposer.engine in {"api", "agent", "planner"} or generator == "llm"
     blockers: list[str] = []
     if uses_model:
         if not os.getenv("DEEPSEEK_API_KEY"):

@@ -144,6 +144,13 @@ def native_analysis_adapters(
         if not state.dataset_ref:
             raise ValueError("cleaned dataset_ref is required before candidate generation")
         schema = SchemaProfile.model_validate(state.schema_profile)
+        shape = None
+        if hypotheses.proposer.engine == "planner":
+            from pramana.analysis.shape import classify_shape
+
+            # The planner validates claims against the table's shape; classify the whole
+            # cleaned table, exactly as `prepare` did for the gateway.
+            shape = classify_shape(frame, schema)
         if state.data_structure is not None:
             # The proposer never sees a confirmation row (PLAN D5).
             frame = exploration_rows(frame, state.data_structure)
@@ -156,6 +163,7 @@ def native_analysis_adapters(
             brief=read_data(frame, schema),
             user_query=state.user_query,
             lesson_hints=state.lesson_hints,
+            shape=shape,
         )
         return {
             "candidate_insights": candidates,

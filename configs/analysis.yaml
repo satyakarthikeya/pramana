@@ -250,3 +250,26 @@ advisory:
     max_output_tokens: 900
     timeout_seconds: 45           # one model call per run, no retry
     temperature: 0.0
+
+planner:
+  # The planner (PLAN §6), used when hypotheses.proposer.engine is `planner`. DeepSeek reads a
+  # brief of Exact and Measured results computed on the EXPLORATION rows only and returns a
+  # structured AnalysisSpec; code validates every column, claim and request. Nothing here is a
+  # statistical threshold and nothing here reaches the gateway's decision.
+  max_claims: 8                 # claims accepted from one plan (further ones are dropped as over budget)
+  max_measured_requests: 4      # Measured requests accepted from one plan
+  max_narrative_focus: 5        # item ids that may lead the summary
+  max_exact_figures: 12         # Exact figures shown to the model (code-ranked)
+  max_measured_figures: 8       # Measured headlines shown to the model
+  max_columns: 24               # columns described to the model
+  max_levels: 8                 # levels listed per label column
+  max_prompt_chars: 24000       # system plus brief; over this the run stops rather than truncating silently
+  max_output_tokens: 1800
+  max_total_tokens: 30000       # input plus output over the one call and its repair
+  max_repair_turns: 1           # one extra turn if the first reply is not valid JSON for the spec
+  temperature: 0.0
+  cheap_measured:               # the brief's Measured pass: small on purpose, never the user's numbers
+    max_rows: 400
+    outer_folds: 3
+    inner_folds: 2
+    time_budget_seconds: 40

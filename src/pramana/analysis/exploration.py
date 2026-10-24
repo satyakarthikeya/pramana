@@ -17,6 +17,7 @@ from pramana.analysis.hypotheses.base import ClaimScreen, record_scan
 from pramana.analysis.hypotheses.generation import generate_candidates
 from pramana.analysis.reader import DataBrief
 from pramana.analysis.schema_inference import SchemaProfile
+from pramana.analysis.shape import ShapeProfile, classify_shape
 from pramana.analysis.workspace.agent import ChatFn, run_agent
 from pramana.analysis.workspace.config import load_workspace_config
 from pramana.analysis.workspace.ledger import ExplorationSummary
@@ -35,9 +36,32 @@ def explore_and_propose(
     lesson_hints: Sequence[str] = (),
     claim_screen: ClaimScreen | None = None,
     chat: ChatFn | None = None,
+    shape: ShapeProfile | None = None,
 ) -> tuple[list[CandidateInsight], ExplorationSummary]:
-    """Run the configured engine and return its candidates with the exploration summary."""
+    """Run the configured engine and return its candidates with the exploration summary.
+
+    `frame` must be the exploration rows. `shape` is the table's shape as the gateway will
+    see it (the planner engine validates claims against it); it defaults to a classification
+    of `frame`, which is only right when `frame` is the whole table.
+    """
     engine = hypotheses.proposer.engine
+    if engine == "planner":
+        # Imported here: the planner pulls in both analysis tiers, and only this engine needs it.
+        from pramana.analysis.planner.planner import run_planner
+
+        planned = run_planner(
+            frame,
+            schema,
+            shape or classify_shape(frame, schema),
+            config=hypotheses,
+            run_id=run_id,
+            dataset_ref=dataset_ref,
+            chat=chat,
+            brief=brief,
+            user_query=user_query,
+            claim_screen=claim_screen,
+        )
+        return planned.candidates, planned.exploration_summary
     if engine == "agent":
         outcome = run_agent(
             frame,

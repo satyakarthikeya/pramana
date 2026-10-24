@@ -13,6 +13,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from pramana.analysis.planner.models import PlannedMeasuredRequest, PlanRecord
+
 MAX_SUMMARY_CHARS = 300
 MAX_ENTRIES = 200
 MAX_SHOWN_ENTRIES = 60
@@ -43,7 +45,7 @@ class ExplorationSummary(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    engine: Literal["scan", "agent", "api"]
+    engine: Literal["scan", "agent", "api", "planner"]
     examined: int = Field(ge=0)
     proposed: int = Field(default=0, ge=0)
     tested: int = Field(default=0, ge=0)
@@ -53,6 +55,12 @@ class ExplorationSummary(BaseModel):
     input_tokens: int = Field(default=0, ge=0)
     output_tokens: int = Field(default=0, ge=0)
     entries: list[LedgerEntry] = Field(default_factory=list, max_length=MAX_SHOWN_ENTRIES)
+    #: Set by the `planner` engine only: what the plan asked for and what code accepted.
+    plan: PlanRecord | None = None
+    #: Measured analyses the plan asked for and the leakage lint accepted (for the report).
+    measured_requests: list[PlannedMeasuredRequest] = Field(default_factory=list)
+    #: Exact or Measured item ids the plan chose to lead the summary (all were offered).
+    narrative_focus: list[str] = Field(default_factory=list)
 
 
 class ExplorationLedger:
