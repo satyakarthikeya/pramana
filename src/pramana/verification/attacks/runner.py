@@ -216,6 +216,7 @@ def _result(
     original: float | None = None,
     attacked: float | None = None,
     n_rows: int | None = None,
+    applicable: bool = True,
     **details: float | int | str | bool | None,
 ) -> AttackResult:
     return AttackResult(
@@ -226,12 +227,14 @@ def _result(
         original_effect=original,
         attacked_effect=None if outcome is AttackOutcome.NOT_RUN else attacked,
         n_rows=n_rows,
+        applicable=applicable,
         details=details,
     )
 
 
-def _not_run(attack_id: str, reason: str) -> AttackResult:
-    return _result(attack_id, AttackOutcome.NOT_RUN, reason)
+def _not_run(attack_id: str, reason: str, *, applicable: bool = True) -> AttackResult:
+    """A result for an attack that did not run; `applicable=False` when it cannot apply here."""
+    return _result(attack_id, AttackOutcome.NOT_RUN, reason, applicable=applicable)
 
 
 def _verdict(
@@ -386,7 +389,7 @@ def _candidate_controls(claim: ClaimView, rows: pd.DataFrame) -> list[str]:
 
 def _a3_control(claim: ClaimView, rows: pd.DataFrame, original: float, config: AttacksConfig):
     if claim.claim_type is ClaimType.TREND or claim.ordered:
-        return _not_run("A3", "a trend over time has no third-variable control here")
+        return _not_run("A3", "a trend over time has no third-variable control here", applicable=False)
     best: tuple[float, str] | None = None
     for name in _candidate_controls(claim, rows):
         if claim.claim_type is ClaimType.CORRELATION:
@@ -418,7 +421,7 @@ def _a3_control(claim: ClaimView, rows: pd.DataFrame, original: float, config: A
         if best is None or score > best[0]:
             best = (float(score), name)
     if best is None or best[0] < config.min_confound_score:
-        return _not_run("A3", "no other column is associated with both sides of the claim")
+        return _not_run("A3", "no other column is associated with both sides of the claim", applicable=False)
     score, control = best
     if claim.claim_type is ClaimType.CORRELATION:
         data = _numeric(rows, [claim.var_x, claim.var_y, control])
@@ -470,12 +473,12 @@ def _grouping_columns(claim: ClaimView, rows: pd.DataFrame, config: AttacksConfi
 
 def _a4_subgroups(claim: ClaimView, rows: pd.DataFrame, original: float, config: AttacksConfig):
     if not claim.signed:
-        return _not_run("A4", "the effect has no direction to reverse")
+        return _not_run("A4", "the effect has no direction to reverse", applicable=False)
     if claim.ordered:
-        return _not_run("A4", "a single ordered series has no subgroups")
+        return _not_run("A4", "a single ordered series has no subgroups", applicable=False)
     columns = _grouping_columns(claim, rows, config)
     if not columns:
-        return _not_run("A4", "no grouping column with a few levels")
+        return _not_run("A4", "no grouping column with a few levels", applicable=False)
     checked = 0
     for name in columns:
         effects, weights, labels = [], [], []
@@ -537,7 +540,7 @@ def _a4_subgroups(claim: ClaimView, rows: pd.DataFrame, original: float, config:
 
 def _a5_alternative(claim: ClaimView, rows: pd.DataFrame, original: float):
     if not claim.signed:
-        return _not_run("A5", "an unsigned effect has no alternative sign to compare")
+        return _not_run("A5", "an unsigned effect has no alternative sign to compare", applicable=False)
     name, value = claim.alternative(rows)
     if value is None:
         return _not_run("A5", f"{name} could not be computed")
@@ -567,11 +570,11 @@ def _a5_alternative(claim: ClaimView, rows: pd.DataFrame, original: float):
 
 def _a6_detrend(claim: ClaimView, rows: pd.DataFrame, original: float, config: AttacksConfig):
     if claim.claim_type is not ClaimType.CORRELATION:
-        return _not_run("A6", "only an association between two columns can be detrended")
+        return _not_run("A6", "only an association between two columns can be detrended", applicable=False)
     if claim.ordered:
-        return _not_run("A6", "already tested on period-to-period changes")
+        return _not_run("A6", "already tested on period-to-period changes", applicable=False)
     if PERIOD_COLUMN not in rows.columns:
-        return _not_run("A6", "the rows are not time-ordered")
+        return _not_run("A6", "the rows are not time-ordered", applicable=False)
     keys = [claim.entity_column] if claim.entity_column else []
     data = rows[[*keys, PERIOD_COLUMN, claim.var_x, claim.var_y]].copy()
     data[[claim.var_x, claim.var_y]] = data[[claim.var_x, claim.var_y]].apply(
@@ -600,7 +603,7 @@ def _a6_detrend(claim: ClaimView, rows: pd.DataFrame, original: float, config: A
 
 def _a7_identity(claim: ClaimView, rows: pd.DataFrame, original: float, config: AttacksConfig):
     if claim.claim_type is not ClaimType.CORRELATION:
-        return _not_run("A7", "only a pair of numeric columns can be an identity")
+        return _not_run("A7", "only a pair of numeric columns can be an identity", applicable=False)
     data = _numeric(rows, [claim.var_x, claim.var_y])
     if len(data) < 3:
         return _not_run("A7", "too few rows")
@@ -657,7 +660,11 @@ def run_attacks(
     """
     if claim.claim_type in (ClaimType.PERIOD_CHANGE, ClaimType.SEASONALITY):
         return [
-            _not_run(a, f"no attack is defined yet for a {claim.claim_type.value} claim")
+            _not_run(
+                a,
+                f"no attack is defined yet for a {claim.claim_type.value} claim",
+                applicable=False,
+            )
             for a in _NAMES
         ]
     original = claim.effect(rows)

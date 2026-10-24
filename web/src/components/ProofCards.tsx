@@ -72,13 +72,20 @@ function AttackRow({ attack }: { attack: AttackResult }) {
   return (
     <li className="attack" data-outcome={attack.outcome}>
       <span className="attack-tag">
-        <AttackGlyph outcome={attack.outcome} /> {outcomeWord(attack.outcome)}
+        <AttackGlyph outcome={attack.outcome} />{" "}
+        {attack.outcome === "not_run" && attack.applicable === false
+          ? "N/A"
+          : outcomeWord(attack.outcome)}
       </span>
       <span>
         <b>
           {attack.attack_id} {attack.name}
         </b>
-        {attack.outcome === "not_run" ? ": not run: " : ": "}
+        {attack.outcome === "not_run"
+          ? attack.applicable === false
+            ? ": does not apply here: "
+            : ": could not run: "
+          : ": "}
         {attack.reason}
         {ran && attack.original_effect !== null && attack.attacked_effect !== null && (
           <span className="mono attack-nums">

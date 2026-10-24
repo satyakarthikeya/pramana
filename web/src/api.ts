@@ -63,6 +63,8 @@ export interface AttackResult {
   original_effect: number | null;
   attacked_effect: number | null;
   n_rows: number | null;
+  /** False when the check does not apply to this claim or table (not just too little data). */
+  applicable?: boolean;
   details: Record<string, number | string | boolean | null>;
 }
 export interface Proof {

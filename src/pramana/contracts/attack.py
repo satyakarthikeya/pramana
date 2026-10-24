@@ -41,4 +41,10 @@ class AttackResult(BaseModel):
     original_effect: float | None = None
     attacked_effect: float | None = None
     n_rows: int | None = Field(default=None, ge=0)
+    applicable: bool = Field(
+        default=True,
+        description="False when the attack's question does not exist for this claim or table "
+        "(no grouping column, an unsigned effect, a claim type with no attack). A NOT_RUN "
+        "result that is applicable could not be run on this data; neither counts as survived.",
+    )
     details: dict[str, AttackValue] = Field(default_factory=dict)
