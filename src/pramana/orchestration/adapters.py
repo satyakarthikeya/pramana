@@ -154,7 +154,15 @@ def inprocess_verification_adapter(
         options["generate"] = generate
     from pramana.orchestration.verification_integration import gate_rows
 
-    rows, split = gate_rows(state.dataset, state.data_structure, config)
+    from pramana.common.paths import DATA_DIR
+
+    rows, split = gate_rows(
+        state.dataset,
+        state.data_structure,
+        config,
+        run_id=state.run_id,
+        looks_db=DATA_DIR / "looks.sqlite3",
+    )
     proofs, summary = verify_batch_with_summary(
         state.candidate_insights,
         rows,

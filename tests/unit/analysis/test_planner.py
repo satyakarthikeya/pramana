@@ -186,6 +186,10 @@ def test_parts_that_break_the_rules_are_dropped_with_recorded_reasons(hyp) -> No
             claim("correlation", "units", "revenue", "positive"),
             claim("correlation", "cost", "revenue", "positive"),
             claim("correlation", "cost", "units", "positive"),
+            claim("group_difference", "region", "revenue"),
+            claim("group_difference", "region", "revenue"),
+            claim("group_difference", "region", "cost"),
+            claim("group_difference", "region", "units"),
         ],
         narrative_focus=["made_up:id", "period_change:revenue", "period_change:revenue"],
     )
@@ -197,8 +201,10 @@ def test_parts_that_break_the_rules_are_dropped_with_recorded_reasons(hyp) -> No
     assert ("claim", "group_difference", "wrong_shape") in codes
     assert ("claim", "correlation", "wrong_shape") in codes  # region is not numeric
     assert ("claim", "seasonality", "invalid_fields") in codes
-    assert ("claim", "correlation", "duplicate") in codes
-    assert ("claim", "correlation", "over_budget") in codes
+    # units~revenue, cost~revenue and cost~units restate how the table is built (and the
+    # repeated pair is dropped for the same reason before it can be a duplicate)
+    assert ("claim", "correlation", "bookkeeping") in codes
+    assert ("claim", "group_difference", "over_budget") in codes
     assert reasons >= {"unknown_column", "wrong_shape", "invalid_fields", "duplicate"}
     assert len(outcome.candidates) == 2
     requests = {
@@ -502,3 +508,10 @@ def test_accepted_measured_requests_run_on_the_whole_table(
     planned = update["planned_measured"]
     assert [item["kind"] for item in planned["items"]] == ["driver_regression"]
     assert planned["items"][0]["target"] == "units"
+
+
+def test_the_prompt_steers_time_tables_away_from_latest_month_claims() -> None:
+    from pramana.analysis.planner.planner import _SYSTEM
+
+    assert "Avoid period_change on daily, weekly or monthly rows" in _SYSTEM
+    assert "seasonality claim" in _SYSTEM and "group_difference of the main amount" in _SYSTEM

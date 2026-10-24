@@ -17,6 +17,9 @@ statistics:
   # n_permutations could not resolve a p-value small enough to pass BH at this size:
   # n_permutations >= m_max / alpha - 1.
   m_max: 40
+  interval_resamples: 1000   # S5: resamples per interval (each recomputes the effect: about 3 s a claim)
+  interval_confidence: 0.95  # S5: level of the interval beside an effect; descriptive only
+  power_target: 0.8          # S1: detection probability for the "could have found" note; descriptive only
 
 dependence:
   # PLAN D5 / D6 / D6b (P1). Signed off by the verification owner on 2026-10-24:
@@ -29,6 +32,12 @@ dependence:
     correlation: 20
   min_clusters: 6                # entities needed to move a label between whole entities
   min_split_entities: 8          # a panel splits by entity only with this many; else by time
+  # A split by time may hold back more than confirmation_fraction so the confirmation rows
+  # reach min_series_length, but only while this many periods stay for exploration (F2).
+  min_exploration_periods: 8
+  # S7: earlier runs on the same held-back rows after which a proof says they were reused.
+  # Disclosure only; a time-ordered split cannot be redrawn, so nothing is blocked.
+  max_prior_looks: 3
 
 attacks:
   # PLAN §7.2, P5. PROVISIONAL: tuned on the planted cases in
@@ -44,6 +53,9 @@ attacks:
   max_subgroup_levels: 10      # A4: a grouping column with more levels is skipped
   min_confound_score: 0.1      # A3: |assoc(x,z)| * |assoc(y,z)| below this: no control
   max_control_proxy: 0.9       # A3: a column this rank-correlated with x or y is a copy of it, not a control
+  refuter_enabled: false       # S8: a model may SUGGEST extra controls / subgroup columns; it can only add checks
+  refuter_max_controls: 2      # S8: suggested extra controls kept
+  refuter_max_groups: 2        # S8: suggested extra subgroup columns kept
   identity_tolerance: 1.0e-6   # A7: max deviation, as a share of sd(y), for "exactly"
 
 evidence:
@@ -101,7 +113,7 @@ executor:
     - pramana.verification.stats
 
 llm:
-  generator: llm             # D1: DeepSeek writes each test. `template` stays as the reference and the offline mode; select it here or with PRAMANA_VERIFICATION_GENERATOR=template
+  generator: template        # vetted test per claim type and scheme (design v3, decision 1). `llm` makes DeepSeek write each test (opt-in); select it here or with PRAMANA_VERIFICATION_GENERATOR=llm
   provider: deepseek         # same provider as analysis; different role and prompt
   model: deepseek-flash
   temperature: 0.0           # falsification code generation should be near-deterministic

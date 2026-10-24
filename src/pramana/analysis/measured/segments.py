@@ -214,24 +214,61 @@ def run_segments(
         )
     original = pd.DataFrame({c: num(frame[c]) for c in chosen}).loc[data.index]
     shown = chosen[: cfg.max_profile_columns]
+    roles = roles or {}
+    money = next((c for c in chosen if roles.get(c) == "amount"), None)
+    overall_mean, overall_sd = original.mean(), original.std(ddof=0).replace(0, np.nan)
     table = []
+    profiles: list[tuple[str, float, float | None, str, list[float]]] = []
     for rank, cluster in enumerate(order_sizes, start=1):
         members = original[full.labels_ == cluster]
         profile = {f"mean {c}": float(members[c].mean()) for c in shown}
+        z = ((members.mean() - overall_mean) / overall_sd).dropna()
+        top = z.reindex(z.abs().sort_values(ascending=False).index).iloc[:2]
+        stands_out = ", ".join(
+            f"{'high' if v > 0 else 'low'} {c} ({v:+.1f} sd)" for c, v in top.items() if abs(v) >= 0.3
+        )
+        share_money = (
+            float(members[money].clip(lower=0).sum() / original[money].clip(lower=0).sum() * 100)
+            if money and original[money].clip(lower=0).sum() > 0
+            else None
+        )
+        shown_z = [float(v) for v in top.values if abs(v) >= 0.3]
+        profiles.append(
+            (f"Segment {rank}", float(sizes[cluster] / len(scaled) * 100), share_money, stands_out, shown_z)
+        )
+        extra = {f"share of {money} (%)": share_money} if money else {}
         table.append(
             row(
                 segment=f"Segment {rank}",
                 rows=int(sizes[cluster]),
                 share_pct=float(sizes[cluster] / len(scaled) * 100),
+                stands_out_by=stands_out or "close to the overall average",
+                **extra,
                 **profile,
             )
         )
+    # The segment holding the most of the money (or, without one, the largest) is described.
+    lead = max(profiles, key=lambda p: (p[2] if p[2] is not None else p[1]))
+    profile_text = f" {lead[0]} holds {lead[1]:.1f}% of rows"
+    if lead[2] is not None:
+        profile_text += f" and {lead[2]:.1f}% of {money}"
+    if lead[3]:
+        profile_text += f"; it stands out by {lead[3]}"
+    profile_text += "."
+    # every number the sentence quotes is stored, as the Measured tier requires
+    common["values"] = {
+        **common["values"],  # type: ignore[dict-item]
+        "lead_segment_share_pct": clean(lead[1]),
+        "lead_segment_money_share_pct": clean(lead[2]),
+        **{f"lead_segment_sd_{i}": clean(v) for i, v in enumerate(lead[4], start=1)},
+    }
     return MeasuredItem(
         status="ok",
         sentence=(
             f"Rows fall into {k} segments that hold up when the data is resampled: bootstrap "
             f"agreement {ari:.2f} (cutoff {cfg.ari_cutoff:.2f}) and a held-out silhouette of "
             f"{held:.2f} against {null_max:.2f} for column-shuffled copies of the same table."
+            + profile_text
         ),
         table=table,
         chart=BarChart(

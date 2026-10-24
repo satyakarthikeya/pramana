@@ -27,6 +27,7 @@ from uuid import UUID, uuid4
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from pramana.analysis.claim_filters import redundant_correlation
 from pramana.analysis.computed import ComputedAnalysis, compute_analysis
 from pramana.analysis.computed.summary import ranked
 from pramana.analysis.config import HypothesesConfig
@@ -100,7 +101,7 @@ Rules:
 shape; you cannot change it.
 - tasks: driver_regression (target numeric), driver_classification (target a label), \
 adjusted_association (features[0] is the variable, controls are the columns held fixed, \
-target numeric), segments, anomalies, forecast (target numeric, needs a time column), \
+target numeric), segments, anomalies, components (which numeric columns move together), forecast (target numeric, needs a time column), \
 threshold (features[0] numeric, target numeric). reason_code is one of: strong_signal, \
 suspected_driver, time_structure, unusual_rows, subgroup_structure, adjust_for_control, \
 check_threshold, other. Do not name a column that restates the target (for example a total \
@@ -111,6 +112,7 @@ more than two groups use null for both); trend, period_change and seasonality (t
 column first, numeric second; seasonality needs monthly or quarterly periods and null \
 direction; period_change on a table with several rows per period, direction relative to the \
 period before). For correlation and trend reference_group is null.
+- Choosing claims for a table with a time column and amounts (sales, revenue, cost): prefer, in this order, a seasonality claim on the main amount when the brief shows a repeating yearly pattern; a group_difference of the main amount between the segments or products the brief names; a correlation between two amounts the brief shows moving together. Avoid period_change on daily, weekly or monthly rows: the latest period against the one before is mostly noise, and the change against the previous year is already shown as a figure. Do not claim a link between a column and one that restates it (cost against revenue in the same row), or between an amount and the counts that mechanically build it (units sold, orders, customers against revenue): those are bookkeeping, not findings. Prefer questions about price, discount, segments and periods.
 - Never write claim text, numbers, p-values, code or verdicts anywhere in the reply.
 - At most __CLAIMS__ claims and __REQUESTS__ measured requests. narrative_focus lists up to \
 __FOCUS__ item ids to lead the summary. Empty lists are allowed."""
@@ -397,14 +399,14 @@ def _lint_request(
         return "unknown_column", f"{', '.join(sorted(set(unknown)))} is not a column of the table"
     task, target = request.task, request.target
     named = request.features + request.controls
-    needs_target = task not in {"segments", "anomalies"}
+    needs_target = task not in {"segments", "anomalies", "components"}
     if needs_target and target is None:
         return "invalid_fields", f"{task} needs a target column"
     if target is not None and target in named:
         return "leakage", f"{target} is the target and cannot also be a feature or control"
     if task in {"adjusted_association", "threshold"} and len(request.features) != 1:
         return "invalid_fields", f"{task} needs exactly one column in features"
-    numeric_target = task not in {"driver_classification", "segments", "anomalies"}
+    numeric_target = task not in {"driver_classification", "segments", "anomalies", "components"}
     if numeric_target and target is not None and schema.role_of(target) is not ColumnRole.NUMERIC:
         return "wrong_shape", f"{target} is not a numeric column"
     if task == "driver_classification" and target is not None:
@@ -415,11 +417,11 @@ def _lint_request(
         return "wrong_shape", "a forecast needs a time column and a different numeric target"
     if task == "threshold" and schema.role_of(request.features[0]) not in _NUMERIC:
         return "wrong_shape", f"{request.features[0]} is not numeric"
-    if task in {"segments", "anomalies"}:
+    if task in {"segments", "anomalies", "components"}:
         bad = [c for c in request.features if schema.role_of(c) not in _NUMERIC]
         if bad:
             return "wrong_shape", f"{', '.join(bad)} is not numeric"
-    if target is None or not named or task in {"forecast", "segments", "anomalies"}:
+    if target is None or not named or task in {"forecast", "segments", "anomalies", "components"}:
         return None
     try:
         y = (
@@ -676,6 +678,14 @@ def _validate(
     for claim in spec.claims:
         label = _describe_claim(claim)
         problem = _claim_problem(claim, schema, shape, allowed)
+        if problem is None and claim.claim_type == "correlation":
+            problem = redundant_correlation(
+                claim.variables[0],
+                claim.variables[1],
+                roles,
+                time_column=shape.time_column,
+                time_like={c: p.is_time_like for c, p in schema.columns.items()},
+            )
         if problem is not None:
             ledger.drop("claim", label, *problem)
             continue

@@ -292,6 +292,15 @@ def _call_deepseek(system: str, user: str, config: VerificationConfig) -> str:
         ) from None
 
 
+def call_model(system: str, user: str, config: VerificationConfig) -> str:
+    """One traced DeepSeek completion for a trusted caller; fails closed like generation.
+
+    Raises `GeneratorUnavailable` without a key, valid tracing, or a supported model. The
+    text is untrusted: the caller validates it and never treats it as evidence.
+    """
+    return _call_deepseek(system, user, config)
+
+
 def _extract_source(response: str) -> str:
     """The module source inside `response`.
 

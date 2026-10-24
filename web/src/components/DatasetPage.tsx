@@ -26,6 +26,10 @@ function Overviewtab({ dataset }: { dataset: DatasetView }) {
   return (
     <>
     {dataset.computed && <Computed computed={dataset.computed} />}
+    <details className="more">
+    <summary>
+      More detail: model results, the columns PRAMANA understood and charts of every column
+    </summary>
     <div className="report">
       <Measured dataset={dataset} />
     </div>
@@ -108,6 +112,7 @@ function Overviewtab({ dataset }: { dataset: DatasetView }) {
         )}
       </div>
     </div>
+    </details>
     </>
   );
 }
@@ -168,6 +173,35 @@ function FindingsTab({
             <p>{run.error}</p>
           </div>
         )}
+        <details className="work how-checked">
+          <summary>How is a claim checked?</summary>
+          <ol className="how-list">
+            <li>
+              <strong>It is a plain statement</strong> about two columns, such as "revenue is
+              higher in group A than in group B". The model only names the columns; code writes
+              the sentence.
+            </li>
+            <li>
+              <strong>Your data is shuffled 10,000 times.</strong> If a gap as large as the real
+              one shows up often in shuffled data, the claim is just chance.
+            </li>
+            <li>
+              <strong>Many claims, one correction.</strong> Testing many claims makes lucky ones
+              likely, so all of them are corrected together. A claim needs a corrected
+              q-value under 0.05 and an effect big enough to matter.
+            </li>
+            <li>
+              <strong>Then it is attacked.</strong> A passing claim is re-checked
+              with outliers removed, on each half of the data, with a third column held fixed,
+              within subgroups and with a different statistic. Checks that do not apply to
+              the claim are marked N/A. If it breaks, it is marked not robust and not verified.
+            </li>
+            <li>
+              <strong>Only verified claims are remembered.</strong> A rejected claim is shown
+              with its reason and is never stored.
+            </li>
+          </ol>
+        </details>
         <Results results={results} selected={selected} onSelect={setSelected} />
       </>
     );
@@ -353,15 +387,23 @@ export function DatasetPage({ id, tab, runId }: { id: string; tab: Tab; runId: s
 
           <div className="tabs" role="tablist" aria-label="Dataset sections">
             <a role="tab" aria-selected={tab === "overview"} href={`#/d/${id}`}>
-              Overview
+              Report
             </a>
             <a role="tab" aria-selected={tab === "findings"} href={`#/d/${id}/findings`}>
-              Findings{runs.length > 0 ? ` (${runs.length})` : ""}
+              Checked claims{runs.length > 0 ? ` (${runs.length})` : ""}
             </a>
             <a role="tab" aria-selected={tab === "ask"} href={`#/d/${id}/ask`}>
               Ask
             </a>
           </div>
+
+          <p className="tab-purpose">
+            {tab === "overview"
+              ? "The report: what happened in this table, why it moved and what to ask next. Every number is calculated by code from your rows."
+              : tab === "ask"
+                ? "Ask a question about this table. Numbers come from tools run on your rows, never from the model."
+                : "Claims tested the strict way: each is checked against shuffled copies of your data and marked verified or rejected. Only claims worth a strict test appear here, so this can be empty."}
+          </p>
 
           {tab === "overview" ? (
             <Overviewtab dataset={dataset} />

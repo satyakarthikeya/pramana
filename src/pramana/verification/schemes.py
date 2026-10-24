@@ -143,6 +143,12 @@ def split_rows(
             keys = _period_values(frame[structure.time_column], structure.period)
             periods = np.sort(keys.dropna().unique())
             n_confirm = math.ceil(len(periods) * fraction) if len(periods) else 0
+            # A short series would otherwise leave the gate too few periods to test a
+            # trend: hold back what the gate needs while exploration keeps its minimum.
+            needed = max(dependence.min_series_length.values())
+            if n_confirm < needed <= len(periods) - dependence.min_exploration_periods:
+                n_confirm = needed
+            fraction = n_confirm / len(periods) if len(periods) else fraction
             later = set(periods[len(periods) - n_confirm :])
             confirm = every[keys.isin(later).to_numpy()]
     explore = np.setdiff1d(every, confirm)

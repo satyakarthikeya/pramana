@@ -53,6 +53,9 @@ export interface SplitRecord {
   n_exploration: number;
   n_confirmation: number;
   confirmation_digest: string;
+  /** Other runs that already tested on these held-back rows; null if not recorded. */
+  prior_looks?: number | null;
+  look_budget?: number | null;
 }
 export type AttackOutcome = "survived" | "broken" | "not_run";
 export interface AttackResult {
@@ -63,6 +66,8 @@ export interface AttackResult {
   original_effect: number | null;
   attacked_effect: number | null;
   n_rows: number | null;
+  /** False when the check does not apply to this claim or table (not just too little data). */
+  applicable?: boolean;
   details: Record<string, number | string | boolean | null>;
 }
 export interface Proof {
@@ -84,6 +89,24 @@ export interface Proof {
   reported_effect?: number | null;
   reported_effect_metric?: string | null;
   permutation_scheme?: PermutationScheme | null;
+  /** How precisely the rows pin down the effect; shown beside it, never used by the gate. */
+  effect_interval?: {
+    estimate: number;
+    low: number;
+    high: number;
+    confidence: number;
+    method: "row_bootstrap" | "entity_bootstrap" | "period_bootstrap";
+    n_resamples: number;
+  } | null;
+  /** Smallest effect the rows could have found; only on a tested, non-significant claim. */
+  power?: {
+    effect_metric: string;
+    detectable_effect: number;
+    n_effective: number;
+    unit: "observations" | "periods" | "entities";
+    alpha: number;
+    target_power: number;
+  } | null;
   split?: SplitRecord | null;
   attacks?: AttackResult[];
 }
@@ -390,6 +413,23 @@ export interface ExactItem {
   values: Record<string, Scalar>;
   table: Record<string, Scalar>[];
   chart: ExactChart | null;
+  section?: string;
+  importance?: number;
+  also?: string[];
+}
+export interface StorySection {
+  key: string;
+  title: string;
+  item_ids: string[];
+}
+export interface WatchQuestion {
+  text: string;
+  item_id: string;
+}
+export interface Story {
+  lead_ids: string[];
+  sections: StorySection[];
+  questions: WatchQuestion[];
 }
 export interface SectorMatch {
   sector: string;
@@ -414,6 +454,7 @@ export interface ComputedAnalysis {
   scope_note: string;
   items: ExactItem[];
   summary: ReportSummary | null;
+  story?: Story | null;
 }
 export type MeasuredKind =
   | "driver_regression"
@@ -422,7 +463,8 @@ export type MeasuredKind =
   | "segments"
   | "anomalies"
   | "forecast"
-  | "threshold";
+  | "threshold"
+  | "components";
 export type MeasuredStatus = "ok" | "not_run" | "no_lift" | "withheld";
 export interface Exclusion {
   column: string;

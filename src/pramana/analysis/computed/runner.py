@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import calendar
 import math
+import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 
@@ -31,6 +32,7 @@ from pramana.analysis.computed.charts import (
 )
 from pramana.analysis.computed.config import ComputedConfig, load_computed_config
 from pramana.analysis.computed.models import COMPUTED_VERSION, ComputedAnalysis, ExactItem, Scalar
+from pramana.analysis.computed.story import build_story
 from pramana.analysis.computed.summary import template_summary
 from pramana.analysis.schema_inference import ColumnRole, SchemaProfile
 from pramana.analysis.sectors import (
@@ -48,11 +50,16 @@ logger = get_logger(component="computed")
 
 TITLES: dict[str, str] = {
     "period_change": "Change between periods",
+    "margins": "Margins",
     "variance_decomposition": "What accounts for the change",
     "concentration": "Concentration",
     "segment_ranking": "Segments ranked",
     "outliers": "Unusual values",
     "seasonality": "Seasonal pattern",
+    "price_volume_mix": "Price, volume and mix",
+    "segment_growth": "Growth by segment",
+    "customer_view": "Customers",
+    "rfm": "Customer groups (recency, frequency, money)",
     "identity": "Columns that restate others",
     "data_quality": "Data quality",
     "prevalence": "Prevalence",
@@ -135,6 +142,34 @@ def _not_run(kind: str, reason: str, column: str | None = None) -> ExactItem:
     )
 
 
+_FISCAL_NAME = re.compile(r"fiscal|financial|(?:^|[^a-z])fy(?:[^a-z]|$)")
+
+
+def _fiscal_names(ctx: Context, current: list[object], previous: list[object]) -> tuple[str, str] | None:
+    """Names for two windows from the table's own fiscal-year column, when each window is
+    exactly one of its labels (so "FY2025" is said only when the rows say it)."""
+    assert ctx.keys is not None
+    column = next(
+        (c for c in ctx.frame.columns if _FISCAL_NAME.search(str(c).lower()) and c != ctx.shape.time_column),
+        None,
+    )
+    if column is None:
+        return None
+    names = []
+    for window in (current, previous):
+        labels = ctx.frame.loc[ctx.keys.isin(window), column].dropna().astype(str).unique()
+        if len(labels) != 1:
+            return None
+        label = labels[0].strip()
+        names.append(f"fiscal year {label}" if label.isdigit() else label)
+    if names[0] == names[1]:
+        return None
+    return (
+        f"{names[0]} ({current[0]} to {current[-1]})",
+        f"{names[1]} ({previous[0]} to {previous[-1]})",
+    )
+
+
 def _windows(ctx: Context) -> tuple[list[object], list[object], str, str] | None:
     """(current periods, previous periods, labels): last 12 months vs the 12 before when
     there are two years of months, otherwise the latest period vs the one before."""
@@ -149,6 +184,9 @@ def _windows(ctx: Context) -> tuple[list[object], list[object], str, str] | None
         months = [str(p) for p in pd.period_range(last - 23, last, freq="M")]
         if set(months) <= set(map(str, periods)):
             current, previous = months[12:], months[:12]
+            fiscal = _fiscal_names(ctx, current, previous)
+            if fiscal is not None:
+                return current, previous, fiscal[0], fiscal[1]
             return (
                 current,
                 previous,
@@ -233,6 +271,122 @@ def period_change(ctx: Context) -> list[ExactItem]:
             )
         )
     return items
+
+
+def _pick(ctx: Context, role: str, preferred: str) -> str | None:
+    """The column of `role` named like `preferred` (a regex), else the first of that role."""
+    columns = [c for c, r in ctx.match.roles.items() if r == role and c in ctx.frame]
+    return next((c for c in columns if re.search(preferred, str(c).lower())), None) or (
+        columns[0] if columns else None
+    )
+
+
+def _margin(
+    revenue: pd.Series, cost: pd.Series, mask: pd.Series
+) -> tuple[float, float, float] | None:
+    """(margin %, revenue, cost) over the rows in `mask`, or None without positive revenue."""
+    both = revenue.notna() & cost.notna() & mask
+    rev, cst = float(revenue[both].sum()), float(cost[both].sum())
+    if rev <= 0:
+        return None
+    return 100.0 * (rev - cst) / rev, rev, cst
+
+
+def margins(ctx: Context) -> list[ExactItem]:
+    """Margin (revenue less cost, as a share of revenue) now against before, with the
+    segments whose margin moved most. Arithmetic on the table; no model."""
+    amount = _pick(ctx, "amount", r"revenue|sales|turnover|income")
+    cost = _pick(ctx, "cost", r"cost|cogs|expense")
+    if ctx.keys is None or amount is None or cost is None or not ctx.pack.additive_measures:
+        return []
+    windows = _windows(ctx)
+    if windows is None:
+        return [_not_run("margins", "Needs at least two periods to compare.")]
+    current, previous, cur_label, prev_label = windows
+    revenue, spend = _num(ctx.frame[amount]), _num(ctx.frame[cost])
+    now = _margin(revenue, spend, ctx.keys.isin(current))
+    before = _margin(revenue, spend, ctx.keys.isin(previous))
+    if now is None or before is None:
+        return [_not_run("margins", f"Margin needs positive total {amount} in both periods.")]
+    (m1, r1, c1), (m0, r0, c0) = now, before
+    delta = m1 - m0
+    movement = (
+        f"unchanged from {m0:.1f}%"
+        if abs(delta) < 0.05
+        else f"{'up' if delta > 0 else 'down'} {abs(delta):.1f} points from {m0:.1f}%"
+    )
+    sentence = (
+        f"Margin ({amount} less {cost}, as a share of {amount}) was {m1:.1f}% in "
+        f"{cur_label}, {movement} in {prev_label}"
+    )
+    if r0 > 0 and c0 > 0:
+        r_pct, c_pct = 100.0 * (r1 - r0) / r0, 100.0 * (c1 - c0) / c0
+        sentence += (
+            f"; {amount} {'rose' if r_pct >= 0 else 'fell'} {abs(r_pct):.1f}% "
+            f"while {cost} {'rose' if c_pct >= 0 else 'fell'} {abs(c_pct):.1f}%"
+        )
+    rows: list[dict[str, Scalar]] = []
+    fiscal = next((c for c in ctx.frame.columns if _FISCAL_NAME.search(str(c).lower())), None)
+    others = [
+        c
+        for c, p in ctx.schema.columns.items()
+        if p.role is ColumnRole.CATEGORICAL
+        and c in ctx.frame
+        and c not in (ctx.group, ctx.shape.time_column, fiscal)
+        and 2 <= ctx.frame[c].nunique() <= ctx.config.max_margin_levels
+    ]
+    for column in ([ctx.group] if ctx.group else []) + others[: ctx.config.max_margin_columns]:
+        level = ctx.frame[column].astype("string").fillna(MISSING_SEGMENT)
+        for value in sorted(level.unique()):
+            in_level = level == value
+            a = _margin(revenue, spend, ctx.keys.isin(current) & in_level)
+            b = _margin(revenue, spend, ctx.keys.isin(previous) & in_level)
+            if a is None or b is None:
+                continue
+            rows.append(
+                _row(
+                    column=column,
+                    level=value,
+                    margin_now_pct=a[0],
+                    margin_before_pct=b[0],
+                    change_points=a[0] - b[0],
+                    revenue_now=a[1],
+                )
+            )
+    rows.sort(key=lambda r: float(r["change_points"] or 0.0))
+    if rows and float(rows[0]["change_points"] or 0.0) <= -0.05:
+        worst = rows[0]
+        sentence += (
+            f". The largest fall is {worst['column']} = {worst['level']}, from "
+            f"{float(worst['margin_before_pct'] or 0):.1f}% to "
+            f"{float(worst['margin_now_pct'] or 0):.1f}% "
+            f"({abs(float(worst['change_points'] or 0)):.1f} points)"
+        )
+    per_cost = spend.groupby(ctx.keys).sum(min_count=1)
+    per_rev = revenue.groupby(ctx.keys).sum(min_count=1)
+    series = (100.0 * (per_rev - per_cost) / per_rev.where(per_rev > 0)).dropna().sort_index()
+    shown = series.iloc[-ctx.config.max_chart_points :]
+    time = ctx.shape.time_column or "period"
+    return [
+        ExactItem(
+            id=f"margins:{amount}:{cost}",
+            kind="margins",
+            title=TITLES["margins"],
+            sentence=sentence + ".",
+            formula="margin % = (total revenue − total cost) ÷ total revenue × 100; "
+            "change in points = margin(current) − margin(previous)",
+            columns=[amount, cost, time],
+            filters=[f"{time} in {cur_label}", f"{time} in {prev_label}"],
+            n_rows=int(ctx.keys.isin(current + previous).sum()),
+            values={"margin_now_pct": m1, "margin_before_pct": m0, "change_points": delta},
+            table=rows[: ctx.config.max_outliers_listed],
+            chart=LineChart(
+                x_label=time,
+                y_label="margin %",
+                points=[(str(k), float(v)) for k, v in shown.items()],
+            ),
+        )
+    ]
 
 
 def variance_decomposition(ctx: Context) -> list[ExactItem]:
@@ -442,11 +596,68 @@ def segment_ranking(ctx: Context) -> list[ExactItem]:
     ]
 
 
+def _row_outliers(ctx: Context, column: str, values: pd.Series) -> ExactItem | None:
+    """Single rows far from their segment's usual size (robust z of log(value / segment
+    median)). Needed where several rows share a period: period totals hide one bad row."""
+    assert ctx.keys is not None
+    positive = values.where(values > 0)
+    if int(positive.notna().sum()) < 5:
+        return None
+    segment = _segments(ctx) if ctx.group else pd.Series("all", index=values.index)
+    median = positive.groupby(segment).transform("median")
+    ratio = np.log(positive / median).replace([np.inf, -np.inf], np.nan).dropna()
+    x = ratio.to_numpy(dtype=float)
+    centre = float(np.median(x))
+    scale = 1.4826 * float(np.median(np.abs(x - centre)))
+    if scale == 0:
+        return None
+    z = (x - centre) / scale
+    cutoff = ctx.config.outlier_robust_z
+    order = [i for i in np.argsort(-np.abs(z), kind="stable") if abs(z[i]) >= cutoff]
+    basis = f"their {ctx.group} median" if ctx.group else "the column median"
+    if not order:
+        sentence = (
+            f"No single row of {column} sits {cutoff:g} or more robust deviations from {basis}."
+        )
+    else:
+        top = ratio.index[order[0]]
+        sentence = (
+            f"{len(order)} of {len(x)} rows of {column} sit {cutoff:g} or more robust deviations "
+            f"from {basis}; the largest is row {int(top) + 1} ({ctx.keys[top]}) at "
+            f"{_fmt(float(positive[top]))}, {float(positive[top] / median[top]):.1f} times {basis}."
+        )
+    listed = order[: ctx.config.max_outliers_listed]
+    return ExactItem(
+        id=f"row_outliers:{column}",
+        kind="outliers",
+        title=TITLES["outliers"],
+        sentence=sentence,
+        formula="robust z of ln(value / segment median) = (r - median r) / (1.4826 x MAD of r)",
+        columns=[column] + ([ctx.group] if ctx.group else []),
+        n_rows=len(x),
+        values={"flagged": len(order), "cutoff": cutoff},
+        table=[
+            _row(
+                where=f"row {int(ratio.index[i]) + 1} ({ctx.keys[ratio.index[i]]})",
+                value=float(positive[ratio.index[i]]),
+                times_median=float(positive[ratio.index[i]] / median[ratio.index[i]]),
+                robust_z=float(z[i]),
+            )
+            for i in listed
+        ],
+    )
+
+
 def outliers(ctx: Context) -> list[ExactItem]:
     cutoff = ctx.config.outlier_robust_z
     items = []
+    row_items = []
     for column in ctx.measures:
         values = _num(ctx.frame[column])
+        if ctx.keys is not None and bool(ctx.keys.duplicated().any()):
+            row_item = _row_outliers(ctx, column, values)
+            if row_item is not None:
+                row_items.append(row_item)
         if ctx.keys is not None:
             series = values.groupby(ctx.keys).sum(min_count=1).dropna().sort_index()
             unit = f"{ctx.shape.period} totals"
@@ -506,6 +717,107 @@ def outliers(ctx: Context) -> list[ExactItem]:
                 ),
             )
         )
+    return items + row_items
+
+
+def _consecutive_tail(keys: pd.Series, period: str) -> list[pd.Period]:
+    """The longest run of consecutive periods that ends at the table's last period."""
+    freq = _PERIOD_CODE[period]
+    present = sorted({pd.Period(str(k), freq=freq) for k in keys.dropna().unique()})
+    run = [present[-1]]
+    for p in reversed(present[:-1]):
+        if p + 1 != run[0]:
+            break
+        run.insert(0, p)
+    return run
+
+
+def _rolling_seasonality(ctx: Context, period: str, length: int, needed: int) -> list[ExactItem]:
+    """Seasonal indices from any `needed` or more cycles of consecutive periods.
+
+    Index = value ÷ centred moving average of one cycle, averaged per position in the
+    year and scaled to mean 1. The moving average follows growth, so a rising series does
+    not make its late months look seasonal. With 2 cycles each position is seen once;
+    the sentence says how many times.
+    """
+    run = _consecutive_tail(ctx.keys, period)
+    if len(run) < needed * length:
+        return [
+            _not_run(
+                "seasonality",
+                f"Needs at least {needed} full years of {period}ly data ({needed * length} "
+                f"consecutive {period}s ending at the latest one); this table has {len(run)}.",
+            )
+        ]
+    index = [str(p) for p in run]
+    keys = ctx.keys.astype("string")
+    items = []
+    for column in ctx.measures:
+        values = _num(ctx.frame[column])
+        mask = keys.isin(index) & values.notna()
+        totals = values[mask].groupby(keys[mask]).sum().reindex(index)
+        if totals.isna().any() or (totals <= 0).any():
+            items.append(
+                _not_run(
+                    "seasonality",
+                    f"A seasonal index needs a positive total {column} in every {period}.",
+                    column,
+                )
+            )
+            continue
+        x = totals.to_numpy(dtype=float)
+        trailing = pd.Series(x).rolling(length).mean().to_numpy()
+        half = length // 2
+        # centred 2 x length average, for an even cycle length: the mean of the two
+        # trailing averages that straddle each period
+        centred = np.full_like(x, np.nan)
+        centred[half : len(x) - half] = (trailing[length - 1 : len(x) - 1] + trailing[length:]) / 2
+        ratio = x / centred
+        position = np.array([p.month if period == "month" else p.quarter for p in run])
+        ok = ~np.isnan(ratio)
+        by_position = pd.Series(ratio[ok]).groupby(position[ok]).mean()
+        if len(by_position) < length:
+            items.append(_not_run("seasonality", f"Too few {period}s to place every position.", column))
+            continue
+        idx = by_position / by_position.mean()
+        counts = pd.Series(position[ok]).value_counts()
+        seen = int(counts.min())
+        peak, low = int(idx.idxmax()), int(idx.idxmin())
+
+        def name(p: int) -> str:
+            return calendar.month_name[p] if period == "month" else f"Q{p}"
+
+        items.append(
+            ExactItem(
+                id=f"seasonality:{column}",
+                kind="seasonality",
+                title=TITLES["seasonality"],
+                sentence=f"Over the last {len(run)} {period}s ({run[0]} to {run[-1]}), {name(peak)} "
+                f"{column} runs {float(idx[peak]):.2f} times the usual level for the year; "
+                f"{name(low)} is lowest at {float(idx[low]):.2f}. Each {period} was seen "
+                f"{seen} time{'s' if seen != 1 else ''}.",
+                formula=f"index = {period} total ÷ centred moving average of {length} {period}s, "
+                f"averaged per {period} of the year and scaled to mean 1",
+                columns=[column, ctx.shape.time_column or ""],
+                n_rows=int(mask.sum()),
+                values={
+                    f"peak_{period}": peak,
+                    "peak_index": float(idx[peak]),
+                    f"low_{period}": low,
+                    "low_index": float(idx[low]),
+                    "periods": len(run),
+                    "times_seen": seen,
+                    "years": len(run) // length,
+                },
+                table=[
+                    _row(position=int(p), name=name(int(p)), index=float(idx[p])) for p in idx.index
+                ],
+                chart=HeatStrip(
+                    label=column,
+                    cells=[HeatCell(label=name(int(p)), index=float(idx[p])) for p in idx.index],
+                ),
+            )
+        )
     return items
 
 
@@ -516,15 +828,12 @@ def seasonality(ctx: Context) -> list[ExactItem]:
     if period not in {"month", "quarter"}:
         return [_not_run("seasonality", "A seasonal pattern needs monthly or quarterly periods.")]
     needed = ctx.config.seasonality_min_cycles
-    if ctx.shape.full_cycles < needed:
-        return [
-            _not_run(
-                "seasonality",
-                f"Needs at least {needed} full years of {period}ly data; this table has "
-                f"{ctx.shape.full_cycles}.",
-            )
-        ]
     length = 12 if period == "month" else 4
+    calendar_years = ctx.shape.full_cycles >= needed
+    if not calendar_years:
+        # Fewer than two calendar years do not mean fewer than two years of data: a
+        # financial year runs April to March. Use any run of consecutive periods instead.
+        return _rolling_seasonality(ctx, period, length, needed)
     keys = ctx.keys.astype("string")
     years = keys.str[:4]
     complete = keys.groupby(years).nunique()
@@ -966,6 +1275,7 @@ def rates(ctx: Context) -> list[ExactItem]:
 
 ANALYSES: dict[str, Callable[[Context], list[ExactItem]]] = {
     "period_change": period_change,
+    "margins": margins,
     "variance_decomposition": variance_decomposition,
     "concentration": concentration,
     "segment_ranking": segment_ranking,
@@ -977,6 +1287,12 @@ ANALYSES: dict[str, Callable[[Context], list[ExactItem]]] = {
     "weighted_means": weighted_means,
     "rates": rates,
 }
+
+# The analyst figures live in their own module, which needs the helpers above; importing it
+# here, after they exist, is what lets the two modules share them.
+from pramana.analysis.computed.analyst import ANALYST_ANALYSES  # noqa: E402
+
+ANALYSES.update(ANALYST_ANALYSES)
 
 
 # --- runner -------------------------------------------------------------------------
@@ -1071,5 +1387,6 @@ def compute_analysis(
         scope_note=pack.wording.scope_note,
         items=items,
     )
+    result = build_story(result, config)
     # The code-written summary is always there; a model rewording may replace it later.
     return result.model_copy(update={"summary": template_summary(result)})

@@ -97,7 +97,17 @@ def _interesting(item: ExactItem) -> bool:
 
 
 def ranked(result: ComputedAnalysis, limit: int = MAX_CANDIDATES) -> list[ExactItem]:
-    """Figures in summary order: one of each kind first (by PRIORITY), then the rest."""
+    """Figures in summary order: the story's lead first, then the rest by importance; a
+    report built before the story existed falls back to one of each kind by PRIORITY."""
+    if result.story is not None:
+        by_id = {i.id: i for i in result.items}
+        lead = [by_id[i] for i in result.story.lead_ids if i in by_id and _interesting(by_id[i])]
+        taken = {i.id for i in lead}
+        rest = sorted(
+            (i for i in result.items if i.id not in taken and _interesting(i)),
+            key=lambda i: (-i.importance, result.items.index(i)),
+        )
+        return (lead + rest)[:limit]
     order = {kind: i for i, kind in enumerate(PRIORITY)}
     pool = sorted(
         (i for i in result.items if _interesting(i)),

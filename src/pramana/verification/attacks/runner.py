@@ -75,6 +75,11 @@ class AttacksConfig(BaseModel):
     #: removes that side's own variation, so it cannot tell a confounder from a copy.
     max_control_proxy: float = Field(gt=0.0, le=1.0)
     identity_tolerance: float = Field(gt=0.0, lt=0.1)
+    #: S8: a model may suggest EXTRA controls and grouping columns (never fewer checks).
+    #: Off by default; needs DeepSeek and Langfuse, and fails closed to the default checks.
+    refuter_enabled: bool
+    refuter_max_controls: int = Field(ge=0, le=5)
+    refuter_max_groups: int = Field(ge=0, le=5)
 
 
 @dataclass(frozen=True)
@@ -193,6 +198,18 @@ class ClaimView:
         return float(epsilon_squared(groups))
 
 
+@dataclass(frozen=True)
+class AttackHints:
+    """Extra columns an advisor suggests trying. They can only ADD checks (design v3, S8).
+
+    `controls` are extra third-variable controls for A3 and `groups` extra subgroup
+    columns for A4. An unknown or unusable name is ignored; an empty hint changes nothing.
+    """
+
+    controls: tuple[str, ...] = ()
+    groups: tuple[str, ...] = ()
+
+
 def _numeric(rows: pd.DataFrame, names: list[str]) -> pd.DataFrame:
     return rows[names].apply(pd.to_numeric, errors="coerce").dropna()
 
@@ -216,6 +233,7 @@ def _result(
     original: float | None = None,
     attacked: float | None = None,
     n_rows: int | None = None,
+    applicable: bool = True,
     **details: float | int | str | bool | None,
 ) -> AttackResult:
     return AttackResult(
@@ -226,12 +244,14 @@ def _result(
         original_effect=original,
         attacked_effect=None if outcome is AttackOutcome.NOT_RUN else attacked,
         n_rows=n_rows,
+        applicable=applicable,
         details=details,
     )
 
 
-def _not_run(attack_id: str, reason: str) -> AttackResult:
-    return _result(attack_id, AttackOutcome.NOT_RUN, reason)
+def _not_run(attack_id: str, reason: str, *, applicable: bool = True) -> AttackResult:
+    """A result for an attack that did not run; `applicable=False` when it cannot apply here."""
+    return _result(attack_id, AttackOutcome.NOT_RUN, reason, applicable=applicable)
 
 
 def _verdict(
@@ -384,42 +404,42 @@ def _candidate_controls(claim: ClaimView, rows: pd.DataFrame) -> list[str]:
     return out
 
 
-def _a3_control(claim: ClaimView, rows: pd.DataFrame, original: float, config: AttacksConfig):
-    if claim.claim_type is ClaimType.TREND or claim.ordered:
-        return _not_run("A3", "a trend over time has no third-variable control here")
-    best: tuple[float, str] | None = None
-    for name in _candidate_controls(claim, rows):
-        if claim.claim_type is ClaimType.CORRELATION:
-            data = _numeric(rows, [claim.var_x, claim.var_y, name])
-            if len(data) < config.min_subgroup_n:
-                continue
-            with_x = abs(spearman_rho(data[claim.var_x], data[name]))
-            with_y = abs(spearman_rho(data[claim.var_y], data[name]))
-            if max(with_x, with_y) >= config.max_control_proxy:
-                continue  # a near-copy of one side, not a third variable (see AttacksConfig)
-            score = with_x * with_y
-        else:
-            data = rows[[claim.var_x, claim.var_y, name]].copy()
-            data[[claim.var_y, name]] = data[[claim.var_y, name]].apply(
-                pd.to_numeric, errors="coerce"
-            )
-            data = data.dropna()
-            if len(data) < config.min_subgroup_n:
-                continue
-            by_label = [
-                g[name].to_numpy(float) for _, g in data.groupby(claim.var_x) if len(g) >= 2
-            ]
-            if len(by_label) < 2:
-                continue
-            with_y = abs(spearman_rho(data[claim.var_y], data[name]))
-            if with_y >= config.max_control_proxy:
-                continue  # a near-copy of the measure, not a third variable
-            score = float(np.sqrt(epsilon_squared(by_label))) * with_y
-        if best is None or score > best[0]:
-            best = (float(score), name)
-    if best is None or best[0] < config.min_confound_score:
-        return _not_run("A3", "no other column is associated with both sides of the claim")
-    score, control = best
+def _a3_score(
+    claim: ClaimView, rows: pd.DataFrame, name: str, config: AttacksConfig
+) -> float | None:
+    """How strongly `name` could confound the claim, or None when it cannot be used."""
+    if claim.claim_type is ClaimType.CORRELATION:
+        data = _numeric(rows, [claim.var_x, claim.var_y, name])
+        if len(data) < config.min_subgroup_n:
+            return None
+        with_x = abs(spearman_rho(data[claim.var_x], data[name]))
+        with_y = abs(spearman_rho(data[claim.var_y], data[name]))
+        if max(with_x, with_y) >= config.max_control_proxy:
+            return None  # a near-copy of one side, not a third variable (see AttacksConfig)
+        return float(with_x * with_y)
+    data = rows[[claim.var_x, claim.var_y, name]].copy()
+    data[[claim.var_y, name]] = data[[claim.var_y, name]].apply(pd.to_numeric, errors="coerce")
+    data = data.dropna()
+    if len(data) < config.min_subgroup_n:
+        return None
+    by_label = [g[name].to_numpy(float) for _, g in data.groupby(claim.var_x) if len(g) >= 2]
+    if len(by_label) < 2:
+        return None
+    with_y = abs(spearman_rho(data[claim.var_y], data[name]))
+    if with_y >= config.max_control_proxy:
+        return None  # a near-copy of the measure, not a third variable
+    return float(np.sqrt(epsilon_squared(by_label)) * with_y)
+
+
+def _a3_apply(
+    claim: ClaimView,
+    rows: pd.DataFrame,
+    original: float,
+    config: AttacksConfig,
+    control: str,
+    score: float,
+) -> AttackResult:
+    """The effect after accounting for `control`, judged like every other attack."""
     if claim.claim_type is ClaimType.CORRELATION:
         data = _numeric(rows, [claim.var_x, claim.var_y, control])
         z = _ranks(data[control])
@@ -451,6 +471,45 @@ def _a3_control(claim: ClaimView, rows: pd.DataFrame, original: float, config: A
     )
 
 
+def _a3_control(
+    claim: ClaimView,
+    rows: pd.DataFrame,
+    original: float,
+    config: AttacksConfig,
+    hints: "AttackHints | None" = None,
+):
+    if claim.claim_type is ClaimType.TREND or claim.ordered:
+        return _not_run(
+            "A3", "a trend over time has no third-variable control here", applicable=False
+        )
+    usable = _candidate_controls(claim, rows)
+    best: tuple[float, str] | None = None
+    scores: dict[str, float] = {}
+    for name in usable:
+        score = _a3_score(claim, rows, name, config)
+        if score is None:
+            continue
+        scores[name] = score
+        if best is None or score > best[0]:
+            best = (score, name)
+    controls: list[tuple[float, str]] = []
+    if best is not None and best[0] >= config.min_confound_score:
+        controls.append(best)
+    # A suggested control is ADDED to the strongest one, never swapped for it, and it must
+    # clear the same near-copy screen: suggestions can only widen what is tried.
+    for name in (hints.controls if hints else ()):
+        if name in scores and all(name != c for _, c in controls):
+            controls.append((scores[name], name))
+    if not controls:
+        return _not_run(
+            "A3",
+            "no other column is associated with both sides of the claim",
+            applicable=False,
+        )
+    results = [_a3_apply(claim, rows, original, config, c, s) for s, c in controls]
+    return next((r for r in results if r.outcome is AttackOutcome.BROKEN), results[0])
+
+
 # --- A4 -----------------------------------------------------------------------
 
 
@@ -468,14 +527,32 @@ def _grouping_columns(claim: ClaimView, rows: pd.DataFrame, config: AttacksConfi
     return out[: config.max_subgroup_columns]
 
 
-def _a4_subgroups(claim: ClaimView, rows: pd.DataFrame, original: float, config: AttacksConfig):
+def _is_grouping(claim: ClaimView, rows: pd.DataFrame, name: str, config: AttacksConfig) -> bool:
+    """A suggested grouping column is usable on the same terms as an automatic one."""
+    if name not in rows.columns or name in {claim.var_x, claim.var_y, PERIOD_COLUMN}:
+        return False
+    n_levels = rows[name].dropna().nunique()
+    numeric = pd.api.types.is_numeric_dtype(rows[name])
+    return 2 <= n_levels <= config.max_subgroup_levels and (not numeric or n_levels <= 5)
+
+
+def _a4_subgroups(
+    claim: ClaimView,
+    rows: pd.DataFrame,
+    original: float,
+    config: AttacksConfig,
+    hints: "AttackHints | None" = None,
+):
     if not claim.signed:
-        return _not_run("A4", "the effect has no direction to reverse")
+        return _not_run("A4", "the effect has no direction to reverse", applicable=False)
     if claim.ordered:
-        return _not_run("A4", "a single ordered series has no subgroups")
+        return _not_run("A4", "a single ordered series has no subgroups", applicable=False)
     columns = _grouping_columns(claim, rows, config)
+    for name in (hints.groups if hints else ()):
+        if name not in columns and _is_grouping(claim, rows, name, config):
+            columns.append(name)
     if not columns:
-        return _not_run("A4", "no grouping column with a few levels")
+        return _not_run("A4", "no grouping column with a few levels", applicable=False)
     checked = 0
     for name in columns:
         effects, weights, labels = [], [], []
@@ -537,7 +614,7 @@ def _a4_subgroups(claim: ClaimView, rows: pd.DataFrame, original: float, config:
 
 def _a5_alternative(claim: ClaimView, rows: pd.DataFrame, original: float):
     if not claim.signed:
-        return _not_run("A5", "an unsigned effect has no alternative sign to compare")
+        return _not_run("A5", "an unsigned effect has no alternative sign to compare", applicable=False)
     name, value = claim.alternative(rows)
     if value is None:
         return _not_run("A5", f"{name} could not be computed")
@@ -567,11 +644,11 @@ def _a5_alternative(claim: ClaimView, rows: pd.DataFrame, original: float):
 
 def _a6_detrend(claim: ClaimView, rows: pd.DataFrame, original: float, config: AttacksConfig):
     if claim.claim_type is not ClaimType.CORRELATION:
-        return _not_run("A6", "only an association between two columns can be detrended")
+        return _not_run("A6", "only an association between two columns can be detrended", applicable=False)
     if claim.ordered:
-        return _not_run("A6", "already tested on period-to-period changes")
+        return _not_run("A6", "already tested on period-to-period changes", applicable=False)
     if PERIOD_COLUMN not in rows.columns:
-        return _not_run("A6", "the rows are not time-ordered")
+        return _not_run("A6", "the rows are not time-ordered", applicable=False)
     keys = [claim.entity_column] if claim.entity_column else []
     data = rows[[*keys, PERIOD_COLUMN, claim.var_x, claim.var_y]].copy()
     data[[claim.var_x, claim.var_y]] = data[[claim.var_x, claim.var_y]].apply(
@@ -600,7 +677,7 @@ def _a6_detrend(claim: ClaimView, rows: pd.DataFrame, original: float, config: A
 
 def _a7_identity(claim: ClaimView, rows: pd.DataFrame, original: float, config: AttacksConfig):
     if claim.claim_type is not ClaimType.CORRELATION:
-        return _not_run("A7", "only a pair of numeric columns can be an identity")
+        return _not_run("A7", "only a pair of numeric columns can be an identity", applicable=False)
     data = _numeric(rows, [claim.var_x, claim.var_y])
     if len(data) < 3:
         return _not_run("A7", "too few rows")
@@ -648,6 +725,7 @@ def run_attacks(
     config: AttacksConfig,
     *,
     seed: int,
+    hints: AttackHints | None = None,
 ) -> list[AttackResult]:
     """Run A1..A7 on `rows` (the confirmation rows with the period column).
 
@@ -657,7 +735,11 @@ def run_attacks(
     """
     if claim.claim_type in (ClaimType.PERIOD_CHANGE, ClaimType.SEASONALITY):
         return [
-            _not_run(a, f"no attack is defined yet for a {claim.claim_type.value} claim")
+            _not_run(
+                a,
+                f"no attack is defined yet for a {claim.claim_type.value} claim",
+                applicable=False,
+            )
             for a in _NAMES
         ]
     original = claim.effect(rows)
@@ -666,8 +748,8 @@ def run_attacks(
     steps: list[tuple[str, Callable[[], AttackResult]]] = [
         ("A1", lambda: _a1_trim(claim, rows, original, config)),
         ("A2", lambda: _a2_halves(claim, rows, original, config, seed)),
-        ("A3", lambda: _a3_control(claim, rows, original, config)),
-        ("A4", lambda: _a4_subgroups(claim, rows, original, config)),
+        ("A3", lambda: _a3_control(claim, rows, original, config, hints)),
+        ("A4", lambda: _a4_subgroups(claim, rows, original, config, hints)),
         ("A5", lambda: _a5_alternative(claim, rows, original)),
         ("A6", lambda: _a6_detrend(claim, rows, original, config)),
         ("A7", lambda: _a7_identity(claim, rows, original, config)),

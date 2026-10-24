@@ -157,7 +157,12 @@ def entity_column(
         for name, profile in schema.columns.items()
         if name != exclude
         and name in frame.columns
-        and profile.role in {ColumnRole.CATEGORICAL, ColumnRole.ID_LIKE}
+        and (
+            profile.role in {ColumnRole.CATEGORICAL, ColumnRole.ID_LIKE}
+            # a column the sector pack names as an entity (country, store, branch) is one
+            # even with more levels than the general categorical cap (e.g. 43 countries)
+            or (profile.role is ColumnRole.UNKNOWN and roles.get(name) == "entity")
+        )
         and 2 <= frame[name].nunique(dropna=True) <= MAX_ENTITY_LEVELS
         # an identifier unique to every row names a record, not a group
         and frame[name].nunique(dropna=True) < frame[name].notna().sum()

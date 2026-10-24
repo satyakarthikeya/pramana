@@ -588,3 +588,37 @@ def test_beating_a_baseline_worse_than_a_flat_line_is_not_skill() -> None:
     item = result.items[0]
     assert item.status == "no_lift", item.sentence
     assert "beats" not in item.sentence
+
+
+def test_transactions_with_an_entity_are_modelled_on_period_totals_held_out_whole() -> None:
+    import numpy as np
+
+    rng = np.random.default_rng(4)
+    rows = []
+    for month in pd.date_range("2022-01-01", periods=36, freq="MS"):
+        for region in ("North", "South", "East", "West"):
+            for _ in range(3):
+                units = rng.uniform(5, 15)
+                ads = rng.uniform(1, 5)
+                rows.append(
+                    {
+                        "date": month.strftime("%Y-%m-%d"),
+                        "region": region,
+                        "units": units,
+                        "ad_spend": ads,
+                        "amount": 8 * units + 12 * ads + rng.normal(0, 25),
+                    }
+                )
+    frame = pd.DataFrame(rows)
+    schema, shape = fx.prepare(frame)
+    assert shape.shape.value == "transactions" and shape.entity_column == "region"
+    result = compute_measured(
+        frame, schema, shape, config=CONFIG,
+        requests=[MeasuredRequest(task="driver_regression", target="amount",
+                                  features=["units", "ad_spend"])],
+    )  # fmt: skip
+    item = result.items[0]
+    assert item.status == "ok", item.reason
+    assert "totals per month and region" in item.sentence
+    assert "never split between training and testing" in item.sentence
+    assert "entity" in item.split.lower()  # folds hold out whole regions

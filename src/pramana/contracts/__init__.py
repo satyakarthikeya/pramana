@@ -21,6 +21,8 @@ from pramana.contracts.enums import (
     TestType,
     Verdict,
 )
+from pramana.contracts.interval import EffectInterval
+from pramana.contracts.power import PowerNote
 from pramana.contracts.proof_object import ProofObject, ScoreComponents
 from pramana.contracts.structure import DataStructure, SplitRecord
 
@@ -31,9 +33,11 @@ __all__ = [
     "ClaimType",
     "DataStructure",
     "Direction",
+    "EffectInterval",
     "EffectMetric",
     "GateOutcome",
     "PermutationScheme",
+    "PowerNote",
     "ProofObject",
     "ScoreComponents",
     "SplitRecord",

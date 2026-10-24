@@ -18,6 +18,7 @@ TITLES: dict[str, str] = {
     "anomalies": "Rows unusual in combination",
     "forecast": "Forecast",
     "threshold": "A threshold in the pattern",
+    "components": "Columns that move together",
 }
 
 

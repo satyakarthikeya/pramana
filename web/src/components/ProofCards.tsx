@@ -34,7 +34,13 @@ function splitWords(split: SplitRecord | null | undefined): string {
     by_time: "the latest periods",
     by_entity: "whole entities",
   };
-  return `Tested on ${fmtInt(split.n_confirmation)} of ${fmtInt(total)} rows held back from exploration (${how[split.method]}; seed ${split.seed}).`;
+  const reuse =
+    split.prior_looks && split.prior_looks > 0
+      ? split.look_budget != null && split.prior_looks > split.look_budget
+        ? ` These rows were already used by ${split.prior_looks} earlier runs on this table, more than the usual ${split.look_budget}, so treat this result as less independent of what was asked before.`
+        : ` ${split.prior_looks} earlier ${split.prior_looks === 1 ? "run" : "runs"} on this table used the same rows.`
+      : "";
+  return `Tested on ${fmtInt(split.n_confirmation)} of ${fmtInt(total)} rows held back from exploration (${how[split.method]}; seed ${split.seed}).${reuse}`;
 }
 
 function outcomeWord(outcome: AttackOutcome): string {
@@ -72,13 +78,20 @@ function AttackRow({ attack }: { attack: AttackResult }) {
   return (
     <li className="attack" data-outcome={attack.outcome}>
       <span className="attack-tag">
-        <AttackGlyph outcome={attack.outcome} /> {outcomeWord(attack.outcome)}
+        <AttackGlyph outcome={attack.outcome} />{" "}
+        {attack.outcome === "not_run" && attack.applicable === false
+          ? "N/A"
+          : outcomeWord(attack.outcome)}
       </span>
       <span>
         <b>
           {attack.attack_id} {attack.name}
         </b>
-        {attack.outcome === "not_run" ? ": not run: " : ": "}
+        {attack.outcome === "not_run"
+          ? attack.applicable === false
+            ? ": does not apply here: "
+            : ": could not run: "
+          : ": "}
         {attack.reason}
         {ran && attack.original_effect !== null && attack.attacked_effect !== null && (
           <span className="mono attack-nums">
@@ -157,6 +170,20 @@ export function ProofCards({
         ) : (
           <p className="explain">No effect size: the claim was not tested.</p>
         )}
+        {proof.effect_interval ? (
+          <p className="explain">
+            Repeating the study, the effect would likely fall between{" "}
+            <span className="mono">{fmtEffect(proof.effect_interval.low)}</span> and{" "}
+            <span className="mono">{fmtEffect(proof.effect_interval.high)}</span> (
+            {Math.round(proof.effect_interval.confidence * 100)}% interval, resampling{" "}
+            {{
+              row_bootstrap: "rows",
+              entity_bootstrap: "whole entities",
+              period_bootstrap: "whole periods",
+            }[proof.effect_interval.method]}
+            ).
+          </p>
+        ) : null}
       </section>
 
       <section className="proof-card" aria-label="Which rows?">

@@ -31,6 +31,7 @@ import pandas as pd
 from pramana.analysis.measured.adjusted import run_adjusted
 from pramana.analysis.measured.anomalies import run_anomalies
 from pramana.analysis.measured.common import not_run
+from pramana.analysis.measured.components import run_components
 from pramana.analysis.measured.config import MeasuredConfig, load_measured_config
 from pramana.analysis.measured.drivers import run_driver
 from pramana.analysis.measured.forecast import run_forecast
@@ -41,7 +42,7 @@ from pramana.analysis.measured.models import (
     MeasuredItem,
     MeasuredRequest,
 )
-from pramana.analysis.measured.prep import num
+from pramana.analysis.measured.prep import Aggregated, aggregate_transactions, num
 from pramana.analysis.measured.segments import numeric_columns, run_segments
 from pramana.analysis.measured.threshold import run_threshold
 from pramana.analysis.schema_inference import ColumnRole, SchemaProfile
@@ -53,6 +54,8 @@ logger = get_logger(component="measured")
 _FAILED = "This analysis could not be completed on this table."
 _OUT_OF_TIME = "The time budget ran out before this analysis could start."
 _NON_TARGET_ROLES = {"entity", "survey_weight"}
+#: Tasks that fit rows and so need rows that can be held out whole.
+_ROW_LEVEL = {"driver_regression", "driver_classification", "adjusted_association", "threshold"}
 
 
 def pick_target(
@@ -126,8 +129,24 @@ def _execute(
     roles: dict[str, str],
     additive: bool,
     deadline: float,
+    rolled_up: Aggregated | None = None,
 ) -> MeasuredItem:
     task, target = request.task, request.target
+    if rolled_up is not None and task in _ROW_LEVEL:
+        item = _execute(
+            request,
+            frame=rolled_up.frame,
+            full=full,
+            schema=rolled_up.schema,
+            shape=rolled_up.shape,
+            config=config,
+            roles=roles,
+            additive=additive,
+            deadline=deadline,
+        )
+        if item.status == "ok" and item.sentence:
+            return item.model_copy(update={"sentence": f"{item.sentence} {rolled_up.note}"})
+        return item
     features = request.features or None
     if task in {"driver_regression", "driver_classification"}:
         if target is None:
@@ -160,6 +179,8 @@ def _execute(
         return run_segments(frame, schema, shape, config=config, columns=features, roles=roles)
     if task == "anomalies":
         return run_anomalies(frame, schema, shape, config=config, columns=features, roles=roles)
+    if task == "components":
+        return run_components(frame, schema, shape, config=config, columns=features, roles=roles)
     if task == "forecast":
         if target is None:
             return not_run(task, "A target column is needed.")
@@ -203,6 +224,16 @@ def compute_measured(
         sampled = config.max_rows
 
     items: list[MeasuredItem] = []
+    rolled: list[Aggregated | None] = []
+
+    def rolled_up() -> Aggregated | None:
+        if not rolled:
+            try:
+                rolled.append(aggregate_transactions(work, schema, shape, roles))
+            except Exception:
+                logger.exception("measured_rollup_failed")
+                rolled.append(None)
+        return rolled[0]
 
     def attempt(request: MeasuredRequest) -> MeasuredItem:
         if time.monotonic() > deadline:
@@ -218,6 +249,7 @@ def compute_measured(
                 roles=roles,
                 additive=additive,
                 deadline=deadline,
+                rolled_up=rolled_up() if request.task in _ROW_LEVEL else None,
             )
         except Exception:
             logger.exception("measured_analysis_failed", task=request.task)
@@ -268,6 +300,8 @@ def _default_plan(
     if len(numeric_columns(work, schema, shape, config, roles=roles)) >= 2:
         items.append(attempt(MeasuredRequest(task="segments")))
         items.append(attempt(MeasuredRequest(task="anomalies")))
+    if len(numeric_columns(work, schema, shape, config, roles=roles)) >= 3:
+        items.append(attempt(MeasuredRequest(task="components")))
     if shape.time_column is not None:
         forecast_target = target or pick_forecast_target(
             work, schema, shape, config, roles, measure_roles

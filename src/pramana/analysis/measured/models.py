@@ -26,6 +26,7 @@ Kind = Literal[
     "anomalies",
     "forecast",
     "threshold",
+    "components",
 ]
 Status = Literal["ok", "not_run", "no_lift", "withheld"]
 

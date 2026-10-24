@@ -44,6 +44,8 @@ class GridConfig(_Strict):
     svm_c: list[float] = Field(min_length=1)
     svm_max_rows: int = Field(ge=50, le=1000000)
     logistic_c: list[float] = Field(min_length=1)
+    knn_neighbors: list[int] = Field(default=[5, 15], min_length=1)
+    knn_max_rows: int = Field(default=20000, ge=50, le=1000000)
 
 
 class SegmentsConfig(_Strict):
@@ -88,6 +90,14 @@ class ThresholdConfig(_Strict):
     max_chart_points: int = Field(ge=5, le=200)
 
 
+class ComponentsConfig(_Strict):
+    null_repeats: int = Field(default=20, ge=2, le=200)
+    null_quantile: float = Field(default=0.95, gt=0.5, lt=1)
+    bootstrap_repeats: int = Field(default=20, ge=2, le=200)
+    stability_cutoff: float = Field(default=0.9, gt=0.5, le=1)
+    max_loadings: int = Field(default=3, ge=1, le=10)
+
+
 class MeasuredConfig(_Strict):
     enabled: bool
     seed: int
@@ -110,6 +120,7 @@ class MeasuredConfig(_Strict):
     anomalies: AnomaliesConfig
     forecast: ForecastConfig
     threshold: ThresholdConfig
+    components: ComponentsConfig = Field(default_factory=ComponentsConfig)
 
 
 def load_measured_config(path: Path | str = DEFAULT_CONFIG_PATH) -> MeasuredConfig:

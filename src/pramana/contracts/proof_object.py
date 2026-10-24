@@ -38,6 +38,8 @@ from pramana.contracts.enums import (
     TestType,
     Verdict,
 )
+from pramana.contracts.interval import EffectInterval
+from pramana.contracts.power import PowerNote
 from pramana.contracts.structure import SplitRecord
 
 #: Fields that only exist because a test was executed. Null exactly when the claim
@@ -135,6 +137,22 @@ class ProofObject(BaseModel):
         default_factory=list,
         description="Falsification attacks run after the gate (PLAN §7); empty unless the "
         "claim passed. A BROKEN attack makes the outcome FRAGILE.",
+    )
+    spec_hash: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+        description="Fingerprint of the test plan (code, seed, permutations, null, rows seen, "
+        "direction, alpha), computed before the held-back rows were read (design v3, S4).",
+    )
+    effect_interval: EffectInterval | None = Field(
+        default=None,
+        description="How precisely the tested rows pin down the effect (design v3, S5). "
+        "Shown beside the effect; the band rule does not use it.",
+    )
+    power: PowerNote | None = Field(
+        default=None,
+        description="How small an effect these rows could have detected (design v3, S1). "
+        "Set only on a claim that was tested and not significant; descriptive, never gated.",
     )
     outlier_warning: bool = Field(
         default=False, description="The result moved materially when outliers were trimmed."

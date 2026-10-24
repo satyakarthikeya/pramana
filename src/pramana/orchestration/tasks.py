@@ -118,7 +118,9 @@ def native_verification_handler(
     raw_structure = request.get("data_structure")
     structure = None if raw_structure is None else DataStructure.model_validate(raw_structure)
     # The worker slices the confirmation rows itself from the full cleaned artifact.
-    rows, split = gate_rows(frame, structure, config)
+    rows, split = gate_rows(
+        frame, structure, config, run_id=run_id, looks_db=artifact_root / "looks.sqlite3"
+    )
     options: dict[str, Any] = {"structure": structure, "split": split}
     if request.get("generated_batch") is not None:
         from pramana.orchestration.verification_integration import PreparedBatch, prepared_generator

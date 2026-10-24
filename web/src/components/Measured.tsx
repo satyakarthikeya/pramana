@@ -15,6 +15,7 @@ const PARTS: { title: string; kinds: MeasuredKind[] }[] = [
   { title: "Adjusted association", kinds: ["adjusted_association"] },
   { title: "Segments", kinds: ["segments"] },
   { title: "Unusual rows", kinds: ["anomalies"] },
+  { title: "Columns that move together", kinds: ["components"] },
   { title: "Forecast", kinds: ["forecast"] },
   { title: "Where the relationship bends", kinds: ["threshold"] },
 ];
@@ -46,7 +47,8 @@ function cell(key: string, value: Scalar): string {
 }
 
 function MeasuredTable({ item }: { item: MeasuredItem }) {
-  const heads = item.table[0] ? Object.keys(item.table[0]) : [];
+  // rows of one table can carry different columns (shared-column rows and flagged rows), so use all of them
+  const heads = [...new Set(item.table.flatMap((r) => Object.keys(r)))];
   if (heads.length === 0) return null;
   return (
     <div style={{ overflowX: "auto", marginTop: 12 }}>
@@ -62,7 +64,7 @@ function MeasuredTable({ item }: { item: MeasuredItem }) {
           {item.table.map((row, i) => (
             <tr key={i}>
               {heads.map((h) => (
-                <td key={h}>{cell(h, row[h])}</td>
+                <td key={h}>{cell(h, row[h] ?? null)}</td>
               ))}
             </tr>
           ))}

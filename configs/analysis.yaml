@@ -132,6 +132,8 @@ computed:
   max_measures: 6               # numeric columns analysed per table
   max_segments: 12              # rows shown per segment table; the rest are grouped as "other"
   max_outliers_listed: 5
+  max_margin_columns: 3     # grouping columns whose margin is compared (besides the entity column)
+  max_margin_levels: 12     # a grouping column with more levels is skipped
   outlier_robust_z: 3.5         # |x - median| / (1.4826 * MAD) at or above this is listed
   seasonality_min_cycles: 2     # complete years of monthly/quarterly data before a seasonal profile
   min_prevalence_rows: 30       # rows with a value (and a weight) before a share is shown
@@ -139,6 +141,30 @@ computed:
   identity_min_rows: 10         # complete rows before an identity can be reported
   identity_rel_tolerance: 0.001 # relative difference counted as "equal"
   identity_min_match: 0.99      # share of rows that must match
+  # The analyst layer (docs/PLAN_data_analyst.md): ranking, the story and the new figures.
+  # PROVISIONAL weights: they order figures for reading and never decide whether one is true.
+  lead_items: 8                 # figures in the report's lead
+  max_questions: 5              # "what to watch" questions (code templates, never advice)
+  segment_growth_min_share: 0.02  # a segment under this share of the earlier total is not ranked by growth
+  customer_min_customers: 10    # distinct customer ids before a customer view is shown
+  customer_top_n: 10            # "the top N customers account for ..."
+  story_weights:
+    period_change: 90
+    margins: 85
+    price_volume_mix: 82
+    variance_decomposition: 80
+    segment_growth: 72
+    customer_view: 70
+    rfm: 64
+    outliers: 66
+    seasonality: 60
+    concentration: 55
+    segment_ranking: 40
+    prevalence: 75
+    weighted_means: 60
+    rates: 58
+    identity: 20
+    data_quality: 15
 
 measured:
   # The Measured tier (PLAN §5.2): closed-menu models scored on data they did not see, always
@@ -180,6 +206,8 @@ measured:
     svm_c: [0.5, 5.0]
     svm_max_rows: 1500          # support vector machines are left out above this many rows (they scale badly)
     logistic_c: [0.1, 1.0, 10.0]
+    knn_neighbors: [5, 15]      # nearest-neighbour model: how many neighbours vote
+    knn_max_rows: 20000         # left out above this many rows (prediction cost grows with rows)
   segments:
     k_min: 2
     k_max: 6

@@ -77,3 +77,15 @@ class SplitRecord(BaseModel):
     n_exploration: int = Field(ge=0)
     n_confirmation: int = Field(ge=0)
     confirmation_digest: str = Field(min_length=1)
+    prior_looks: int | None = Field(
+        default=None,
+        ge=0,
+        description="How many OTHER runs already tested on these held-back rows (design v3, "
+        "S7). Null when no ledger was available; disclosure only, never gates.",
+    )
+    look_budget: int | None = Field(
+        default=None,
+        ge=0,
+        description="The configured number of earlier runs after which the rows are described "
+        "as reused. Copied from dependence.max_prior_looks so the proof is self-describing.",
+    )

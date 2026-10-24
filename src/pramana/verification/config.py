@@ -90,6 +90,22 @@ class StatisticsConfig(BaseModel):
         ge=1,
         description="Largest BH family a run may test; n_permutations must resolve it.",
     )
+    interval_resamples: int = Field(
+        ge=200,
+        description="Resamples for the interval beside an effect. Far fewer than n_bootstrap: "
+        "each resample recomputes the effect, and the interval is descriptive.",
+    )
+    interval_confidence: float = Field(
+        gt=0.5,
+        lt=1.0,
+        description="Confidence level of the interval shown beside an effect. Descriptive.",
+    )
+    power_target: float = Field(
+        gt=0.5,
+        lt=1.0,
+        description="Probability of detection used for the 'smallest effect these rows could "
+        "have found' note on a non-significant claim. Descriptive; never gates a verdict.",
+    )
 
 
 class DependenceConfig(BaseModel):
@@ -105,6 +121,8 @@ class DependenceConfig(BaseModel):
     min_series_length: dict[Literal["trend", "correlation"], int]
     min_clusters: int = Field(ge=2)
     min_split_entities: int = Field(ge=2)
+    min_exploration_periods: int = Field(ge=2)
+    max_prior_looks: int = Field(ge=0)
 
     @model_validator(mode="after")
     def _complete(self) -> Self:

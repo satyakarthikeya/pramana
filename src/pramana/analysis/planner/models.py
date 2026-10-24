@@ -23,6 +23,7 @@ MeasuredTask = Literal[
     "adjusted_association",
     "segments",
     "anomalies",
+    "components",
     "forecast",
     "threshold",
 ]
@@ -53,6 +54,8 @@ DropReason = Literal[
     "not_renderable",
     "unknown_item",
     "invalid_fields",
+    "bookkeeping",
+    "time_label",
 ]
 
 

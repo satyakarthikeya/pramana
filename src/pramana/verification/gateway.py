@@ -77,7 +77,17 @@ from pramana.verification.falsification.generator import (
     get_generator,
 )
 from pramana.verification.fdr import apply_bh
-from pramana.verification.schemes import FREE_PLAN, TestPlan, assign_plan, with_period_column
+from pramana.verification.interval import effect_interval
+from pramana.verification.power import power_note
+from pramana.verification.refuter import suggest_hints
+from pramana.verification.spec import declared_permutations, spec_hash
+from pramana.verification.schemes import (
+    FREE_PLAN,
+    PERIOD_COLUMN,
+    TestPlan,
+    assign_plan,
+    with_period_column,
+)
 
 _log = logging.getLogger(__name__)
 
@@ -340,6 +350,41 @@ class _ColumnCheckTally:
         }
 
 
+def _spec_drift(program: FalsificationProgram, payload: dict[str, Any]) -> str | None:
+    """A reason when the result was produced under a different seed or resample count than
+    the frozen spec, else None. Such a result is treated as a failed execution."""
+    if int(payload["seed"]) != program.seed:
+        return (
+            f"the result used seed {payload['seed']} but the frozen plan said {program.seed}; "
+            f"a result produced under a different plan is not accepted"
+        )
+    if int(payload["n_permutations"]) != program.n_permutations:
+        return (
+            f"the result used {payload['n_permutations']} resamples but the frozen plan said "
+            f"{program.n_permutations}; a result produced under a different plan is not accepted"
+        )
+    return None
+
+
+def _frozen_spec(
+    program: FalsificationProgram,
+    plan: TestPlan,
+    split: SplitRecord | None,
+    candidate: CandidateInsight,
+    config: VerificationConfig,
+) -> str:
+    """The plan's fingerprint, from the program and what the gate assigned (S4)."""
+    return spec_hash(
+        code=program.source,
+        seed=program.seed,
+        n_permutations=declared_permutations(program.source),
+        scheme=plan.scheme,
+        split_digest=split.confirmation_digest if split else None,
+        direction=candidate.asserted_direction.value if candidate.asserted_direction else None,
+        alpha=config.statistics.alpha,
+    )
+
+
 def _run_one(
     candidate: CandidateInsight,
     frame: pd.DataFrame,
@@ -347,6 +392,7 @@ def _run_one(
     generate: Generator,
     tally: _ColumnCheckTally,
     plan: TestPlan = FREE_PLAN,
+    split: SplitRecord | None = None,
 ) -> _Tested | str:
     """Generate and execute one claim's falsification test.
 
@@ -382,6 +428,8 @@ def _run_one(
             f"Nothing was executed, so the claim has not been tested."
         )
 
+    frozen = _frozen_spec(program, plan, split, candidate, config)
+    _emit("spec_frozen", candidate.insight_id, spec_hash=frozen)
     result = execute(program, frame, config)
     tally.record(candidate, program.generator, result.ok, result.failure_reason)
     if not result.ok:
@@ -402,6 +450,11 @@ def _run_one(
         _emit("payload_incomplete", candidate.insight_id, reason=incomplete)
         return _Tested(candidate, program, None, incomplete, plan)
 
+    drifted = _spec_drift(program, result.payload)
+    if drifted is not None:
+        _emit("spec_drift", candidate.insight_id, reason=drifted)
+        return _Tested(candidate, program, None, drifted, plan)
+
     _emit("execution_verified", candidate.insight_id, attempts=result.attempts)
     return _Tested(candidate, program, result.payload, None, plan)
 
@@ -413,6 +466,7 @@ def _proof_for_failed_execution(
     family_size: int,
     seed: int,
     split: SplitRecord | None = None,
+    config: VerificationConfig | None = None,
 ) -> ProofObject:
     """A crash or timeout, recorded as a tested claim that concluded nothing.
 
@@ -438,6 +492,11 @@ def _proof_for_failed_execution(
         failure_reason=tested.failure_reason,
         permutation_scheme=tested.plan.scheme,
         split=split,
+        spec_hash=(
+            None
+            if config is None
+            else _frozen_spec(tested.program, tested.plan, split, tested.candidate, config)
+        ),
     )
 
 
@@ -499,7 +558,86 @@ def _proof_for_result(
         score_components=decision.score_components,
         permutation_scheme=tested.plan.scheme,
         split=split,
+        spec_hash=_frozen_spec(tested.program, tested.plan, split, tested.candidate, config),
     )
+
+
+def _claim_view(proof: ProofObject, tested: _Tested, structure: DataStructure) -> ClaimView:
+    """What was tested, in the form the attacks and the interval recompute it from."""
+    candidate = tested.candidate
+    return ClaimView(
+        claim_type=candidate.claim_type,
+        var_x=candidate.variables[0],
+        var_y=candidate.variables[1],
+        scheme=tested.plan.scheme,
+        entity_column=structure.entity_column,
+        reference_group=candidate.reference_group,
+        unsigned=proof.effect_metric is EffectMetric.EPSILON_SQUARED,
+    )
+
+
+def _with_interval(
+    proof: ProofObject,
+    tested: _Tested,
+    frame: pd.DataFrame,
+    structure: DataStructure,
+    config: VerificationConfig,
+) -> ProofObject:
+    """`proof` with an interval on its effect; changes nothing else and never raises."""
+    try:
+        found = effect_interval(
+            _claim_view(proof, tested, structure),
+            frame,
+            n_resamples=config.statistics.interval_resamples,
+            confidence=config.statistics.interval_confidence,
+            seed=config.statistics.seed,
+        )
+    except Exception as error:  # descriptive only: a missing interval changes no verdict
+        _emit("interval_failed", proof.insight_id, error=f"{type(error).__name__}: {error}")
+        return proof
+    return proof if found is None else proof.model_copy(update={"effect_interval": found})
+
+
+def _with_power(
+    proof: ProofObject,
+    tested: _Tested,
+    frame: pd.DataFrame,
+    structure: DataStructure,
+    config: VerificationConfig,
+) -> ProofObject:
+    """`proof` with a note on the smallest effect these rows could have found.
+
+    Guarantees: changes nothing but `power`; never raises (a note that cannot be worked
+    out is simply absent); the verdict, q-value and family are untouched.
+    """
+    try:
+        payload = tested.payload or {}
+        n_observations = payload.get("n_observations")
+        if n_observations is None or proof.effect_metric is None:
+            return proof
+        entity = structure.entity_column
+        candidate = tested.candidate
+        groups = (
+            int(frame[candidate.variables[0]].dropna().nunique())
+            if candidate.claim_type is ClaimType.GROUP_DIFFERENCE
+            else None
+        )
+        note = power_note(
+            proof.effect_metric,
+            tested.plan.scheme,
+            n_observations=int(n_observations),
+            n_periods=(
+                int(frame[PERIOD_COLUMN].nunique()) if PERIOD_COLUMN in frame else None
+            ),
+            n_entities=int(frame[entity].nunique()) if entity and entity in frame else None,
+            groups=groups,
+            alpha=config.statistics.alpha,
+            power=config.statistics.power_target,
+        )
+    except Exception as error:  # descriptive only: a missing note changes no verdict
+        _emit("power_note_failed", proof.insight_id, error=f"{type(error).__name__}: {error}")
+        return proof
+    return proof if note is None else proof.model_copy(update={"power": note})
 
 
 def _attacked(
@@ -517,17 +655,23 @@ def _attacked(
     lower a verdict and a crash is not evidence against the claim.
     """
     candidate = tested.candidate
-    claim = ClaimView(
-        claim_type=candidate.claim_type,
-        var_x=candidate.variables[0],
-        var_y=candidate.variables[1],
-        scheme=tested.plan.scheme,
-        entity_column=structure.entity_column,
-        reference_group=candidate.reference_group,
-        unsigned=proof.effect_metric is EffectMetric.EPSILON_SQUARED,
-    )
+    claim = _claim_view(proof, tested, structure)
+    hints = None
+    if config.attacks.refuter_enabled:
+        outcome = suggest_hints(claim, frame, config)
+        hints = outcome.hints
+        _emit(
+            "refuter",
+            proof.insight_id,
+            status=outcome.status,
+            controls=list(outcome.hints.controls),
+            groups=list(outcome.hints.groups),
+            dropped=list(outcome.dropped),
+        )
     try:
-        results = run_attacks(claim, frame, config.attacks, seed=config.statistics.seed)
+        results = run_attacks(
+            claim, frame, config.attacks, seed=config.statistics.seed, hints=hints
+        )
     except Exception as error:  # attacks lower verdicts only; a crash changes nothing
         _emit("attacks_failed", proof.insight_id, error=f"{type(error).__name__}: {error}")
         return proof
@@ -753,7 +897,7 @@ def verify_batch_with_summary(
             outcomes.append(_not_testable(candidate, family_id, seed, plan, split))
             continue
 
-        outcome = _run_one(candidate, frame, config, generator, tally, plan)
+        outcome = _run_one(candidate, frame, config, generator, tally, plan, split)
         if isinstance(outcome, str):
             outcomes.append(_not_testable(candidate, family_id, seed, outcome, split))
         else:
@@ -799,15 +943,35 @@ def verify_batch_with_summary(
         q_value = next(corrected)
         if item.payload is None:
             proofs.append(
-                _proof_for_failed_execution(item, family_id, q_value, family_size, seed, split)
+                _proof_for_failed_execution(
+                    item, family_id, q_value, family_size, seed, split, config
+                )
             )
         else:
             proofs.append(
                 _proof_for_result(item, family_id, q_value, family_size, config, split)
             )
 
-    # --- falsification attacks (PLAN §7): a one-way ratchet on every PASS -----
     by_id = {item.candidate.insight_id: item for item in tested}
+    # --- power note: descriptive, on claims that were tested and not significant ----
+    proofs = [
+        _with_power(proof, by_id[proof.insight_id], frame, structure, config)
+        if proof.gate_outcome is GateOutcome.INCONCLUSIVE
+        and proof.failure_reason is None
+        and proof.insight_id in by_id
+        else proof
+        for proof in proofs
+    ]
+
+    # --- interval on the effect: descriptive, on claims that passed the gate -------
+    proofs = [
+        _with_interval(proof, by_id[proof.insight_id], frame, structure, config)
+        if proof.verdict is Verdict.PASS and proof.insight_id in by_id
+        else proof
+        for proof in proofs
+    ]
+
+    # --- falsification attacks (PLAN §7): a one-way ratchet on every PASS -----
     proofs = [
         _attacked(proof, by_id[proof.insight_id], frame, structure, config)
         if proof.verdict is Verdict.PASS

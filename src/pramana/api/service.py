@@ -162,15 +162,8 @@ class RunService:
             )
             if not schema.usable():
                 raise DataInputError("No usable measurement columns remain after cleaning.")
-            from pramana.verification.stats.effect_size import MAX_SENS_SLOPE_OBSERVATIONS
-
-            if len(prepared.dataset) > MAX_SENS_SLOPE_OBSERVATIONS and any(
-                item.is_time_like and item.usable_for_hypotheses for item in schema.columns.values()
-            ):
-                raise DataInputError(
-                    f"Trend analysis supports at most {MAX_SENS_SLOPE_OBSERVATIONS} rows. "
-                    "Upload a smaller, deliberately selected table; no rows were silently sampled."
-                )
+            # A table above the trend-test row ceiling is still analysed: only its trend
+            # claims are left out, with the reason recorded (see `drop_oversize_trends`).
             return result
 
         def analyze(current: PramanaState) -> Any:
@@ -331,6 +324,13 @@ class RunService:
                             f"Analysis model unavailable: {failure.message.rstrip('.')}. "
                             "Check DEEPSEEK_API_KEY and Langfuse configuration; "
                             "no unverified findings were published."
+                        )
+                    elif failure.node == "memory":
+                        error = (
+                            "The claims were tested, but saving the verified ones to memory "
+                            "failed (the memory model may still be downloading, or could not be "
+                            "reached). The verdicts shown are the gate's; nothing unverified "
+                            "was stored. Run it again once the model has finished downloading."
                         )
                     elif failure.node == "ingest":
                         error = (
