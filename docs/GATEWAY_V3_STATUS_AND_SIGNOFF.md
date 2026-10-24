@@ -1,5 +1,7 @@
 # Gateway v3: status, comparison and sign-off sheet
 
+> **Status of one change (gateway v3).** Current project status is in [STATUS.md](../STATUS.md). Figures and branch names below are from the date of writing and may be out of date.
+
 Prepared 2026-10-24 for the verification owner (P.P. Satya Karthikeya). One place to see
 every finance gap (F1-F7) and every gateway step (S1-S9) side by side: what is built,
 what was measured, what moves a verdict, and what needs your signature.

@@ -1,5 +1,7 @@
 # Open Issues — Verification Gateway
 
+> **Decision log, partly historical.** Current project status is in [STATUS.md](../STATUS.md). Figures and branch names below are from the date of writing and may be out of date.
+
 > **UPDATE (14 October 2026):** the finishing pass is recorded in the last section of this
 > file ("Finishing pass") and in `docs/IMPLEMENTATION_STATUS.md`. Items 10 and 11 below
 > carry their new status there; the text under them is the history.

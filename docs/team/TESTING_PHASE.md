@@ -140,7 +140,7 @@ docker compose -f docker/docker-compose.yml ps
 ```
 
 On this machine Docker's executable is at:
-`C:/Users/karth/AppData/Local/Programs/DockerDesktop/resources/bin/docker.exe`.
+`<Docker Desktop install folder>/resources/bin/docker.exe`.
 Use that executable if `docker` is absent from PATH.
 
 The smoke script uploads synthetic data to `http://localhost:8080`, polls for

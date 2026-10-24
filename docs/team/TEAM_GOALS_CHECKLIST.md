@@ -1,5 +1,7 @@
 # PRAMANA team goals and acceptance checklist
 
+> **Historical snapshot.** Current project status is in [STATUS.md](../../STATUS.md). Figures and branch names below are from the date of writing and may be out of date.
+
 **21 October provider migration:** DeepSeek-only implementation and live testing
 are tracked separately in [DEEPSEEK_ONLY_TODO.md](DEEPSEEK_ONLY_TODO.md).
 Earlier Gemma acceptance below is historical evidence, not evidence of the new

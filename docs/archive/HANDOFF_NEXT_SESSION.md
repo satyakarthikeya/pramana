@@ -1,5 +1,7 @@
 # Handoff: continue PRAMANA from here (written 23 Oct 2026)
 
+> **Historical snapshot.** Current project status is in [STATUS.md](../../STATUS.md). Figures and branch names below are from the date of writing and may be out of date.
+
 Read this whole file first. It is the state of the project at the end of a long session, so a
 new session can continue without guessing. When it conflicts with the code, the code wins.
 
@@ -75,7 +77,7 @@ Stop with `... down`. The API is only reachable through nginx on port 3000.
 
 ### The user's real data (do not touch)
 
-The Docker volume has the user's real account (an `sat***@gmail.com` account) owning one dataset
+The Docker volume has the user's real account (a personal account) owning one dataset
 (`demo_nhanes_small.csv`) and 3 runs. To test, create a **throwaway account**, then remove only
 that account and its rows/files afterwards (the pattern used before: a short Python script
 run with `docker exec -i pramana-dev-api-1 python -`, deleting rows where `owner_id` is the QA
