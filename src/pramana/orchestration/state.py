@@ -65,6 +65,9 @@ class PramanaState(BaseModel):
     )
     candidate_insights: list[CandidateInsight] = Field(default_factory=list)
     exploration: dict[str, Any] | None = None
+    #: Measured analyses the planner asked for, run on the whole cleaned table (they hold
+    #: data out themselves). Shown to the user only; never a claim or a memory (D3, D5).
+    planned_measured: dict[str, Any] | None = None
     proof_objects: list[ProofObject] = Field(default_factory=list)
     verification_summary: BatchSummary | None = None
     memory_receipts: list[Any] = Field(default_factory=list)

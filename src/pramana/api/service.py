@@ -13,6 +13,7 @@ from pramana.advisory.explainer import ChatFn as AdvisoryChatFn
 from pramana.advisory.findings import Finding
 from pramana.advisory.models import AdvisoryReport
 from pramana.advisory.run import advise
+from pramana.analysis.measured.models import MeasuredAnalysis
 from pramana.analysis.schema_inference import SchemaProfile
 from pramana.analysis.workspace.agent import ChatFn
 from pramana.analysis.workspace.ledger import ExplorationSummary
@@ -283,6 +284,7 @@ class RunService:
                     ResultRow(
                         insight_id=proof.insight_id,
                         claim=candidate.claim,
+                        claim_type=candidate.claim_type.value,
                         proof=proof,
                         explanation=rejection_reason(proof),
                         effect_strength=effect_strength(proof),
@@ -306,6 +308,11 @@ class RunService:
                 candidate_count=len(candidates),
                 unverified_candidate_count=len(candidates) - len(seen),
                 exploration=self._exploration(state),
+                planned_measured=(
+                    MeasuredAnalysis.model_validate(state.planned_measured)
+                    if state.planned_measured
+                    else None
+                ),
                 advisory=self._advisory(state, rows, candidates),
             )
             error = (

@@ -117,6 +117,8 @@ export type ChartSpec = ScatterChart | GroupsChart;
 export interface ResultRow {
   insight_id: string;
   claim: string;
+  /** Present on runs recorded after the planner landed; older rows fall back to the id. */
+  claim_type?: string | null;
   proof: Proof;
   explanation: string | null;
   effect_strength: string | null;
@@ -183,6 +185,8 @@ export interface RunResults {
   candidate_count: number;
   unverified_candidate_count: number;
   exploration: ExplorationSummary | null;
+  /** Measured analyses the planner asked for; whole table, held-out scores, never a claim. */
+  planned_measured?: MeasuredAnalysis | null;
   advisory?: AdvisoryReport | null;
 }
 export interface ColumnNote {

@@ -5,12 +5,14 @@ import { claimTypeLabel, fmtEffect, fmtInt, fmtP, metricSymbol } from "../format
 import { CaveatLine, ConfoundCheck, PlainWords } from "./Advice";
 import { ClaimChart } from "./Charts";
 import { Exploration } from "./Exploration";
+import { MeasuredBody } from "./Measured";
 import { Arrow, Close, Download } from "./Icons";
 import { ProofCards, brokenAttack } from "./ProofCards";
 import { Badge, TestedTag, presentation } from "./Verdict";
 
 /** Insight IDs are built as `<claim_type>-<columns>`; fall back to the chart's kind. */
 function typeOf(row: ResultRow): string {
+  if (row.claim_type) return claimTypeLabel(row.claim_type);
   const prefix = row.insight_id.split("-")[0];
   if (["correlation", "trend", "distribution", "period_change", "seasonality"].includes(prefix)) return claimTypeLabel(prefix);
   if (row.insight_id.startsWith("group")) return "GROUP DIFFERENCE";
@@ -405,6 +407,15 @@ export function Results({
         </div>
 
       </div>
+
+      {results.planned_measured && results.planned_measured.items.length > 0 && (
+        <div className="report" style={{ marginTop: 48 }}>
+          <MeasuredBody
+            analysis={results.planned_measured}
+            title="Analyses the planner asked for"
+          />
+        </div>
+      )}
 
       {open && (
         <ProofDrawer

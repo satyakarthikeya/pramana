@@ -17,6 +17,7 @@ from uuid import UUID, uuid4
 
 import pandas as pd
 
+from pramana.common.logging import get_logger
 from pramana.common.paths import DATA_DIR
 from pramana.contracts import DataStructure, TableShape
 from pramana.orchestration.adapters import StateAdapter
@@ -74,6 +75,38 @@ def exploration_rows(frame: pd.DataFrame, structure: DataStructure) -> pd.DataFr
     from pramana.verification.schemes import exploration_frame
 
     return exploration_frame(frame, structure, load_verification_config())[0]
+
+
+def run_planned_measured(
+    frame: pd.DataFrame, schema: Any, shape: Any, requests: list[Any]
+) -> Any:
+    """The planner's accepted Measured requests, run on the whole cleaned table.
+
+    Guarantees: only requests the planner already linted and accepted are run, through
+    the Measured tier's closed menu; a failure is logged and gives None, never a partial
+    result. Nothing here becomes a claim, a verdict or a memory.
+    """
+    from pramana.analysis.measured import compute_measured
+    from pramana.analysis.measured.models import MeasuredRequest
+
+    try:
+        return compute_measured(
+            frame,
+            schema,
+            shape,
+            requests=[
+                MeasuredRequest(
+                    task=r.task, target=r.target, features=list(r.features),
+                    controls=list(r.controls),
+                )
+                for r in requests
+            ],
+        )
+    except Exception as error:  # a failed model fit must not take the run down
+        get_logger(component="planned-measured").warning(
+            "planned_measured_failed", error_type=type(error).__name__, error=str(error)
+        )
+        return None
 
 
 def native_analysis_adapters(
@@ -144,6 +177,7 @@ def native_analysis_adapters(
         if not state.dataset_ref:
             raise ValueError("cleaned dataset_ref is required before candidate generation")
         schema = SchemaProfile.model_validate(state.schema_profile)
+        whole = frame
         shape = None
         if hypotheses.proposer.engine == "planner":
             from pramana.analysis.shape import classify_shape
@@ -165,9 +199,14 @@ def native_analysis_adapters(
             lesson_hints=state.lesson_hints,
             shape=shape,
         )
-        return {
+        update: dict[str, Any] = {
             "candidate_insights": candidates,
             "exploration": exploration.model_dump(mode="json"),
         }
+        if exploration.measured_requests and shape is not None:
+            planned = run_planned_measured(whole, schema, shape, exploration.measured_requests)
+            if planned is not None:
+                update["planned_measured"] = planned.model_dump(mode="json")
+        return update
 
     return AnalysisNodeAdapters(ingest=ingest, prepare=prepare, analyze=analyze)

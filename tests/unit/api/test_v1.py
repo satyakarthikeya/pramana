@@ -154,6 +154,8 @@ def test_preview_progress_cap_and_two_run_hints_keep_pass_only_memory(
             # The proposer explores half the rows (PLAN D5), so the sample's decoy pairs no
             # longer always clear its scan; a real pair must still be proposed and verified.
             assert result["verified_insights"]
+            rows = result["verified_insights"] + result["rejected_claims"]
+            assert all(row["claim_type"] for row in rows)
             assert all(row["explanation"] for row in result["rejected_claims"])
             look = result["exploration"]
             assert look["engine"] == "scan" and look["examined"] >= look["proposed"] > 0

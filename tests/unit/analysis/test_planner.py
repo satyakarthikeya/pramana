@@ -454,3 +454,51 @@ def test_a_failed_model_call_fails_closed_and_keeps_the_transcript(
             measured_config=NO_MEASURED,
         )
     assert (tmp_path / "runs" / str(run_id) / "planner_transcript.json").exists()
+
+
+@pytest.mark.slow
+def test_accepted_measured_requests_run_on_the_whole_table(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The planner's driver request is run, on every row, and reaches the run state."""
+    from pramana.analysis.measured import runner as measured_runner
+    from pramana.analysis.planner import planner as planner_module
+    from pramana.common.config import load_runtime_config
+    from pramana.orchestration.analysis_integration import native_analysis_adapters
+    from pramana.orchestration.state import PramanaState
+
+    monkeypatch.setenv("PRAMANA_ANALYSIS_ENGINE", "planner")
+    adapters = native_analysis_adapters(data_dir=tmp_path)
+    frame = finance()
+    state = PramanaState(
+        run_id=uuid4(), runtime=load_runtime_config(), dataset=frame, dataset_ref="up.csv"
+    )
+    state = state.model_copy(update=adapters.prepare(state))
+    request = {
+        "task": "driver_regression",
+        "target": "units",
+        "features": ["revenue", "cost"],
+        "controls": [],
+        "reason_code": "suspected_driver",
+    }
+    script = Script(
+        spec(claims=[claim("trend", "month", "revenue", "positive")], measured_requests=[request])
+    )
+    monkeypatch.setattr(planner_module, "_default_chat", lambda *_a, **_k: script)
+    sizes: list[int] = []
+    real = measured_runner.compute_measured
+
+    def spy(rows: pd.DataFrame, *args: Any, **kwargs: Any) -> Any:
+        if kwargs.get("requests"):
+            sizes.append(len(rows))
+        return real(rows, *args, **kwargs)
+
+    monkeypatch.setattr(measured_runner, "compute_measured", spy)
+    monkeypatch.setattr("pramana.analysis.measured.compute_measured", spy)
+
+    update = adapters.analyze(state)
+
+    assert sizes == [len(frame)], "the requested analysis runs once, on the whole table"
+    planned = update["planned_measured"]
+    assert [item["kind"] for item in planned["items"]] == ["driver_regression"]
+    assert planned["items"][0]["target"] == "units"

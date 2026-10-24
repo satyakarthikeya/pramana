@@ -1,4 +1,11 @@
-import type { DatasetView, MeasuredItem, MeasuredKind, MeasuredStatus, Scalar } from "../api";
+import type {
+  DatasetView,
+  MeasuredAnalysis,
+  MeasuredItem,
+  MeasuredKind,
+  MeasuredStatus,
+  Scalar,
+} from "../api";
 import { fmtInt, fmtNum } from "../format";
 import { ExactChartView } from "./ReportCharts";
 
@@ -188,6 +195,20 @@ export function Measured({ dataset }: { dataset: DatasetView }) {
     }
     return null;
   }
+  return <MeasuredBody analysis={m} />;
+}
+
+/**
+ * Measured results for one table, whoever asked for them: the report's default plan, or
+ * the analyses the planner chose for a run (`title` says which).
+ */
+export function MeasuredBody({
+  analysis: m,
+  title = "Models scored on data they did not see",
+}: {
+  analysis: MeasuredAnalysis;
+  title?: string;
+}) {
   const parts = PARTS.map((part) => ({
     title: part.title,
     items: m.items.filter((i) => part.kinds.includes(i.kind)),
@@ -196,7 +217,7 @@ export function Measured({ dataset }: { dataset: DatasetView }) {
     <>
       <section className="panel report-section measured" aria-label="Measured results">
         <span className="label">Measured</span>
-        <h3>Models scored on data they did not see</h3>
+        <h3>{title}</h3>
         <p className="explain" style={{ marginTop: 8 }}>
           Each result below compares a model with a plain baseline on rows held back from fitting
           {m.sampled_rows !== null

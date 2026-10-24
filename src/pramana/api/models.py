@@ -159,6 +159,8 @@ class DatasetSummary(Payload):
 class ResultRow(Payload):
     insight_id: str
     claim: str
+    #: The claim's type, so the UI need not guess it from the insight id.
+    claim_type: str | None = None
     proof: ProofObject
     explanation: str | None = None
     effect_strength: str | None = None
@@ -174,6 +176,8 @@ class RunResults(Payload):
     candidate_count: int = Field(ge=0)
     unverified_candidate_count: int = Field(ge=0)
     exploration: ExplorationSummary | None = None
+    #: Measured analyses the planner asked for (whole table, held-out scores); never a claim.
+    planned_measured: MeasuredAnalysis | None = None
     #: Advisory summaries and confound caveats for the findings; never part of a verdict.
     advisory: AdvisoryReport | None = None
 
