@@ -38,10 +38,37 @@ export interface RunView {
   preview: DataPreview | null;
   past_lessons: RetrievedLesson[];
 }
+export type GateOutcome =
+  | "supported"
+  | "refuted"
+  | "negligible"
+  | "inconclusive"
+  | "not_testable"
+  | "fragile";
+export type PermutationScheme = "free" | "block_differenced" | "stratified" | "cluster" | "paired";
+export interface SplitRecord {
+  method: "random_rows" | "by_time" | "by_entity" | "none";
+  seed: number;
+  confirmation_fraction: number;
+  n_exploration: number;
+  n_confirmation: number;
+  confirmation_digest: string;
+}
+export type AttackOutcome = "survived" | "broken" | "not_run";
+export interface AttackResult {
+  attack_id: string;
+  name: string;
+  outcome: AttackOutcome;
+  reason: string;
+  original_effect: number | null;
+  attacked_effect: number | null;
+  n_rows: number | null;
+  details: Record<string, number | string | boolean | null>;
+}
 export interface Proof {
   insight_id: string;
   verdict: "PASS" | "REJECT";
-  gate_outcome: string;
+  gate_outcome: GateOutcome;
   bh_family_id: string;
   seed: number | null;
   p_value: number | null;
@@ -54,6 +81,11 @@ export interface Proof {
   asserted_direction: string | null;
   observed_direction: string | null;
   failure_reason: string | null;
+  reported_effect?: number | null;
+  reported_effect_metric?: string | null;
+  permutation_scheme?: PermutationScheme | null;
+  split?: SplitRecord | null;
+  attacks?: AttackResult[];
 }
 export interface ScatterChart {
   kind: "scatter";
@@ -85,6 +117,8 @@ export type ChartSpec = ScatterChart | GroupsChart;
 export interface ResultRow {
   insight_id: string;
   claim: string;
+  /** Present on runs recorded after the planner landed; older rows fall back to the id. */
+  claim_type?: string | null;
   proof: Proof;
   explanation: string | null;
   effect_strength: string | null;
@@ -151,6 +185,8 @@ export interface RunResults {
   candidate_count: number;
   unverified_candidate_count: number;
   exploration: ExplorationSummary | null;
+  /** Measured analyses the planner asked for; whole table, held-out scores, never a claim. */
+  planned_measured?: MeasuredAnalysis | null;
   advisory?: AdvisoryReport | null;
 }
 export interface ColumnNote {
@@ -185,8 +221,29 @@ export interface LedgerEntry {
   examined: number;
   duration_ms: number;
 }
+export interface PlanDrop {
+  what: "claim" | "measured_request" | "narrative_focus";
+  item: string;
+  reason_code: string;
+  reason: string;
+}
+export interface PlanRecord {
+  model: string;
+  shape: string;
+  shape_confirmation: { verdict: "confirm" | "flag"; note: string };
+  accepted_claims: { claim_type: string; variables: string[]; insight_id: string }[];
+  accepted_measured: { task: string; target: string | null }[];
+  accepted_focus: string[];
+  dropped: PlanDrop[];
+  turns: number;
+  repaired: boolean;
+  input_tokens: number;
+  output_tokens: number;
+}
 export interface ExplorationSummary {
-  engine: "scan" | "agent" | "api";
+  engine: "scan" | "agent" | "api" | "planner";
+  /** Planner runs only: what the plan asked for and what code accepted or dropped. */
+  plan?: PlanRecord | null;
   examined: number;
   proposed: number;
   tested: number;
@@ -212,6 +269,7 @@ export interface SystemStatus {
   };
   chat_ready: boolean;
   chat_blockers: string[];
+  alpha: number;
 }
 export type AnswerKind =
   | "descriptive"
@@ -280,6 +338,130 @@ export interface ChatLedger {
   limit: number;
   records: LedgerRecord[];
 }
+export type Scalar = number | string | boolean | null;
+export type ExactChart =
+  | { kind: "line"; x_label: string; y_label: string; points: [string, number][]; marks: string[] }
+  | {
+      kind: "bar";
+      x_label: string;
+      y_label: string;
+      value_format: "number" | "percent";
+      bars: { label: string; value: number; n: number | null }[];
+    }
+  | {
+      kind: "waterfall";
+      y_label: string;
+      start_label: string;
+      end_label: string;
+      start: number;
+      end: number;
+      steps: { label: string; value: number }[];
+    }
+  | { kind: "pareto"; y_label: string; bars: { label: string; value: number; cumulative_share: number }[] }
+  | { kind: "heat_strip"; label: string; cells: { label: string; index: number }[] }
+  | {
+      kind: "forecast";
+      x_label: string;
+      y_label: string;
+      interval_level: number;
+      actual: [string, number][];
+      forecast: [string, number][];
+      lower: [string, number][];
+      upper: [string, number][];
+    };
+export interface ReportSummary {
+  source: "template" | "model";
+  lines: { item_id: string; text: string }[];
+  fallback_reason: string | null;
+  pending: boolean;
+}
+export interface ExactItem {
+  id: string;
+  kind: string;
+  level: "exact";
+  status: "ok" | "not_run";
+  title: string;
+  sentence: string;
+  reason: string | null;
+  formula: string;
+  columns: string[];
+  filters: string[];
+  n_rows: number;
+  values: Record<string, Scalar>;
+  table: Record<string, Scalar>[];
+  chart: ExactChart | null;
+}
+export interface SectorMatch {
+  sector: string;
+  label: string;
+  score: number;
+  roles: Record<string, string>;
+  reasons: string[];
+}
+export interface ShapeProfile {
+  shape: "cross_section" | "time_series" | "panel" | "transactions";
+  time_column: string | null;
+  entity_column: string | null;
+  period: string | null;
+  n_periods: number;
+  full_cycles: number;
+  reasons: string[];
+}
+export interface ComputedAnalysis {
+  version: number;
+  sector: SectorMatch;
+  shape: ShapeProfile;
+  scope_note: string;
+  items: ExactItem[];
+  summary: ReportSummary | null;
+}
+export type MeasuredKind =
+  | "driver_regression"
+  | "driver_classification"
+  | "adjusted_association"
+  | "segments"
+  | "anomalies"
+  | "forecast"
+  | "threshold";
+export type MeasuredStatus = "ok" | "not_run" | "no_lift" | "withheld";
+export interface Exclusion {
+  column: string;
+  reason: string;
+}
+export interface MeasuredItem {
+  id: string;
+  kind: MeasuredKind;
+  level: "measured";
+  status: MeasuredStatus;
+  title: string;
+  sentence: string;
+  reason: string | null;
+  target: string | null;
+  features: string[];
+  model_family: string | null;
+  models_tried: number;
+  split: string;
+  baseline: string | null;
+  metric: string | null;
+  baseline_score: number | null;
+  model_score: number | null;
+  lift: number | null;
+  spread: number | null;
+  n_rows: number;
+  values: Record<string, Scalar>;
+  table: Record<string, Scalar>[];
+  chart: ExactChart | null;
+  leakage: Exclusion[];
+}
+export interface MeasuredAnalysis {
+  version: number;
+  seed: number;
+  n_rows: number;
+  sampled_rows: number | null;
+  items: MeasuredItem[];
+  excluded: Exclusion[];
+  seconds: number;
+}
 export interface DatasetView {
   dataset_id: string;
   name: string;
@@ -289,6 +471,10 @@ export interface DatasetView {
   preview: DataPreview;
   overview: DataOverview | null;
   brief: DataBrief | null;
+  computed: ComputedAnalysis | null;
+  measured?: MeasuredAnalysis | null;
+  measured_pending?: boolean;
+  measured_failed_version?: number;
 }
 export interface DatasetSummary {
   dataset_id: string;
@@ -352,9 +538,10 @@ export const api = {
   logout(): Promise<void> {
     return fetch("/api/auth/logout", { method: "POST" }).then(() => undefined);
   },
-  uploadDataset(file: File): Promise<DatasetView> {
+  uploadDataset(file: File, name: string): Promise<DatasetView> {
     const form = new FormData();
     form.append("file", file);
+    if (name.trim()) form.append("name", name.trim());
     return fetch("/api/datasets", { method: "POST", body: form }).then((r) => json<DatasetView>(r));
   },
   datasets(): Promise<DatasetSummary[]> {

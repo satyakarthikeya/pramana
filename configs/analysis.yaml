@@ -123,6 +123,110 @@ workspace:
     max_messages_per_hour: 60     # per account
     temperature: 0.0
 
+computed:
+  # The Exact tier (PLAN §5.1): arithmetic on the uploaded table, shown with its formula.
+  # Nothing here is a statistical threshold and nothing here reaches the gateway or memory.
+  sector_engine: api            # api (DeepSeek reads column names, traced) | rules (offline)
+  summary_engine: api           # api (DeepSeek rewords the top figures, number-checked) | template
+  max_chart_points: 120         # periods drawn per line chart (most recent); keeps stored views small
+  max_measures: 6               # numeric columns analysed per table
+  max_segments: 12              # rows shown per segment table; the rest are grouped as "other"
+  max_outliers_listed: 5
+  outlier_robust_z: 3.5         # |x - median| / (1.4826 * MAD) at or above this is listed
+  seasonality_min_cycles: 2     # complete years of monthly/quarterly data before a seasonal profile
+  min_prevalence_rows: 30       # rows with a value (and a weight) before a share is shown
+  min_group_rows: 10            # rows a breakdown group needs before its share is shown
+  identity_min_rows: 10         # complete rows before an identity can be reported
+  identity_rel_tolerance: 0.001 # relative difference counted as "equal"
+  identity_min_match: 0.99      # share of rows that must match
+
+measured:
+  # The Measured tier (PLAN §5.2): closed-menu models scored on data they did not see, always
+  # against a baseline. Every cutoff below is PROVISIONAL until the verification owner reviews
+  # it against the planted suites (PLAN §8). Nothing here is a statistical test, a verdict or a
+  # gateway threshold, and nothing here reaches the gateway, a model or memory.
+  enabled: true                 # false skips the tier entirely (tests pin it off; PRAMANA_MEASURED_ENABLED overrides)
+  seed: 20260817                # every split, shuffle, bootstrap and forest; logged on the result
+  max_rows: 2000                # rows used by the models (a seeded sample above this; forecasts use every row)
+  max_features: 12              # columns offered to a model, chosen by completeness and column order, never by the target
+  max_missing_fraction: 0.5     # a column missing more than this is not offered to a model
+  max_categorical_levels: 12    # a text column with more levels than this is not offered as a feature
+  time_budget_seconds: 180      # tasks not started before this are shown as "not run"
+  min_rows: 60                  # fewer usable rows than this and no model is fitted
+  outer_folds: 5                # held-out folds that produce the reported score
+  inner_folds: 3                # folds used inside each training part to pick between grid settings
+  min_class_rows: 20            # rows the smallest class needs before a class target is modelled
+  max_class_levels: 6
+  lift_floor: 0.02              # held-out lift (R-squared or balanced accuracy) at or below this is "no model beat the baseline"
+  too_good_cutoff: 0.995        # a held-out score at or above this is withheld ("too good to be true")
+  leakage:
+    id_unique_ratio: 0.98       # integer or text column with this share of distinct values is an identifier
+    proxy_cutoff: 0.95          # a single feature scoring this alone on held-out rows is excluded as a proxy
+    proxy_folds: 3
+    identity_rel_tolerance: 0.001     # relative difference counted as an exact identity
+    identity_min_match: 0.99    # share of complete rows that must match
+    identity_min_rows: 20
+    max_identity_columns: 30    # numeric columns searched for sums and differences of the target
+  importance:
+    correlated_rho: 0.8         # features with |spearman| above this are shuffled together as one group
+    repeats: 3                  # shuffles per feature group per held-out fold
+  grids:                        # fixed small grids; their full size is reported as "models tried"
+    ridge_alpha: [0.1, 1.0, 10.0, 100.0]
+    forest_trees: 40
+    forest_depth: [4, 8]
+    boosting_trees: 40
+    boosting_depth: [2, 3]
+    boosting_rate: [0.1]
+    svm_c: [0.5, 5.0]
+    svm_max_rows: 1500          # support vector machines are left out above this many rows (they scale badly)
+    logistic_c: [0.1, 1.0, 10.0]
+  segments:
+    k_min: 2
+    k_max: 6
+    train_fraction: 0.7
+    null_repeats: 5             # column-shuffled copies of the table clustered the same way
+    silhouette_margin: 0.05     # held-out silhouette must beat the best shuffled one by this much
+    bootstrap_repeats: 20
+    ari_cutoff: 0.6             # adjusted Rand index between bootstrap and full-data groupings
+    min_segment_share: 0.03
+    max_profile_columns: 6
+  anomalies:
+    flag_fraction: 0.02         # share of rows flagged as unusual in combination
+    seeds: 5
+    robust_z: 3.5               # single-column rule, same cutoff as the Exact tier
+    rank_stability_cutoff: 0.8  # mean rank correlation between seeds before the flags are shown
+    max_listed: 10
+    max_shared_columns: 4
+    shared_min_shift: 1.5       # a column is named as shared when the flagged rows' median sits this many robust sd from the rest
+  forecast:
+    min_periods: 12             # fewer periods than this and nothing is forecast
+    min_cycles: 2               # full seasonal cycles needed to model seasonality
+    origins: 6                  # rolling-origin backtest origins (fewer if the series is short)
+    min_origins: 3
+    horizon:                    # periods ahead, per period type
+      month: 6
+      quarter: 2
+      week: 8
+      day: 7
+      year: 1
+      index: 1
+    seasonal_length:            # periods per cycle (1 = no seasonality modelled)
+      month: 12
+      quarter: 4
+      week: 52
+      day: 7
+      year: 1
+      index: 1
+    interval_level: 0.8         # nominal coverage of the prediction interval
+    lift_floor_relative: 0.05   # error must be this fraction lower than the baseline's to count
+    max_gap_fraction: 0.1       # missing periods tolerated (filled by interpolation)
+    max_chart_points: 120
+  threshold:
+    grid_points: 15
+    edge_fraction: 0.15         # a breakpoint must leave this share of rows on each side
+    bootstrap_repeats: 30
+    max_chart_points: 25
+
 advisory:
   # After the gate: caveats and plain-language summaries for PASS findings. Nothing here can
   # change a verdict, add a claim to the run, or write to memory.
@@ -146,3 +250,26 @@ advisory:
     max_output_tokens: 900
     timeout_seconds: 45           # one model call per run, no retry
     temperature: 0.0
+
+planner:
+  # The planner (PLAN §6), used when hypotheses.proposer.engine is `planner`. DeepSeek reads a
+  # brief of Exact and Measured results computed on the EXPLORATION rows only and returns a
+  # structured AnalysisSpec; code validates every column, claim and request. Nothing here is a
+  # statistical threshold and nothing here reaches the gateway's decision.
+  max_claims: 8                 # claims accepted from one plan (further ones are dropped as over budget)
+  max_measured_requests: 4      # Measured requests accepted from one plan
+  max_narrative_focus: 5        # item ids that may lead the summary
+  max_exact_figures: 12         # Exact figures shown to the model (code-ranked)
+  max_measured_figures: 8       # Measured headlines shown to the model
+  max_columns: 24               # columns described to the model
+  max_levels: 8                 # levels listed per label column
+  max_prompt_chars: 24000       # system plus brief; over this the run stops rather than truncating silently
+  max_output_tokens: 1800
+  max_total_tokens: 30000       # input plus output over the one call and its repair
+  max_repair_turns: 1           # one extra turn if the first reply is not valid JSON for the spec
+  temperature: 0.0
+  cheap_measured:               # the brief's Measured pass: small on purpose, never the user's numbers
+    max_rows: 400
+    outer_folds: 3
+    inner_folds: 2
+    time_budget_seconds: 40

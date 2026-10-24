@@ -60,6 +60,8 @@ NHANES: dict[str, Variable] = {
     "LBXTC": Variable("Total cholesterol", "mg/dL"),
     "LBDHDD": Variable("Direct HDL cholesterol", "mg/dL"),
     "LBDLDL": Variable("LDL cholesterol", "mg/dL"),
+    "WTMEC2YR": Variable("Full sample 2-year MEC exam weight (survey weight)"),
+    "WTINT2YR": Variable("Full sample 2-year interview weight (survey weight)"),
     "SMQ020": Variable(
         "Smoked at least 100 cigarettes in life",
         None,

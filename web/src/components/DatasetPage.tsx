@@ -6,6 +6,8 @@ import { useWorkspace } from "../store";
 import { AppShell } from "./AppShell";
 import { Ask } from "./Ask";
 import { Brief } from "./Brief";
+import { Computed } from "./Computed";
+import { Measured } from "./Measured";
 import { Overview } from "./Charts";
 import { Arrow } from "./Icons";
 import { Processing } from "./Processing";
@@ -22,6 +24,11 @@ function Overviewtab({ dataset }: { dataset: DatasetView }) {
   const p = dataset.preview;
   const heads = p.sample_rows[0] ? Object.keys(p.sample_rows[0]) : [];
   return (
+    <>
+    {dataset.computed && <Computed computed={dataset.computed} />}
+    <div className="report">
+      <Measured dataset={dataset} />
+    </div>
     <div className="results split">
       <div className="col-stack">
         {dataset.brief && <Brief brief={dataset.brief} />}
@@ -101,6 +108,7 @@ function Overviewtab({ dataset }: { dataset: DatasetView }) {
         )}
       </div>
     </div>
+    </>
   );
 }
 
@@ -223,6 +231,16 @@ export function DatasetPage({ id, tab, runId }: { id: string; tab: Tab; runId: s
     loadRuns();
   }, [id, loadRuns]);
 
+  // Measured results are built after the upload response; follow them without faking progress.
+  const pending = Boolean(dataset?.measured_pending);
+  useEffect(() => {
+    if (!pending) return;
+    const timer = window.setTimeout(() => {
+      api.dataset(id).then(setDataset, () => undefined);
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [pending, id, dataset]);
+
   const finished = useCallback(() => {
     loadRuns();
     refresh();
@@ -301,7 +319,14 @@ export function DatasetPage({ id, tab, runId }: { id: string; tab: Tab; runId: s
           {system && (
             <div className="system-line">
               <span className="chip">
-                Analyst: {system.analysis_engine === "deterministic" ? "rule scan, no model" : system.analysis_engine === "agent" ? "model agent with tools" : "model proposer"}
+                Analyst:{" "}
+                {
+                  {
+                    deterministic: "rule scan, no model",
+                    agent: "model agent with tools",
+                    planner: "model planner",
+                  }[system.analysis_engine] ?? "model proposer"
+                }
               </span>
               <span className="chip">
                 Test code: {system.verification_generator === "llm" ? "model-written" : "built-in templates"}

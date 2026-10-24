@@ -25,6 +25,7 @@ def test_offline_profile_needs_no_keys(tmp_path: Path, monkeypatch: pytest.Monke
     assert status["analysis_engine"] == "deterministic" and status["model"] is None
     assert status["blockers"] == [] and status["model_ready"] is False
     assert status["budgets"]["max_total_tokens"] > 0
+    assert 0 < status["alpha"] < 1
 
 
 def test_model_engines_name_exactly_what_is_missing(

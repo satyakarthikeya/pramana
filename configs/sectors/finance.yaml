@@ -1,0 +1,33 @@
+# configs/sectors/finance.yaml -- a sector pack (PLAN §14). DATA ONLY: it selects and
+# parameterises core analyses; it cannot add code. A new sector is a new file like this.
+
+name: finance
+label: Finance
+description: Revenue, cost and profit tables by period and segment (ledgers, sales, P&L).
+
+# Column-name tokens -> semantic role. Matching is on whole name tokens
+# (snake_case, kebab-case, camelCase and spaces are split), case-insensitive.
+roles:
+  amount: [revenue, revenues, sales, turnover, income, amount, gross, receipts, collections, billing, billings]
+  cost: [cost, costs, expense, expenses, spend, spending, cogs, expenditure, opex, capex]
+  profit: [profit, profits, ebit, ebitda, earnings, net, margin]
+  quantity: [qty, quantity, units, volume, orders]
+  price: [price, unitprice]
+  entity: [region, branch, store, segment, department, category, product, customer, country, state, city, channel, account, division, zone, district]
+
+# Roles that are additive measures: summed per period and per segment.
+measures: [amount, cost, profit, quantity]
+
+# Roles that cannot be negative in a clean table; negatives are a data-quality issue.
+nonnegative: [amount, cost, quantity, price]
+
+# Known identities. A column that equals this expression is reported, not analysed twice.
+identities:
+  - {result: profit, op: difference, inputs: [amount, cost]}
+
+# Core analyses this sector runs, in display order.
+analyses: [period_change, variance_decomposition, concentration, segment_ranking, outliers, seasonality, identity, data_quality]
+
+wording:
+  scope_note: Figures are computed from this table only. They describe what happened, not why.
+  refusal: PRAMANA does not give investment advice.

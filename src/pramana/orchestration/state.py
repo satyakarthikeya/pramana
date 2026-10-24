@@ -10,7 +10,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from pramana.common.config import RuntimeConfig
-from pramana.contracts import CandidateInsight, ProofObject
+from pramana.contracts import CandidateInsight, DataStructure, ProofObject
 from pramana.verification.gateway import BatchSummary
 
 
@@ -57,8 +57,17 @@ class PramanaState(BaseModel):
     cleaning_report: dict[str, Any] = Field(default_factory=dict)
     dataset_profile: dict[str, Any] = Field(default_factory=dict)
     schema_profile: dict[str, Any] = Field(default_factory=dict)
+    data_structure: DataStructure | None = Field(
+        default=None,
+        description="How the rows depend on each other, classified in preparation. The "
+        "proposer sees only the exploration split and the gate only the confirmation "
+        "split (PLAN D5).",
+    )
     candidate_insights: list[CandidateInsight] = Field(default_factory=list)
     exploration: dict[str, Any] | None = None
+    #: Measured analyses the planner asked for, run on the whole cleaned table (they hold
+    #: data out themselves). Shown to the user only; never a claim or a memory (D3, D5).
+    planned_measured: dict[str, Any] | None = None
     proof_objects: list[ProofObject] = Field(default_factory=list)
     verification_summary: BatchSummary | None = None
     memory_receipts: list[Any] = Field(default_factory=list)

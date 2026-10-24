@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -113,6 +114,156 @@ def test_upload_includes_the_data_readers_brief_and_old_datasets_get_one(tmp_pat
             connection.execute("UPDATE datasets SET view_json = ?", (json.dumps(legacy),))
         again = client.get(f"/api/datasets/{view['dataset_id']}").json()
         assert again["brief"] == brief
+
+
+def _finance_csv() -> bytes:
+    from tests.unit.analysis.computed_fixtures import finance_year
+
+    return finance_year().to_csv(index=False).encode()
+
+
+def test_upload_includes_the_exact_tier_with_sector_and_shape(tmp_path: Path) -> None:
+    with TestClient(create_app(service=service_for(tmp_path))) as client:
+        sign_in(client)
+        view = client.post("/api/datasets", files={"file": ("pl.csv", _finance_csv())}).json()
+        computed = view["computed"]
+        assert computed["sector"]["sector"] == "finance"
+        assert computed["shape"]["shape"] == "panel"
+        kinds = {item["kind"] for item in computed["items"]}
+        assert {"period_change", "variance_decomposition", "identity"} <= kinds
+        assert all(item["level"] == "exact" for item in computed["items"])
+
+
+def test_the_model_summary_is_written_after_upload_without_blocking_it(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from pramana.analysis.computed.models import ReportSummary, SummaryLine
+    from pramana.api import datasets
+
+    monkeypatch.setenv("PRAMANA_SUMMARY_ENGINE", "api")
+    calls = []
+
+    def fake(result, *, engine, trace_id, chat=None):
+        calls.append((engine, trace_id))
+        first = result.items[0]
+        return ReportSummary(source="model", lines=[SummaryLine(item_id=first.id, text="x")])
+
+    monkeypatch.setattr(datasets, "summarise", fake)
+    with TestClient(create_app(service=service_for(tmp_path))) as client:
+        sign_in(client)
+        view = client.post("/api/datasets", files={"file": ("pl.csv", _finance_csv())}).json()
+        assert view["computed"]["summary"]["source"] == "template"  # the upload reply
+        again = client.get(f"/api/datasets/{view['dataset_id']}").json()
+        assert again["computed"]["summary"]["source"] == "model"
+        assert calls == [("api", __import__("uuid").UUID(view["dataset_id"]))]
+        client.get(f"/api/datasets/{view['dataset_id']}")
+        assert len(calls) == 1  # never re-asked once a model summary is stored
+
+
+def test_a_failed_rebuild_is_not_retried_on_every_open(tmp_path: Path, monkeypatch) -> None:
+    import json
+    import sqlite3
+
+    from pramana.api import datasets
+
+    calls = []
+    monkeypatch.setattr(datasets, "compute_exact_tier", lambda *a, **k: calls.append(1))
+    with TestClient(create_app(service=service_for(tmp_path))) as client:
+        sign_in(client)
+        view = client.post("/api/datasets", files={"file": ("pl.csv", _finance_csv())}).json()
+        with sqlite3.connect(tmp_path / "api/runs.sqlite3") as connection:
+            stored = json.loads(connection.execute("SELECT view_json FROM datasets").fetchone()[0])
+            stored["computed"]["version"] = 1  # older: one rebuild is due
+            connection.execute("UPDATE datasets SET view_json = ?", (json.dumps(stored),))
+        for _ in range(3):
+            assert client.get(f"/api/datasets/{view['dataset_id']}").status_code == 200
+        assert len(calls) == 1
+
+
+def test_a_pending_summary_is_not_requested_twice(tmp_path: Path) -> None:
+    from pramana.analysis.computed.models import ReportSummary
+    from pramana.api.datasets import DatasetRepository
+
+    with TestClient(create_app(service=service_for(tmp_path))) as client:
+        sign_in(client)
+        view = client.post("/api/datasets", files={"file": ("pl.csv", _finance_csv())}).json()
+    stored = DatasetRepository._load(json.dumps(view))
+    assert stored.computed is not None
+    pending = stored.computed.model_copy(
+        update={"summary": ReportSummary(source="template", lines=[], pending=True)}
+    )
+    assert not DatasetRepository.needs_model_summary(
+        stored.model_copy(update={"computed": pending})
+    )
+
+
+def test_the_upload_route_does_not_block_the_event_loop() -> None:
+    import inspect
+
+    from pramana.api.routes import datasets as route
+
+    source = inspect.getsource(route.upload_dataset)
+    assert "run_in_threadpool(" in source  # model calls happen off the event loop
+
+
+def test_an_older_analysis_version_is_rebuilt_on_open(tmp_path: Path) -> None:
+    import json
+    import sqlite3
+
+    with TestClient(create_app(service=service_for(tmp_path))) as client:
+        sign_in(client)
+        view = client.post("/api/datasets", files={"file": ("pl.csv", _finance_csv())}).json()
+        with sqlite3.connect(tmp_path / "api/runs.sqlite3") as connection:
+            stored = json.loads(connection.execute("SELECT view_json FROM datasets").fetchone()[0])
+            stored["computed"]["version"] = 1
+            for item in stored["computed"]["items"]:
+                item.pop("chart", None)
+            connection.execute("UPDATE datasets SET view_json = ?", (json.dumps(stored),))
+        reopened = client.get(f"/api/datasets/{view['dataset_id']}").json()
+        assert reopened["computed"]["version"] == view["computed"]["version"]
+        assert any(item["chart"] for item in reopened["computed"]["items"])
+
+
+def test_the_sector_is_decided_by_the_system_with_no_user_switch(tmp_path: Path) -> None:
+    with TestClient(create_app(service=service_for(tmp_path))) as client:
+        sign_in(client)
+        view = client.post("/api/datasets", files={"file": ("pl.csv", _finance_csv())}).json()
+        put = client.put(f"/api/datasets/{view['dataset_id']}/sector", json={"sector": "health"})
+        assert put.status_code in {404, 405}
+
+
+def test_the_user_names_the_dataset_at_upload(tmp_path: Path) -> None:
+    with TestClient(create_app(service=service_for(tmp_path))) as client:
+        sign_in(client)
+        named = client.post(
+            "/api/datasets",
+            files={"file": ("pl.csv", _finance_csv())},
+            data={"name": "  Sales   FY2025 "},
+        ).json()
+        assert named["name"] == "Sales FY2025"
+        assert client.get("/api/datasets").json()[0]["name"] == "Sales FY2025"
+        unnamed = client.post("/api/datasets", files={"file": ("pl.csv", _finance_csv())}).json()
+        assert unnamed["name"] == "pl.csv"
+        too_long = client.post(
+            "/api/datasets", files={"file": ("pl.csv", _finance_csv())}, data={"name": "x" * 121}
+        )
+        assert too_long.status_code == 422
+
+
+def test_old_datasets_get_the_exact_tier_and_a_stale_one_never_breaks_them(tmp_path: Path) -> None:
+    import json
+    import sqlite3
+
+    with TestClient(create_app(service=service_for(tmp_path))) as client:
+        sign_in(client)
+        view = client.post("/api/datasets", files={"file": ("pl.csv", _finance_csv())}).json()
+        with sqlite3.connect(tmp_path / "api/runs.sqlite3") as connection:
+            stored = json.loads(connection.execute("SELECT view_json FROM datasets").fetchone()[0])
+            stored["computed"] = {"an_old_format": True}
+            connection.execute("UPDATE datasets SET view_json = ?", (json.dumps(stored),))
+        reopened = client.get(f"/api/datasets/{view['dataset_id']}")
+        assert reopened.status_code == 200
+        assert reopened.json()["computed"] == view["computed"]
 
 
 def test_a_brief_written_by_an_older_version_never_breaks_a_saved_dataset(tmp_path: Path) -> None:

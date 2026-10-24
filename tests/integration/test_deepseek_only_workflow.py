@@ -15,11 +15,13 @@ from pramana.analysis.schema_inference import infer_schema
 from pramana.common import llm_client
 from pramana.contracts import Verdict
 from pramana.orchestration.adapters import inprocess_verification_adapter
+from pramana.orchestration.analysis_integration import data_structure_for
 from pramana.orchestration.graph import build_graph, run_graph
 from pramana.orchestration.integration import configured_adapters
 from pramana.orchestration.state import RunStatus
 from pramana.verification.config import load_config as verification_config
 from pramana.verification.falsification.generator import generate_from_template
+from pramana.verification.schemes import assign_plan, with_period_column
 from tests.fixtures.frames import toy_frame
 from tests.unit.analysis.test_llm_proposer import claim
 from tests.unit.orchestration.helpers import make_run
@@ -54,7 +56,12 @@ def test_two_deepseek_roles_execute_real_tests_and_share_run_trace(
         allowed={"age", "bmi"},
     )
     assert candidate is not None
-    source_code = generate_from_template(candidate, gateway).source
+    # The fake DeepSeek returns the program for the null the gate assigns this table
+    # (it has a `month` column, so rows are compared within months; PLAN D6).
+    structure = data_structure_for(frame, infer_schema(frame, config.schema_inference))
+    plan = assign_plan(candidate, with_period_column(frame, structure), structure, gateway)
+    assert not isinstance(plan, str)
+    source_code = generate_from_template(candidate, gateway, plan).source
     tracing = MagicMock()
     tracing.auth_check.return_value = True
     monkeypatch.setattr(llm_client, "get_langfuse_client", lambda _: tracing)

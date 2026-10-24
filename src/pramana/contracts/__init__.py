@@ -9,25 +9,35 @@ Owner: P.P. Satya Karthikeya
 Scope: SCOPE.md
 """
 
+from pramana.contracts.attack import AttackOutcome, AttackResult
 from pramana.contracts.candidate_insight import CandidateInsight
 from pramana.contracts.enums import (
     ClaimType,
     Direction,
     EffectMetric,
     GateOutcome,
+    PermutationScheme,
+    TableShape,
     TestType,
     Verdict,
 )
 from pramana.contracts.proof_object import ProofObject, ScoreComponents
+from pramana.contracts.structure import DataStructure, SplitRecord
 
 __all__ = [
+    "AttackOutcome",
+    "AttackResult",
     "CandidateInsight",
     "ClaimType",
+    "DataStructure",
     "Direction",
     "EffectMetric",
     "GateOutcome",
+    "PermutationScheme",
     "ProofObject",
     "ScoreComponents",
+    "SplitRecord",
+    "TableShape",
     "TestType",
     "Verdict",
 ]

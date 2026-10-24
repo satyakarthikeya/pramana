@@ -109,6 +109,7 @@ REQUIRED_KEYS: frozenset[str] = frozenset(
         "statistic",
         "n_permutations",
         "seed",
+        "scheme",
         "provenance",
     }
 )
@@ -116,7 +117,7 @@ REQUIRED_KEYS: frozenset[str] = frozenset(
 #: The fields the stamp covers, in the order `permutation_test` hashes them. Changing
 #: this tuple without changing `stats/permutation.py` breaks every verification, which
 #: is exactly the coupling we want: the two must agree or nothing passes.
-_STAMPED_FIELDS = ("p_value", "statistic", "n_permutations", "seed")
+_STAMPED_FIELDS = ("p_value", "statistic", "n_permutations", "seed", "scheme")
 
 #: Environment variables the child may inherit. This is what an interpreter needs to
 #: BOOT, and nothing more: `SYSTEMROOT` is required by Python's startup on Windows,
@@ -190,7 +191,9 @@ def _failed(insight_id: str, reason: str, attempts: int = 1) -> ExecutionResult:
     return ExecutionResult(ok=False, failure_reason=reason, attempts=attempts)
 
 
-def _validate_payload(payload: object, nonce: str, config: VerificationConfig) -> str | None:
+def _validate_payload(
+    payload: object, nonce: str, config: VerificationConfig, expected_scheme: str = "free"
+) -> str | None:
     """The reason `payload` is unusable, or None if it survives every check.
 
     The order is deliberate: structural problems are reported before the provenance
@@ -254,6 +257,14 @@ def _validate_payload(payload: object, nonce: str, config: VerificationConfig) -
             "provenance check failed: the result carries no valid stamp for this run, so "
             "it did not come from pramana.verification.stats. Numbers that look right are "
             "not evidence -- only numbers the audited function produced are."
+        )
+
+    if payload["scheme"] != expected_scheme:
+        return (
+            f"the test built its null with scheme {payload['scheme']!r}, but the gate "
+            f"assigned {expected_scheme!r} for how these rows depend on each other. A "
+            f"correctly stamped result under the wrong null is still a p-value for a "
+            f"different question (PLAN D6)."
         )
 
     expected_n = config.statistics.n_permutations
@@ -339,7 +350,7 @@ def _run_once(
         except json.JSONDecodeError as error:
             return None, f"result is not valid JSON ({error.msg}); it cannot be trusted", False
 
-        reason = _validate_payload(payload, nonce, config)
+        reason = _validate_payload(payload, nonce, config, program.scheme.value)
         return (None, reason, False) if reason else (payload, None, False)
 
 
@@ -383,7 +394,11 @@ def execute(
     except ImportPolicyViolation as violation:
         return _failed(program.insight_id, f"import policy violation: {violation}")
     try:
-        check_columns(program.source, (program.var_x, program.var_y), program.claim_type)
+        check_columns(
+            program.source,
+            (program.var_x, program.var_y, *program.structure_columns),
+            program.claim_type,
+        )
     except ColumnPolicyViolation as violation:
         return _failed(program.insight_id, f"{COLUMN_POLICY_REASON_PREFIX}: {violation}")
 

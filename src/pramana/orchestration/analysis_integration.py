@@ -17,7 +17,9 @@ from uuid import UUID, uuid4
 
 import pandas as pd
 
+from pramana.common.logging import get_logger
 from pramana.common.paths import DATA_DIR
+from pramana.contracts import DataStructure, TableShape
 from pramana.orchestration.adapters import StateAdapter
 from pramana.orchestration.state import PramanaState
 
@@ -50,6 +52,61 @@ def _persist_cleaned_frame(frame: pd.DataFrame, run_id: UUID, data_dir: Path) ->
     finally:
         temporary.unlink(missing_ok=True)
     return str(target.resolve())
+
+
+def data_structure_for(frame: pd.DataFrame, schema: Any) -> DataStructure:
+    """The table's shape as the gate needs it, from the analysis shape classifier."""
+    from pramana.analysis.shape import classify_shape
+
+    shape = classify_shape(frame, schema)
+    period = shape.period if shape.time_column else None
+    return DataStructure(
+        shape=TableShape(shape.shape.value),
+        time_column=shape.time_column,
+        entity_column=shape.entity_column if shape.time_column else None,
+        period=period,
+        declared_by="shape_classifier",
+    )
+
+
+def exploration_rows(frame: pd.DataFrame, structure: DataStructure) -> pd.DataFrame:
+    """The exploration split of `frame`: no row the gate will test on."""
+    from pramana.verification.config import load_config as load_verification_config
+    from pramana.verification.schemes import exploration_frame
+
+    return exploration_frame(frame, structure, load_verification_config())[0]
+
+
+def run_planned_measured(
+    frame: pd.DataFrame, schema: Any, shape: Any, requests: list[Any]
+) -> Any:
+    """The planner's accepted Measured requests, run on the whole cleaned table.
+
+    Guarantees: only requests the planner already linted and accepted are run, through
+    the Measured tier's closed menu; a failure is logged and gives None, never a partial
+    result. Nothing here becomes a claim, a verdict or a memory.
+    """
+    from pramana.analysis.measured import compute_measured
+    from pramana.analysis.measured.models import MeasuredRequest
+
+    try:
+        return compute_measured(
+            frame,
+            schema,
+            shape,
+            requests=[
+                MeasuredRequest(
+                    task=r.task, target=r.target, features=list(r.features),
+                    controls=list(r.controls),
+                )
+                for r in requests
+            ],
+        )
+    except Exception as error:  # a failed model fit must not take the run down
+        get_logger(component="planned-measured").warning(
+            "planned_measured_failed", error_type=type(error).__name__, error=str(error)
+        )
+        return None
 
 
 def native_analysis_adapters(
@@ -107,6 +164,7 @@ def native_analysis_adapters(
         cleaned_ref = _persist_cleaned_frame(cleaned, state.run_id, artifact_root)
         schema = infer_schema(cleaned, analysis_config.schema_inference)
         return {
+            "data_structure": data_structure_for(cleaned, schema),
             "dataset": cleaned,
             "dataset_ref": cleaned_ref,
             "cleaning_report": cleaning_report.model_dump(mode="json"),
@@ -119,6 +177,17 @@ def native_analysis_adapters(
         if not state.dataset_ref:
             raise ValueError("cleaned dataset_ref is required before candidate generation")
         schema = SchemaProfile.model_validate(state.schema_profile)
+        whole = frame
+        shape = None
+        if hypotheses.proposer.engine == "planner":
+            from pramana.analysis.shape import classify_shape
+
+            # The planner validates claims against the table's shape; classify the whole
+            # cleaned table, exactly as `prepare` did for the gateway.
+            shape = classify_shape(frame, schema)
+        if state.data_structure is not None:
+            # The proposer never sees a confirmation row (PLAN D5).
+            frame = exploration_rows(frame, state.data_structure)
         candidates, exploration = explore_and_propose(
             frame,
             schema,
@@ -128,10 +197,16 @@ def native_analysis_adapters(
             brief=read_data(frame, schema),
             user_query=state.user_query,
             lesson_hints=state.lesson_hints,
+            shape=shape,
         )
-        return {
+        update: dict[str, Any] = {
             "candidate_insights": candidates,
             "exploration": exploration.model_dump(mode="json"),
         }
+        if exploration.measured_requests and shape is not None:
+            planned = run_planned_measured(whole, schema, shape, exploration.measured_requests)
+            if planned is not None:
+                update["planned_measured"] = planned.model_dump(mode="json")
+        return update
 
     return AnalysisNodeAdapters(ingest=ingest, prepare=prepare, analyze=analyze)

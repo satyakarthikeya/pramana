@@ -13,8 +13,24 @@ from uuid import UUID
 import pandas as pd
 from pydantic import ValidationError
 
+from pramana.analysis.computed import (
+    COMPUTED_VERSION,
+    ComputedAnalysis,
+    compute_analysis,
+    load_computed_config,
+)
+from pramana.analysis.computed.summary import summarise
+from pramana.analysis.measured import (
+    MEASURED_VERSION,
+    MeasuredAnalysis,
+    compute_measured,
+    load_measured_config,
+)
 from pramana.analysis.reader import DataBrief, read_data
 from pramana.analysis.schema_inference import SchemaProfile
+from pramana.analysis.sector_model import detect_sector_with_model
+from pramana.analysis.sectors import load_packs, pack_for
+from pramana.analysis.shape import classify_shape
 from pramana.api.charts import data_overview
 from pramana.api.models import (
     ColumnPreview,
@@ -23,6 +39,9 @@ from pramana.api.models import (
     DatasetView,
     RunView,
 )
+from pramana.common.logging import get_logger
+
+logger = get_logger(component="datasets")
 
 MAX_PREVIEW_COLUMNS = 40
 MAX_LISTED_COLUMNS = 100
@@ -67,6 +86,82 @@ def build_preview(
     )
 
 
+def exact_tier(
+    frame: pd.DataFrame, schema: SchemaProfile, *, trace_id: UUID
+) -> ComputedAnalysis | None:
+    """The Exact tier for a cleaned table, or None if it cannot be built at all.
+
+    The sector is private to the system: with `sector_engine: api` DeepSeek picks it
+    from column names (traced under `trace_id`, the dataset's id), otherwise the rules
+    do. Each analysis already fails on its own; this only guards detection and shape,
+    so a strange table can lose the section but never the upload.
+    """
+    try:
+        config = load_computed_config()
+        packs = load_packs()
+        detected = None
+        if config.sector_engine == "api":
+            detected = detect_sector_with_model(frame, schema, packs, trace_id=trace_id)
+        return compute_analysis(frame, schema, config=config, packs=packs, detected=detected)
+    except Exception:
+        logger.exception("exact_tier_failed")
+        return None
+
+
+def compute_exact_tier(path: Path, *, trace_id: UUID) -> ComputedAnalysis | None:
+    """Rebuild the Exact tier for a stored file, or None if it cannot be read."""
+    from pramana.analysis import clean_dataset, infer_schema, load_config, load_dataset
+
+    try:
+        cleaned, _ = clean_dataset(load_dataset(path))
+        schema = infer_schema(cleaned, load_config().schema_inference)
+    except Exception:
+        return None
+    return exact_tier(cleaned, schema, trace_id=trace_id)
+
+
+def measured_tier(
+    frame: pd.DataFrame, schema: SchemaProfile, computed: ComputedAnalysis | None
+) -> MeasuredAnalysis | None:
+    """The Measured tier for a cleaned table, or None if it cannot be built at all.
+
+    Uses the shape and sector roles the Exact tier already found (the user sees the
+    same ones); without an Exact tier the shape is classified here and no roles are
+    known. Each analysis fails on its own; this only guards the setup.
+    """
+    try:
+        if computed is not None:
+            shape, roles = computed.shape, dict(computed.sector.roles)
+            pack = pack_for(computed.sector, load_packs())
+            additive, measures = pack.additive_measures, pack.measures
+        else:
+            shape, roles, additive, measures = classify_shape(frame, schema), {}, True, []
+        return compute_measured(
+            frame,
+            schema,
+            shape,
+            config=load_measured_config(),
+            roles=roles,
+            additive=additive,
+            measure_roles=measures,
+        )
+    except Exception:
+        logger.exception("measured_tier_failed")
+        return None
+
+
+def compute_measured_tier(path: Path, computed: ComputedAnalysis | None) -> MeasuredAnalysis | None:
+    """Build the Measured tier for a stored file, or None if it cannot be read."""
+    from pramana.analysis import clean_dataset, infer_schema, load_config, load_dataset
+
+    try:
+        cleaned, _ = clean_dataset(load_dataset(path))
+        schema = infer_schema(cleaned, load_config().schema_inference)
+    except Exception:
+        return None
+    return measured_tier(cleaned, schema, computed)
+
+
 def compute_brief(path: Path) -> DataBrief | None:
     """Rebuild the Data Reader's brief for a stored file, or None if it cannot be read."""
     from pramana.analysis import clean_dataset, infer_schema, load_config, load_dataset
@@ -106,6 +201,7 @@ def profile_file(
         brief = read_data(cleaned, schema)
     except Exception:
         brief = None
+    computed = exact_tier(cleaned, schema, trace_id=dataset_id)
     return DatasetView(
         dataset_id=dataset_id,
         name=name,
@@ -115,6 +211,8 @@ def profile_file(
         preview=preview,
         overview=overview,
         brief=brief,
+        computed=computed,
+        computed_failed_version=COMPUTED_VERSION if computed is None else 0,
     )
 
 
@@ -123,6 +221,9 @@ class DatasetRepository:
 
     def __init__(self, path: Path) -> None:
         self.path = path
+        #: Datasets whose Measured tier this process is building right now; a pending
+        #: flag stored by a process that has since stopped is therefore stale.
+        self._measuring: set[UUID] = set()
         path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as connection:
             connection.execute("""CREATE TABLE IF NOT EXISTS datasets (
@@ -135,16 +236,28 @@ class DatasetRepository:
 
     @staticmethod
     def _load(raw: str) -> DatasetView:
-        """Read a stored view; a brief written by an older version is dropped, not fatal.
+        """Read a stored view; a brief or Exact tier from an older version is dropped.
 
-        The brief is derived data and is rebuilt from the stored file on next open, so a
-        format change must never make a saved dataset unreadable.
+        Both are derived data, rebuilt from the stored file on next open, so a format
+        change must never make a saved dataset unreadable.
         """
         try:
             return DatasetView.model_validate_json(raw)
         except ValidationError:
             data = json.loads(raw)
-            data.pop("brief", None)
+            for derived in ("brief", "computed", "measured"):
+                try:
+                    DatasetView.model_validate(
+                        {
+                            **data,
+                            "brief": None,
+                            "computed": None,
+                            "measured": None,
+                            derived: data.get(derived),
+                        }
+                    )
+                except ValidationError:
+                    data.pop(derived, None)
             return DatasetView.model_validate(data)
 
     def add(self, view: DatasetView, file_path: Path, owner_id: UUID | None = None) -> None:
@@ -192,6 +305,121 @@ class DatasetRepository:
                 (updated.model_dump_json(), str(view.dataset_id)),
             )
         return updated
+
+    def _save(self, view: DatasetView) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                "UPDATE datasets SET view_json = ? WHERE dataset_id = ?",
+                (view.model_dump_json(), str(view.dataset_id)),
+            )
+
+    def backfill_computed(self, view: DatasetView, owner_id: UUID | None = None) -> DatasetView:
+        """Add the Exact tier to a dataset stored before it existed, or built by an older
+        `COMPUTED_VERSION` (new figures or chart data), or stored in a stale format."""
+        if view.computed is not None and view.computed.version >= COMPUTED_VERSION:
+            return view
+        if view.computed_failed_version >= COMPUTED_VERSION:
+            return view  # this version was already tried and could not be built
+        computed = compute_exact_tier(
+            self.file_path(view.dataset_id, owner_id), trace_id=view.dataset_id
+        )
+        update: dict[str, object] = (
+            {"computed_failed_version": COMPUTED_VERSION}
+            if computed is None
+            else {"computed": computed, "computed_failed_version": 0}
+        )
+        updated = view.model_copy(update=update)
+        self._save(updated)
+        return updated
+
+    @staticmethod
+    def needs_model_summary(view: DatasetView) -> bool:
+        """A code summary the model has not tried to reword, none scheduled, model on."""
+        summary = view.computed.summary if view.computed else None
+        return (
+            summary is not None
+            and summary.source == "template"
+            and summary.fallback_reason is None
+            and not summary.pending
+            and load_computed_config().summary_engine == "api"
+        )
+
+    def schedule_summary(self, view: DatasetView) -> DatasetView:
+        """Mark the summary as pending before the background task is queued, so a second
+        open while the model is working does not queue another call."""
+        assert view.computed is not None and view.computed.summary is not None
+        summary = view.computed.summary.model_copy(update={"pending": True})
+        updated = view.model_copy(
+            update={"computed": view.computed.model_copy(update={"summary": summary})}
+        )
+        self._save(updated)
+        return updated
+
+    def refine_summary(self, dataset_id: UUID, owner_id: UUID | None = None) -> None:
+        """Replace the code summary with DeepSeek's wording, or record why it was not used.
+
+        Runs after the response (a background task), so the upload never waits on it.
+        The outcome is stored either way, so a failing model is not asked on every open.
+        The view is read again just before saving, and nothing is written if the analysis
+        was rebuilt meanwhile, so a slow model reply never overwrites newer figures.
+        """
+        try:
+            view = self.get(dataset_id, owner_id)
+        except KeyError:
+            return
+        summary = view.computed.summary if view.computed else None
+        if view.computed is None or summary is None or not summary.pending:
+            return
+        version = view.computed.version
+        refined = summarise(view.computed, engine="api", trace_id=dataset_id)
+        latest = self.get(dataset_id, owner_id)
+        if latest.computed is None or latest.computed.version != version:
+            return
+        computed = latest.computed.model_copy(update={"summary": refined})
+        self._save(latest.model_copy(update={"computed": computed}))
+
+    def needs_measured(self, view: DatasetView) -> bool:
+        """The Measured tier is missing or older than `MEASURED_VERSION`, was not already
+        tried at this version without success, and no build is running in this process."""
+        if not load_measured_config().enabled or view.dataset_id in self._measuring:
+            return False
+        if view.measured is not None and view.measured.version >= MEASURED_VERSION:
+            return False
+        return view.measured_failed_version < MEASURED_VERSION
+
+    def schedule_measured(self, view: DatasetView) -> DatasetView:
+        """Mark the Measured build as pending before the background task is queued, so a
+        second open while it runs does not queue another."""
+        self._measuring.add(view.dataset_id)
+        updated = view.model_copy(update={"measured_pending": True})
+        self._save(updated)
+        return updated
+
+    def build_measured(self, dataset_id: UUID, owner_id: UUID | None = None) -> None:
+        """Compute the Measured tier for a stored dataset and store it (a background task).
+
+        The outcome is stored either way (a failure records the version so it is not
+        retried on every open), and the view is read again just before saving, so a
+        slow build never overwrites a summary or Exact tier written meanwhile.
+        """
+        try:
+            try:
+                view = self.get(dataset_id, owner_id)
+                path = self.file_path(dataset_id, owner_id)
+            except KeyError:
+                return
+            measured = compute_measured_tier(path, view.computed)
+            latest = self.get(dataset_id, owner_id)
+            update: dict[str, object] = (
+                {"measured_failed_version": MEASURED_VERSION}
+                if measured is None
+                else {"measured": measured, "measured_failed_version": 0}
+            )
+            self._save(latest.model_copy(update={**update, "measured_pending": False}))
+        except Exception:
+            logger.exception("measured_build_failed")
+        finally:
+            self._measuring.discard(dataset_id)
 
     def claim_unowned(self, owner_id: UUID) -> None:
         """Hand datasets stored before accounts existed to the first account."""

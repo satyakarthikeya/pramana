@@ -110,6 +110,7 @@ def falsify(frame):
         "seed": result.seed,
         "n_permutations": result.n_permutations,
         "statistic": result.statistic,
+        "scheme": result.scheme.value,
         "provenance": result.provenance,
     }}
 ```'''

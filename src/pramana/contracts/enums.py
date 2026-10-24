@@ -40,6 +40,10 @@ class ClaimType(StrEnum):
     GROUP_DIFFERENCE = "group_difference"
     TREND = "trend"
     DISTRIBUTION = "distribution"
+    #: T4: the latest period differs from the one before (PLAN 5, P7).
+    PERIOD_CHANGE = "period_change"
+    #: T6: some months (or quarters) sit consistently above others (PLAN 5, P7).
+    SEASONALITY = "seasonality"
 
 
 class Verdict(StrEnum):
@@ -76,6 +80,40 @@ class EffectMetric(StrEnum):
     CLIFFS_DELTA = "cliffs_delta"
     EPSILON_SQUARED = "epsilon_squared"
     CRAMERS_V = "cramers_v"
+    RELATIVE_CHANGE = "relative_change"
+
+
+class TableShape(StrEnum):
+    """How the rows of a table relate in time and by entity (PLAN 4.1).
+
+    Mirrors the analysis shape classifier's values so the gate can be told the shape
+    without importing the analysis package.
+    """
+
+    CROSS_SECTION = "cross_section"
+    TIME_SERIES = "time_series"
+    PANEL = "panel"
+    TRANSACTIONS = "transactions"
+
+
+class PermutationScheme(StrEnum):
+    """How a null was built, so it matches how the rows depend on each other (D6).
+
+    * `FREE`              -- shuffle rows freely. Valid only for independent rows.
+    * `BLOCK_DIFFERENCED` -- one ordered series: test on first differences and resample
+                             them in blocks, so a random walk is not read as a trend.
+    * `STRATIFIED`        -- shuffle only within each time period, so a common movement
+                             over time is part of the null rather than evidence.
+    * `CLUSTER`           -- move a label between whole entities, never between the rows
+                             of one entity.
+    """
+
+    FREE = "free"
+    BLOCK_DIFFERENCED = "block_differenced"
+    STRATIFIED = "stratified"
+    CLUSTER = "cluster"
+    #: The same entities in two periods: each entity's change is sign-flipped.
+    PAIRED = "paired"
 
 
 class GateOutcome(StrEnum):
@@ -94,6 +132,9 @@ class GateOutcome(StrEnum):
                          "we learned nothing", and both fail closed.
     * `NOT_TESTABLE`  -- refused by the admissibility screen before any code ran, so
                          no statistics exist for it and it is not in the BH family.
+    * `FRAGILE`       -- passed the gate, then broke under a falsification attack
+                         (PLAN §7): the effect reversed or collapsed when it was tried
+                         another way. A one-way ratchet: nothing turns it back to PASS.
     """
 
     SUPPORTED = "supported"
@@ -101,3 +142,4 @@ class GateOutcome(StrEnum):
     NEGLIGIBLE = "negligible"
     INCONCLUSIVE = "inconclusive"
     NOT_TESTABLE = "not_testable"
+    FRAGILE = "fragile"

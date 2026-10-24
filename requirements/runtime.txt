@@ -1,10 +1,13 @@
 # What the API image imports at runtime (in-process verification). Verified against src/:
-# no statsmodels (tests only), scikit-learn, openai, pyarrow, celery or redis imports there.
+# no openai, pyarrow, celery or redis imports there. scikit-learn and statsmodels ARE imported
+# (pramana.analysis.measured: the Measured tier, built in an API background task).
 # The queue path (celery, redis, pyarrow) lives in requirements/orchestration.txt and is
 # installed only by the worker image or `--build-arg QUEUE=1`.
 -r base.txt
 openpyxl>=3.1            # XLSX upload
 scipy>=1.13              # used inside pramana.verification.stats and analysis profiling
+scikit-learn>=1.5        # Measured tier: closed-menu models, nested CV, clustering, isolation forest
+statsmodels>=0.14        # Measured tier: Holt-Winters forecasts (also the BH cross-check in tests)
 langgraph>=0.2
 chromadb>=0.5
 fastapi>=0.112

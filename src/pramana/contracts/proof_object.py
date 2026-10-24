@@ -29,7 +29,16 @@ from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from pramana.contracts.enums import Direction, EffectMetric, GateOutcome, TestType, Verdict
+from pramana.contracts.attack import AttackResult
+from pramana.contracts.enums import (
+    Direction,
+    EffectMetric,
+    GateOutcome,
+    PermutationScheme,
+    TestType,
+    Verdict,
+)
+from pramana.contracts.structure import SplitRecord
 
 #: Fields that only exist because a test was executed. Null exactly when the claim
 #: was screened out before any code was generated.
@@ -49,6 +58,7 @@ _OPTIONAL_STATISTICAL_FIELDS: tuple[str, ...] = (
     "reported_effect",
     "reported_effect_metric",
     "observed_direction",
+    "permutation_scheme",
 )
 
 
@@ -110,6 +120,21 @@ class ProofObject(BaseModel):
     )
     observed_direction: Direction | None = Field(
         default=None, description="What the data showed. Null for an unsigned metric."
+    )
+    permutation_scheme: PermutationScheme | None = Field(
+        default=None,
+        description="How the null was built for the rows' dependence (PLAN D6). Assigned "
+        "by the gate before the code ran, never read back from the generated code.",
+    )
+    split: SplitRecord | None = Field(
+        default=None,
+        description="Which rows the claim was tested on (PLAN D5). Null when the caller "
+        "passed rows without a split.",
+    )
+    attacks: list[AttackResult] = Field(
+        default_factory=list,
+        description="Falsification attacks run after the gate (PLAN §7); empty unless the "
+        "claim passed. A BROKEN attack makes the outcome FRAGILE.",
     )
     outlier_warning: bool = Field(
         default=False, description="The result moved materially when outliers were trimmed."

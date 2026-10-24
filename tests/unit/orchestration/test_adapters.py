@@ -82,7 +82,7 @@ def test_inprocess_adapter_passes_the_whole_family_and_state_frame(
     state.candidate_insights = [candidate("a"), candidate("b")]
     seen: dict[str, Any] = {}
 
-    def fake_verify_batch(candidates: Any, frame: Any, config: Any) -> Any:
+    def fake_verify_batch(candidates: Any, frame: Any, config: Any, **_: Any) -> Any:
         seen.update(ids=[item.insight_id for item in candidates], frame=frame)
         return [proof("a", passed=True), proof("b", passed=False)], batch_summary(2)
 

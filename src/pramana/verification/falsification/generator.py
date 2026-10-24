@@ -45,7 +45,7 @@ import ast
 import os
 import re
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -53,10 +53,13 @@ from structlog.contextvars import bound_contextvars, get_contextvars
 
 from pramana.common.llm_client import ChatMessage, LLMSettings, complete_chat
 from pramana.contracts.candidate_insight import CandidateInsight
-from pramana.contracts.enums import ClaimType, TestType
+from pramana.contracts.enums import ClaimType, PermutationScheme, TestType
 from pramana.verification.config import VerificationConfig
 from pramana.verification.executor.policy import ImportPolicyViolation, check_imports
 from pramana.verification.falsification import prompts, templates
+
+if TYPE_CHECKING:
+    from pramana.verification.schemes import TestPlan
 
 #: Every supported claim type is a relationship between exactly two columns, and the
 #: templates render `VAR_X` / `VAR_Y` from them in that order.
@@ -131,6 +134,15 @@ class FalsificationProgram(BaseModel):
         description="Which path produced this code ('template', 'llm'). Recorded so an "
         "ablation can distinguish them in the audit trail rather than by inference.",
     )
+    scheme: PermutationScheme = Field(
+        default=PermutationScheme.FREE,
+        description="The null the gate assigned (PLAN D6); the executor refuses a result "
+        "stamped with any other.",
+    )
+    structure_columns: tuple[str, ...] = Field(
+        default=(),
+        description="Structural columns the program may read besides the claim's own.",
+    )
 
 
 def _two_variables(candidate: CandidateInsight) -> tuple[str, str]:
@@ -148,8 +160,32 @@ def _two_variables(candidate: CandidateInsight) -> tuple[str, str]:
     return var_x, var_y
 
 
+def _structural_constants(plan: TestPlan | None, config: VerificationConfig) -> dict[str, Any]:
+    """The module constants a scheme dictates, beyond resample count and seed."""
+    if plan is None:
+        return {}
+    found: dict[str, Any] = {}
+    if plan.period_column is not None:
+        found["PERIOD"] = plan.period_column
+    if plan.entity_column is not None:
+        found["ENTITY"] = plan.entity_column
+    if plan.block_length is not None:
+        found["BLOCK_LENGTH"] = plan.block_length
+    if plan.min_periods is not None:
+        found["MIN_PERIODS"] = plan.min_periods
+    if plan.cycle_length is not None:
+        found["CYCLE_LENGTH"] = plan.cycle_length
+    return found
+
+
+def _program_fields(plan: TestPlan | None) -> dict[str, Any]:
+    if plan is None:
+        return {}
+    return {"scheme": plan.scheme, "structure_columns": plan.columns}
+
+
 def generate_from_template(
-    candidate: CandidateInsight, config: VerificationConfig
+    candidate: CandidateInsight, config: VerificationConfig, plan: TestPlan | None = None
 ) -> FalsificationProgram:
     """Render `candidate` into an executable falsification program, with no LLM.
 
@@ -175,6 +211,7 @@ def generate_from_template(
         seed=config.statistics.seed,
         min_observations=config.statistics.min_observations,
         reference_group=candidate.reference_group,
+        **_template_scheme_arguments(plan, config),
     )
     return FalsificationProgram(
         insight_id=candidate.insight_id,
@@ -186,7 +223,22 @@ def generate_from_template(
         seed=config.statistics.seed,
         source=source,
         generator="template",
+        **_program_fields(plan),
     )
+
+
+def _template_scheme_arguments(plan: TestPlan | None, config: VerificationConfig) -> dict[str, Any]:
+    if plan is None:
+        return {}
+    constants = _structural_constants(plan, config)
+    return {
+        "scheme": plan.scheme,
+        "period_column": constants.get("PERIOD"),
+        "entity_column": constants.get("ENTITY"),
+        "block_length": constants.get("BLOCK_LENGTH"),
+        "min_periods": constants.get("MIN_PERIODS"),
+        "cycle_length": constants.get("CYCLE_LENGTH"),
+    }
 
 
 def _call_deepseek(system: str, user: str, config: VerificationConfig) -> str:
@@ -271,7 +323,9 @@ def _module_constants(tree: ast.Module) -> dict[str, Any]:
     return found
 
 
-def _validate_llm_source(source: str, config: VerificationConfig) -> None:
+def _validate_llm_source(
+    source: str, config: VerificationConfig, plan: TestPlan | None = None
+) -> None:
     """Refuse generated source that is not a usable, policy-clean falsification test.
 
     Guarantees: returns None only when the source parses, defines `falsify(frame)`,
@@ -306,9 +360,10 @@ def _validate_llm_source(source: str, config: VerificationConfig) -> None:
     expected = {
         "N_PERMUTATIONS": config.statistics.n_permutations,
         "SEED": config.statistics.seed,
+        **_structural_constants(plan, config),
     }
     constants = _module_constants(tree)
-    for name in _DICTATED_CONSTANTS:
+    for name in expected:
         if name not in constants:
             raise GeneratorError(
                 f"the generated module does not define {name} at module level. This "
@@ -333,7 +388,7 @@ def _validate_llm_source(source: str, config: VerificationConfig) -> None:
 
 
 def generate_from_llm(
-    candidate: CandidateInsight, config: VerificationConfig
+    candidate: CandidateInsight, config: VerificationConfig, plan: TestPlan | None = None
 ) -> FalsificationProgram:
     """Ask DeepSeek V4 for a falsification program, and return it only if it is safe.
 
@@ -362,13 +417,15 @@ def generate_from_llm(
         n_permutations=config.statistics.n_permutations,
         seed=config.statistics.seed,
         min_observations=config.statistics.min_observations,
+        plan=plan,
+        structural_constants=_structural_constants(plan, config),
     )
 
     with bound_contextvars(insight_id=candidate.insight_id):
         response = _call_deepseek(system, user, config)
 
     source = _extract_source(response)
-    _validate_llm_source(source, config)
+    _validate_llm_source(source, config, plan)
 
     return FalsificationProgram(
         insight_id=candidate.insight_id,
@@ -380,11 +437,12 @@ def generate_from_llm(
         seed=config.statistics.seed,
         source=source,
         generator="llm",
+        **_program_fields(plan),
     )
 
 
 #: The two paths, keyed by what `configs/verification.yaml` may name.
-_GENERATORS: dict[str, Callable[[CandidateInsight, VerificationConfig], FalsificationProgram]] = {
+_GENERATORS: dict[str, Callable[..., FalsificationProgram]] = {
     "template": generate_from_template,
     "llm": generate_from_llm,
 }
@@ -392,7 +450,7 @@ _GENERATORS: dict[str, Callable[[CandidateInsight, VerificationConfig], Falsific
 
 def get_generator(
     config: VerificationConfig,
-) -> Callable[[CandidateInsight, VerificationConfig], FalsificationProgram]:
+) -> Callable[..., FalsificationProgram]:
     """The generator `config` selects.
 
     Guarantees: returns exactly the path named by `llm.generator`, never a substitute.

@@ -9,7 +9,7 @@ from typing import Any
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from pramana.contracts import CandidateInsight, ProofObject
+from pramana.contracts import CandidateInsight, DataStructure, ProofObject, SplitRecord
 from pramana.verification.admissibility import screen
 from pramana.verification.config import VerificationConfig
 from pramana.verification.falsification.generator import (
@@ -19,6 +19,25 @@ from pramana.verification.falsification.generator import (
     get_generator,
 )
 from pramana.verification.gateway import BatchSummary
+from pramana.verification.schemes import (
+    FREE_PLAN,
+    TestPlan,
+    assign_plan,
+    confirmation_frame,
+    with_period_column,
+)
+
+
+def gate_rows(
+    frame: pd.DataFrame, structure: DataStructure | None, config: VerificationConfig
+) -> tuple[pd.DataFrame, SplitRecord | None]:
+    """The rows the gate tests on: the confirmation split, or `frame` with no structure.
+
+    Guarantees: with a structure, never a row the proposer explored (PLAN D5).
+    """
+    if structure is None:
+        return frame, None
+    return confirmation_frame(frame, structure, config)
 
 
 def validate_summary(
@@ -73,17 +92,33 @@ def _config_digest(config: VerificationConfig) -> str:
 
 
 def prepare_verification(
-    candidates: Sequence[CandidateInsight], frame: pd.DataFrame, config: VerificationConfig
+    candidates: Sequence[CandidateInsight],
+    frame: pd.DataFrame,
+    config: VerificationConfig,
+    structure: DataStructure | None = None,
 ) -> PreparedBatch:
-    """Use the verification owner's screen/generator without executing any code."""
+    """Use the verification owner's screen/generator without executing any code.
+
+    `frame` is the rows the gate will test on (see `gate_rows`), so each claim's code is
+    generated for the same null the worker's gateway assigns.
+    """
     generate = get_generator(config)
+    planned = structure or DataStructure.independent_rows()
+    rows = with_period_column(frame, planned)
     programs = []
     for candidate in candidates:
         admission = screen(candidate, list(frame.columns))
         try:
             if not admission.admissible:
                 raise GeneratorError(admission.reason or "Claim is not testable")
-            program = generate(candidate, config)
+            plan = assign_plan(candidate, rows, planned, config)
+            if isinstance(plan, str):
+                raise GeneratorError(plan)
+            program = (
+                generate(candidate, config)
+                if plan == FREE_PLAN
+                else generate(candidate, config, plan)
+            )
             programs.append(
                 PreparedProgram(candidate_json=candidate.model_dump_json(), program=program)
             )
@@ -114,7 +149,9 @@ def prepared_generator(
     if len(by_id) != len(candidates):
         raise ValueError("Prepared candidate IDs must be unique")
 
-    def generate(candidate: CandidateInsight, current: VerificationConfig) -> FalsificationProgram:
+    def generate(
+        candidate: CandidateInsight, current: VerificationConfig, plan: TestPlan = FREE_PLAN
+    ) -> FalsificationProgram:
         if _config_digest(current) != batch.config_digest:
             raise GeneratorError("Verification configuration changed after generation")
         prepared = by_id[candidate.insight_id]
@@ -130,6 +167,8 @@ def prepared_generator(
             or program.seed != current.statistics.seed
             or program.n_permutations != current.statistics.n_permutations
             or program.generator != current.llm.generator
+            or program.scheme is not plan.scheme
+            or program.structure_columns != plan.columns
         ):
             raise GeneratorError("Prepared program metadata does not match the candidate/config")
         return program

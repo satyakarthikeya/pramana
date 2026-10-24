@@ -84,7 +84,13 @@ CAUSAL_TERMS: frozenset[str] = frozenset(
 #: `distribution` is deliberately absent: no template exists in this scope, and the
 #: rule is fail-closed, not "fall back to something generic" (SCOPE.md 4 step 6).
 TESTABLE_CLAIM_TYPES: frozenset[ClaimType] = frozenset(
-    {ClaimType.CORRELATION, ClaimType.GROUP_DIFFERENCE, ClaimType.TREND}
+    {
+        ClaimType.CORRELATION,
+        ClaimType.GROUP_DIFFERENCE,
+        ClaimType.TREND,
+        ClaimType.PERIOD_CHANGE,
+        ClaimType.SEASONALITY,
+    }
 )
 
 #: Every supported claim type is a relationship between exactly two columns.

@@ -40,8 +40,25 @@ def rejection_reason(proof: ProofObject) -> str:
             if proof.failure_reason
             else "Not statistically significant after correction for multiple tests."
         ),
-        GateOutcome.NOT_TESTABLE: "The claim could not be tested under the supported safety rules.",
+        GateOutcome.NOT_TESTABLE: _untested_reason(proof),
+        GateOutcome.FRAGILE: (
+            proof.failure_reason
+            or "Passed the gate but did not survive a falsification attack."
+        ),
     }[proof.gate_outcome]
+
+
+#: Refusals whose text came from somewhere a user should not read verbatim (generated
+#: code errors, provider messages); every other NOT_TESTABLE reason is written for users.
+_INTERNAL_REASONS = ("no falsification program could be generated", "generator unavailable")
+
+
+def _untested_reason(proof: ProofObject) -> str:
+    reason = (proof.failure_reason or "").strip()
+    if reason and not reason.startswith(_INTERNAL_REASONS):
+        return reason[0].upper() + reason[1:]
+    return "The claim could not be tested under the supported safety rules."
+
 
 
 def effect_strength(proof: ProofObject) -> str | None:

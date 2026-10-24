@@ -5,6 +5,7 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from starlette.concurrency import run_in_threadpool
 
 from pramana.api.auth import User
 from pramana.api.datasets import DatasetReadError, profile_file
@@ -20,11 +21,19 @@ Owner = Annotated[User, Depends(current_user)]
 
 @router.post("", response_model=DatasetView, status_code=201)
 async def upload_dataset(
-    service: Service, user: Owner, file: Annotated[UploadFile, File()]
+    service: Service,
+    user: Owner,
+    background: BackgroundTasks,
+    file: Annotated[UploadFile, File()],
+    name: Annotated[str | None, Form(max_length=120)] = None,
 ) -> DatasetView:
-    """Store a bounded CSV/XLSX under a server-generated ID and profile it with code only."""
-    name = (file.filename or "").replace("\\", "/").rsplit("/", 1)[-1]
-    suffix = Path(name).suffix.lower()
+    """Store a bounded CSV/XLSX under a server-generated ID and profile it.
+
+    `name` is the user's label for the dataset; without one the file name is used.
+    """
+    filename = (file.filename or "").replace("\\", "/").rsplit("/", 1)[-1]
+    suffix = Path(filename).suffix.lower()
+    name = " ".join((name or "").split()) or filename
     if suffix not in {".csv", ".xlsx"}:
         await file.close()
         raise HTTPException(415, "Upload a CSV or XLSX file.")
@@ -44,7 +53,10 @@ async def upload_dataset(
         if total == 0:
             raise HTTPException(422, "The uploaded file is empty.")
         try:
-            view = profile_file(
+            # Profiling may wait on DeepSeek (the sector reader); run it off the event loop
+            # so one upload never stalls every other request.
+            view = await run_in_threadpool(
+                profile_file,
                 path,
                 dataset_id=dataset_id,
                 name=name,
@@ -55,6 +67,12 @@ async def upload_dataset(
             raise HTTPException(422, str(error)) from None
         service.datasets.add(view, path, user.user_id)
         stored = True
+        if service.datasets.needs_model_summary(view):
+            view = service.datasets.schedule_summary(view)
+            background.add_task(service.datasets.refine_summary, dataset_id, user.user_id)
+        if service.datasets.needs_measured(view):
+            view = service.datasets.schedule_measured(view)
+            background.add_task(service.datasets.build_measured, dataset_id, user.user_id)
         return view
     finally:
         await file.close()
@@ -71,10 +89,20 @@ def list_datasets(service: Service, user: Owner) -> list[DatasetSummary]:
 
 
 @router.get("/{dataset_id}", response_model=DatasetView)
-def get_dataset(dataset_id: UUID, service: Service, user: Owner) -> DatasetView:
+def get_dataset(
+    dataset_id: UUID, service: Service, user: Owner, background: BackgroundTasks
+) -> DatasetView:
     try:
         view = service.datasets.get(dataset_id, user.user_id)
-        return service.datasets.backfill_brief(view, user.user_id)
+        view = service.datasets.backfill_brief(view, user.user_id)
+        view = service.datasets.backfill_computed(view, user.user_id)
+        if service.datasets.needs_model_summary(view):
+            view = service.datasets.schedule_summary(view)
+            background.add_task(service.datasets.refine_summary, dataset_id, user.user_id)
+        if service.datasets.needs_measured(view):
+            view = service.datasets.schedule_measured(view)
+            background.add_task(service.datasets.build_measured, dataset_id, user.user_id)
+        return view
     except KeyError:
         raise HTTPException(404, "Dataset not found.") from None
 

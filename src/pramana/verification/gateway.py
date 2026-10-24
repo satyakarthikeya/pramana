@@ -53,10 +53,18 @@ from typing import Any
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field
 
+from pramana.contracts.attack import AttackOutcome
 from pramana.contracts.candidate_insight import CandidateInsight
-from pramana.contracts.enums import ClaimType, EffectMetric, GateOutcome, Verdict
+from pramana.contracts.enums import (
+    ClaimType,
+    EffectMetric,
+    GateOutcome,
+    Verdict,
+)
 from pramana.contracts.proof_object import ProofObject
+from pramana.contracts.structure import DataStructure, SplitRecord
 from pramana.verification.admissibility import screen
+from pramana.verification.attacks import ClaimView, run_attacks
 from pramana.verification.config import VerificationConfig
 from pramana.verification.evidence import evaluate_gate
 from pramana.verification.executor.runner import COLUMN_POLICY_REASON_PREFIX, execute
@@ -69,6 +77,7 @@ from pramana.verification.falsification.generator import (
     get_generator,
 )
 from pramana.verification.fdr import apply_bh
+from pramana.verification.schemes import FREE_PLAN, TestPlan, assign_plan, with_period_column
 
 _log = logging.getLogger(__name__)
 
@@ -91,6 +100,8 @@ _METRIC_BY_CLAIM_TYPE: dict[ClaimType, EffectMetric] = {
     ClaimType.CORRELATION: EffectMetric.SPEARMAN_RHO,
     ClaimType.TREND: EffectMetric.KENDALL_TAU_B,
     ClaimType.GROUP_DIFFERENCE: EffectMetric.CLIFFS_DELTA,
+    ClaimType.PERIOD_CHANGE: EffectMetric.RELATIVE_CHANGE,
+    ClaimType.SEASONALITY: EffectMetric.EPSILON_SQUARED,
 }
 
 #: Prefix on every family identifier, so the string is self-describing in a log line.
@@ -99,7 +110,10 @@ _FAMILY_PREFIX = "bh"
 #: Enough hash to be unique across a project's runs, short enough to read.
 _FAMILY_DIGEST_LENGTH = 12
 
-Generator = Callable[[CandidateInsight, VerificationConfig], FalsificationProgram]
+#: Called as `generate(candidate, config)` for a free shuffle, and as
+#: `generate(candidate, config, plan)` when the rows need a dependence-aware null, so a
+#: two-argument generator still serves independent rows and fails closed on the rest.
+Generator = Callable[..., FalsificationProgram]
 
 
 def _emit(event: str, insight_id: str, **fields: Any) -> None:
@@ -146,7 +160,11 @@ def _require_unique_ids(candidates: Sequence[CandidateInsight]) -> None:
 
 
 def _not_testable(
-    candidate: CandidateInsight, family_id: str, seed: int, reason: str
+    candidate: CandidateInsight,
+    family_id: str,
+    seed: int,
+    reason: str,
+    split: SplitRecord | None = None,
 ) -> ProofObject:
     """A claim nothing ran on: no statistics, no family membership, and a reason.
 
@@ -163,6 +181,7 @@ def _not_testable(
         seed=seed,
         asserted_direction=candidate.asserted_direction,
         failure_reason=reason,
+        split=split,
     )
 
 
@@ -173,7 +192,7 @@ class _Tested:
     correction, never leaves this module, and never becomes output.
     """
 
-    __slots__ = ("candidate", "program", "payload", "failure_reason")
+    __slots__ = ("candidate", "program", "payload", "failure_reason", "plan")
 
     def __init__(
         self,
@@ -181,11 +200,13 @@ class _Tested:
         program: FalsificationProgram,
         payload: dict[str, Any] | None,
         failure_reason: str | None,
+        plan: TestPlan = FREE_PLAN,
     ) -> None:
         self.candidate = candidate
         self.program = program
         self.payload = payload
         self.failure_reason = failure_reason
+        self.plan = plan
 
     @property
     def p_value(self) -> float:
@@ -264,6 +285,12 @@ class BatchSummary(BaseModel):
     )
     template_unavailable_ids: list[str] = Field(default_factory=list)
     template_disagreements: list[TemplateDisagreement] = Field(default_factory=list)
+    structure: DataStructure | None = Field(
+        default=None, description="How the gate was told the rows depend on each other."
+    )
+    split: SplitRecord | None = Field(
+        default=None, description="Which rows the family was tested on (PLAN D5)."
+    )
 
     @property
     def generator_unavailable(self) -> bool:
@@ -319,6 +346,7 @@ def _run_one(
     config: VerificationConfig,
     generate: Generator,
     tally: _ColumnCheckTally,
+    plan: TestPlan = FREE_PLAN,
 ) -> _Tested | str:
     """Generate and execute one claim's falsification test.
 
@@ -327,7 +355,16 @@ def _run_one(
     different shapes of proof object, so the caller has to be able to tell them apart.
     """
     try:
-        program = generate(candidate, config)
+        program = (
+            generate(candidate, config)
+            if plan == FREE_PLAN
+            else generate(candidate, config, plan)
+        )
+        if program.scheme is not plan.scheme:
+            raise GeneratorError(
+                f"the generator produced a {program.scheme.value} test, but the gate "
+                f"assigned {plan.scheme.value} for how these rows depend on each other"
+            )
     except GeneratorUnavailable as error:
         tally.unavailable += 1
         _emit("generator_unavailable_for_claim", candidate.insight_id, error=str(error))
@@ -336,7 +373,9 @@ def _run_one(
             f"for this claim, so it has not been tested; this says nothing about the "
             f"claim itself."
         )
-    except (GeneratorError, ValueError) as error:
+    except (GeneratorError, ValueError, TypeError) as error:
+        # TypeError: a generator that takes no plan was handed one; it cannot build a
+        # dependence-aware test, so the claim is not tested rather than tested wrongly.
         _emit("generation_failed", candidate.insight_id, error=str(error))
         return (
             f"no falsification program could be generated for this claim: {error} "
@@ -352,7 +391,7 @@ def _run_one(
             attempts=result.attempts,
             reason=result.failure_reason,
         )
-        return _Tested(candidate, program, None, result.failure_reason)
+        return _Tested(candidate, program, None, result.failure_reason, plan)
 
     incomplete = _incomplete_payload_reason(result.payload)
     if incomplete is not None:
@@ -361,14 +400,19 @@ def _run_one(
         # reported effect. Treated like any other failed execution: kept in the family
         # at p = 1.0, so it can never become SUPPORTED.
         _emit("payload_incomplete", candidate.insight_id, reason=incomplete)
-        return _Tested(candidate, program, None, incomplete)
+        return _Tested(candidate, program, None, incomplete, plan)
 
     _emit("execution_verified", candidate.insight_id, attempts=result.attempts)
-    return _Tested(candidate, program, result.payload, None)
+    return _Tested(candidate, program, result.payload, None, plan)
 
 
 def _proof_for_failed_execution(
-    tested: _Tested, family_id: str, q_value: float, family_size: int, seed: int
+    tested: _Tested,
+    family_id: str,
+    q_value: float,
+    family_size: int,
+    seed: int,
+    split: SplitRecord | None = None,
 ) -> ProofObject:
     """A crash or timeout, recorded as a tested claim that concluded nothing.
 
@@ -392,11 +436,18 @@ def _proof_for_failed_execution(
         n_hypotheses_in_batch=family_size,
         asserted_direction=candidate.asserted_direction,
         failure_reason=tested.failure_reason,
+        permutation_scheme=tested.plan.scheme,
+        split=split,
     )
 
 
 def _proof_for_result(
-    tested: _Tested, family_id: str, q_value: float, family_size: int, config: VerificationConfig
+    tested: _Tested,
+    family_id: str,
+    q_value: float,
+    family_size: int,
+    config: VerificationConfig,
+    split: SplitRecord | None = None,
 ) -> ProofObject:
     """Gate one executed result and build its complete proof object.
 
@@ -446,6 +497,63 @@ def _proof_for_result(
         observed_direction=decision.observed_direction,
         evidence_score=decision.evidence_score,
         score_components=decision.score_components,
+        permutation_scheme=tested.plan.scheme,
+        split=split,
+    )
+
+
+def _attacked(
+    proof: ProofObject,
+    tested: _Tested,
+    frame: pd.DataFrame,
+    structure: DataStructure,
+    config: VerificationConfig,
+) -> ProofObject:
+    """`proof` with its attacks attached, and REJECT / FRAGILE if any broke it.
+
+    Guarantees: only a PASS enters; the result is the same PASS with attacks recorded,
+    or a REJECT whose reason names the attack. Never raises: an attack run that fails
+    as a whole leaves the PASS with no attacks and logs why, because attacks can only
+    lower a verdict and a crash is not evidence against the claim.
+    """
+    candidate = tested.candidate
+    claim = ClaimView(
+        claim_type=candidate.claim_type,
+        var_x=candidate.variables[0],
+        var_y=candidate.variables[1],
+        scheme=tested.plan.scheme,
+        entity_column=structure.entity_column,
+        reference_group=candidate.reference_group,
+        unsigned=proof.effect_metric is EffectMetric.EPSILON_SQUARED,
+    )
+    try:
+        results = run_attacks(claim, frame, config.attacks, seed=config.statistics.seed)
+    except Exception as error:  # attacks lower verdicts only; a crash changes nothing
+        _emit("attacks_failed", proof.insight_id, error=f"{type(error).__name__}: {error}")
+        return proof
+    broken = [r for r in results if r.outcome is AttackOutcome.BROKEN]
+    _emit(
+        "attacks_run",
+        proof.insight_id,
+        survived=sum(r.outcome is AttackOutcome.SURVIVED for r in results),
+        broken=[r.attack_id for r in broken],
+    )
+    if not broken:
+        return proof.model_copy(update={"attacks": results})
+    first = broken[0]
+    return ProofObject.model_validate(
+        {
+            **proof.model_dump(),
+            "verdict": Verdict.REJECT,
+            "gate_outcome": GateOutcome.FRAGILE,
+            "evidence_score": None,
+            "score_components": None,
+            "attacks": [r.model_dump() for r in results],
+            "failure_reason": (
+                f"passed the gate but did not survive the {first.name.lower()} attack: "
+                f"{first.reason}"
+            ),
+        }
     )
 
 
@@ -474,7 +582,9 @@ def _shadow_template_outcomes(
         ):
             continue
         try:
-            result = execute(generate_from_template(candidate, config), frame, config)
+            result = execute(
+                generate_from_template(candidate, config, item.plan), frame, config
+            )
             payload = result.payload if result.ok else None
             if payload is not None and _incomplete_payload_reason(payload) is not None:
                 payload = None
@@ -546,6 +656,8 @@ def verify_batch(
     config: VerificationConfig,
     *,
     generate: Generator | None = None,
+    structure: DataStructure | None = None,
+    split: SplitRecord | None = None,
 ) -> list[ProofObject]:
     """Verify a batch and return one proof object per candidate.
 
@@ -553,7 +665,9 @@ def verify_batch(
     generator was unreachable" from "the claims were untestable" call
     `verify_batch_with_summary` instead; the per-claim result is identical.
     """
-    return verify_batch_with_summary(candidates, frame, config, generate=generate)[0]
+    return verify_batch_with_summary(
+        candidates, frame, config, generate=generate, structure=structure, split=split
+    )[0]
 
 
 def verify_batch_with_summary(
@@ -562,6 +676,8 @@ def verify_batch_with_summary(
     config: VerificationConfig,
     *,
     generate: Generator | None = None,
+    structure: DataStructure | None = None,
+    split: SplitRecord | None = None,
 ) -> tuple[list[ProofObject], BatchSummary]:
     """Verify a whole batch of candidate insights: one proof object each, plus a summary.
 
@@ -582,10 +698,25 @@ def verify_batch_with_summary(
     to hold everything else fixed while swapping the code-generation path. It defaults
     to whatever `configs/verification.yaml` selects.
 
+    * **The null matches the rows (PLAN D6).** `structure` says how the rows depend on
+      each other; each claim is assigned a permutation scheme from it, or refused as
+      NOT_TESTABLE when no valid null exists. With no `structure` the caller is taken to
+      declare independent rows, and every proof records that as `free`.
+    * **Tested on the rows given.** `frame` is the confirmation rows when the run was
+      split (PLAN D5); `split` is recorded on every proof so that can be checked.
+
     Raises `ValueError` for a batch containing a repeated `insight_id`, which would
-    silently collapse two verdicts into one.
+    silently collapse two verdicts into one, and for a batch larger than
+    `statistics.m_max`, which the resample count was not sized for.
     """
     _require_unique_ids(candidates)
+    if len(candidates) > config.statistics.m_max:
+        raise ValueError(
+            f"{len(candidates)} claims exceed statistics.m_max = {config.statistics.m_max}; "
+            f"the resample count is sized for families up to that size"
+        )
+    structure = structure or DataStructure.independent_rows()
+    frame = with_period_column(frame, structure)
     if not candidates:
         return [], BatchSummary(
             bh_family_id=_family_id(candidates),
@@ -595,6 +726,8 @@ def verify_batch_with_summary(
             n_tested=0,
             generator_unavailable_count=0,
             column_check_by_claim_type={},
+            structure=structure,
+            split=split,
         )
 
     family_id = _family_id(candidates)
@@ -611,12 +744,18 @@ def verify_batch_with_summary(
         if not admissibility.admissible:
             reason = admissibility.reason or "the claim was refused by the admissibility screen"
             _emit("screened_out", candidate.insight_id, reason=reason)
-            outcomes.append(_not_testable(candidate, family_id, seed, reason))
+            outcomes.append(_not_testable(candidate, family_id, seed, reason, split))
             continue
 
-        outcome = _run_one(candidate, frame, config, generator, tally)
+        plan = assign_plan(candidate, frame, structure, config)
+        if isinstance(plan, str):
+            _emit("screened_out", candidate.insight_id, reason=plan)
+            outcomes.append(_not_testable(candidate, family_id, seed, plan, split))
+            continue
+
+        outcome = _run_one(candidate, frame, config, generator, tally, plan)
         if isinstance(outcome, str):
-            outcomes.append(_not_testable(candidate, family_id, seed, outcome))
+            outcomes.append(_not_testable(candidate, family_id, seed, outcome, split))
         else:
             outcomes.append(outcome)
 
@@ -660,10 +799,21 @@ def verify_batch_with_summary(
         q_value = next(corrected)
         if item.payload is None:
             proofs.append(
-                _proof_for_failed_execution(item, family_id, q_value, family_size, seed)
+                _proof_for_failed_execution(item, family_id, q_value, family_size, seed, split)
             )
         else:
-            proofs.append(_proof_for_result(item, family_id, q_value, family_size, config))
+            proofs.append(
+                _proof_for_result(item, family_id, q_value, family_size, config, split)
+            )
+
+    # --- falsification attacks (PLAN §7): a one-way ratchet on every PASS -----
+    by_id = {item.candidate.insight_id: item for item in tested}
+    proofs = [
+        _attacked(proof, by_id[proof.insight_id], frame, structure, config)
+        if proof.verdict is Verdict.PASS
+        else proof
+        for proof in proofs
+    ]
 
     # --- agreement check (W8): diagnostic, after every verdict is final ------
     # Runs only on the LLM path. Reads the proofs, never writes them.
@@ -730,6 +880,8 @@ def verify_batch_with_summary(
         n_template_unavailable=len(unavailable_ids),
         template_unavailable_ids=unavailable_ids,
         template_disagreements=disagreements,
+        structure=structure,
+        split=split,
     )
     if summary.generator_unavailable:
         _log.warning(

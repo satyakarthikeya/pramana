@@ -36,6 +36,7 @@ const METRIC_SYMBOL: Record<string, string> = {
   cliffs_delta: "delta",
   epsilon_squared: "eps2",
   cramers_v: "V",
+  relative_change: "change",
 };
 
 export function metricSymbol(metric: string | null): string {

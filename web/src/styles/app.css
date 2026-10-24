@@ -573,7 +573,8 @@ button.chip:hover {
 }
 .col-row {
   display: grid;
-  grid-template-columns: 180px minmax(0, 1fr);
+  /* name beside the picture when there is room, stacked when the column is narrow */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
   gap: var(--s5);
   align-items: center;
   padding: var(--s3) 0;
@@ -1115,6 +1116,233 @@ details summary {
   min-width: 0;
 }
 
+/* ---------- home: choose, name, start ---------- */
+.home {
+  max-width: 720px;
+}
+.start-drop,
+.start-form {
+  margin-top: var(--s6);
+  background: var(--surface);
+  border-radius: var(--r-card);
+  padding: var(--s6);
+}
+.start-drop {
+  border: 1.5px dashed var(--border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s5);
+  flex-wrap: wrap;
+  min-height: 160px;
+}
+.start-drop h2 {
+  font: 500 22px/28px var(--font-sans);
+  letter-spacing: -0.01em;
+}
+.start-form {
+  border: 1px solid var(--border);
+  display: grid;
+  gap: var(--s5);
+}
+.start-file {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex-wrap: wrap;
+  padding-bottom: var(--s4);
+  border-bottom: 1px solid var(--border-soft);
+}
+.start-file .mono {
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.start-file .btn {
+  margin-left: auto;
+}
+.btn-hero {
+  height: 52px;
+}
+.btn-ghost[disabled] {
+  background: transparent;
+}
+
+/* ---------- Exact tier: "what the data says" ---------- */
+.report {
+  display: grid;
+  gap: var(--s5);
+  margin-bottom: var(--s6);
+}
+.report-title {
+  font: 500 28px/36px var(--font-sans);
+  letter-spacing: -0.01em;
+  margin-top: var(--s1);
+}
+.report-section h3 {
+  font: 500 22px/28px var(--font-sans);
+}
+.summary-list {
+  margin: var(--s4) 0 0;
+  padding-left: var(--s5);
+  display: grid;
+  gap: var(--s3);
+}
+.summary-list li {
+  font: 500 18px/28px var(--font-serif);
+  color: var(--text-1);
+}
+.summary-list a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid var(--border-strong);
+}
+.summary-list a:hover {
+  border-bottom-color: var(--accent);
+}
+.summary-list a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.chart.inset svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.chart .axis text,
+text.axis {
+  font: 400 11px/16px var(--font-mono);
+  fill: var(--text-3);
+}
+.hbars {
+  display: grid;
+  gap: var(--s2);
+}
+.hbar {
+  display: grid;
+  grid-template-columns: minmax(72px, 140px) minmax(0, 1fr) auto;
+  gap: var(--s3);
+  align-items: center;
+  font-size: 13px;
+}
+.hbar-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hbar-track {
+  height: 12px;
+  background: var(--bg-alt);
+  border-radius: var(--r-pill);
+}
+.hbar-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--r-pill);
+}
+.hbar-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.heat-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(40px, 1fr));
+  gap: var(--s1);
+}
+.heat-cell {
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  font-size: 11px;
+  color: var(--text-2);
+}
+.heat-swatch {
+  width: 100%;
+  height: 28px;
+  border-radius: var(--r-input);
+}
+.exact-list {
+  list-style: none;
+  padding: 0;
+  margin-top: var(--s4);
+  display: grid;
+}
+.exact-item {
+  border-top: 1px solid var(--border-soft);
+  padding: var(--s4) 0;
+}
+/* Grid children default to min-width: auto, so one wide table or chart would widen the
+   whole report past the screen; let them shrink and scroll inside themselves instead. */
+.report > *,
+.exact-list > li {
+  min-width: 0;
+}
+.exact-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s3);
+}
+.exact-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border-strong);
+  font: 600 12px/16px var(--font-mono);
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+}
+.exact-sentence {
+  font: 500 18px/28px var(--font-serif);
+  color: var(--text-1);
+  margin-top: var(--s2);
+}
+.work {
+  margin-top: var(--s2);
+}
+.work summary {
+  cursor: pointer;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  font: 500 14px/20px var(--font-sans);
+  color: var(--accent);
+}
+.work summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-input);
+}
+.work-list {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: var(--s1) var(--s3);
+  font-size: 13px;
+  line-height: 20px;
+  margin-top: var(--s2);
+}
+.work-list dt {
+  color: var(--text-3);
+}
+.exact-skipped {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--s2);
+  margin-top: var(--s2);
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text-2);
+}
+.exact-skipped li {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: var(--s3);
+  align-items: start;
+}
+
 @media (max-width: 960px) {
   .auth {
     grid-template-columns: minmax(0, 1fr);
@@ -1308,4 +1536,117 @@ details summary {
   font-size: 14px;
   line-height: 20px;
   color: var(--text-2);
+}
+
+/* ---------- Measured tier ---------- */
+.measured-badge {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.exact-badge-dashed {
+  border-style: dashed;
+  border-color: var(--neutral);
+  color: var(--text-2);
+}
+.measured-score {
+  margin-top: var(--s2);
+  font: 400 13px/20px var(--font-mono);
+  color: var(--text-2);
+}
+.measured-leak {
+  margin-top: var(--s3);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--text-2);
+}
+.measured-leak ul {
+  list-style: none;
+  padding: 0;
+  margin: var(--s1) 0 0;
+  display: grid;
+  gap: var(--s1);
+}
+
+/* ---------- proof cards, attacks, fragile ---------- */
+.badge-fragile {
+  background: var(--reject-tint);
+  color: var(--reject-ink);
+  border: 3px double var(--reject);
+}
+.tested-badge {
+  border-color: var(--text-2);
+  color: var(--text-1);
+}
+.proof-cards {
+  display: grid;
+  gap: var(--s3);
+}
+.proof-card {
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  padding: var(--s4);
+  display: grid;
+  gap: var(--s2);
+}
+.proof-card p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text-1);
+}
+.proof-card p.explain {
+  color: var(--text-2);
+}
+.attack-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: var(--s3);
+}
+.attack {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: var(--s3);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--text-2);
+}
+.attack-tag {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  font: 600 11px/16px var(--font-mono);
+  letter-spacing: 0.06em;
+  color: var(--text-1);
+}
+.attack-tag svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+.attack[data-outcome="broken"] .attack-tag {
+  color: var(--reject-ink);
+}
+.attack[data-outcome="not_run"] .attack-tag {
+  color: var(--text-3);
+}
+.attack-nums {
+  display: block;
+  color: var(--text-3);
+}
+.fragile-note {
+  border: 3px double var(--reject);
+  border-radius: var(--r-panel);
+  background: var(--reject-tint);
+  padding: var(--s4);
+}
+.fragile-note p {
+  margin: var(--s1) 0 0;
+  color: var(--reject-ink);
+}
+.rej-row[data-fragile="true"] {
+  border-style: double;
+  border-width: 3px;
 }

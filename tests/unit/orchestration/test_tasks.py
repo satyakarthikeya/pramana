@@ -91,7 +91,7 @@ def test_native_handler_loads_the_exact_cleaned_frame(
     item = candidate("finding").model_copy(update={"dataset_ref": str(cleaned_path)})
     captured: dict[str, Any] = {}
 
-    def fake_verify(candidates: list[Any], frame: pd.DataFrame, _config: Any) -> Any:
+    def fake_verify(candidates: list[Any], frame: pd.DataFrame, _config: Any, **_: Any) -> Any:
         captured["candidates"] = candidates
         captured["frame"] = frame
         return [proof("finding", passed=False)], batch_summary(1)

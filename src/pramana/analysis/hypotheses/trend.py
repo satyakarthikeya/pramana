@@ -23,7 +23,7 @@ import pandas as pd
 
 from pramana.analysis.config import HypothesesConfig
 from pramana.analysis.hypotheses.base import ClaimScreen, emit, note_examined, usable_pair
-from pramana.analysis.schema_inference import ColumnRole, SchemaProfile
+from pramana.analysis.schema_inference import ColumnRole, SchemaProfile, parse_timestamps
 from pramana.contracts.candidate_insight import CandidateInsight
 from pramana.contracts.enums import ClaimType, Direction
 
@@ -43,7 +43,12 @@ def _as_ordered_numeric(series: pd.Series) -> pd.Series:
     """
     if pd.api.types.is_datetime64_any_dtype(series):
         return series.astype("int64")
-    return pd.to_numeric(series, errors="coerce")
+    numeric = pd.to_numeric(series, errors="coerce")
+    if numeric.notna().sum() >= series.notna().sum():
+        return numeric
+    # Dates read from a CSV arrive as text ("2024-03-01"); parse them rather than lose them.
+    stamps = parse_timestamps(series)
+    return stamps.astype("int64").where(stamps.notna())
 
 
 def propose(

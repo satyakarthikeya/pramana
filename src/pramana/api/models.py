@@ -9,6 +9,8 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from pramana.advisory.models import AdvisoryReport
+from pramana.analysis.computed import ComputedAnalysis
+from pramana.analysis.measured import MeasuredAnalysis
 from pramana.analysis.reader import DataBrief
 from pramana.analysis.workspace.ledger import ExplorationSummary
 from pramana.contracts import ProofObject, Verdict
@@ -130,6 +132,18 @@ class DatasetView(Payload):
     preview: DataPreview
     overview: DataOverview | None = None
     brief: DataBrief | None = None
+    #: The Exact tier: arithmetic with its formulas. Shown to the user, never to a model.
+    computed: ComputedAnalysis | None = None
+    #: The COMPUTED_VERSION whose build failed for this table, so a table the Exact tier
+    #: cannot build is not rebuilt (with a model call) on every open.
+    computed_failed_version: int = Field(default=0, ge=0)
+    #: The Measured tier: closed-menu models scored on rows they did not see, against a
+    #: baseline. Built after the response (it can be slow), so it is None until done.
+    measured: MeasuredAnalysis | None = None
+    #: The MEASURED_VERSION whose build failed, so it is not retried on every open.
+    measured_failed_version: int = Field(default=0, ge=0)
+    #: A build has been scheduled; nobody should schedule another.
+    measured_pending: bool = False
 
 
 class DatasetSummary(Payload):
@@ -145,6 +159,8 @@ class DatasetSummary(Payload):
 class ResultRow(Payload):
     insight_id: str
     claim: str
+    #: The claim's type, so the UI need not guess it from the insight id.
+    claim_type: str | None = None
     proof: ProofObject
     explanation: str | None = None
     effect_strength: str | None = None
@@ -160,6 +176,8 @@ class RunResults(Payload):
     candidate_count: int = Field(ge=0)
     unverified_candidate_count: int = Field(ge=0)
     exploration: ExplorationSummary | None = None
+    #: Measured analyses the planner asked for (whole table, held-out scores); never a claim.
+    planned_measured: MeasuredAnalysis | None = None
     #: Advisory summaries and confound caveats for the findings; never part of a verdict.
     advisory: AdvisoryReport | None = None
 

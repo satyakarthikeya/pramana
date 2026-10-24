@@ -320,7 +320,12 @@ function CategoryBars({ column }: { column: ColumnOverview }) {
       {column.top.map((t) => (
         <div
           key={t.label}
-          style={{ display: "grid", gridTemplateColumns: "96px 1fr 48px", gap: 8, alignItems: "center" }}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 96px) minmax(24px, 1fr) auto",
+            gap: 8,
+            alignItems: "center",
+          }}
         >
           <span className="meta mono" style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
             {t.label}

@@ -1,15 +1,25 @@
-import type { ExplorationSummary } from "../api";
+import type { ExplorationSummary, SplitRecord } from "../api";
 import { fmtInt } from "../format";
 
 const ENGINE: Record<ExplorationSummary["engine"], string> = {
   scan: "Rule scan (no model)",
   agent: "Analysis agent (model with tools)",
   api: "Model proposer (summaries only)",
+  planner: "Planner (model reading results from the exploration rows)",
 };
 
 /** Says plainly how many hypotheses were looked at versus tested, so nothing is hidden. */
-export function Exploration({ summary }: { summary: ExplorationSummary }) {
-  const screened = summary.engine !== "api" && summary.examined > summary.tested;
+export function Exploration({
+  summary,
+  split = null,
+}: {
+  summary: ExplorationSummary;
+  /** The run's split, when the claims were chosen on rows the gate did not test on. */
+  split?: SplitRecord | null;
+}) {
+  const held = split !== null && split.method !== "none";
+  const screened = !held && summary.engine !== "api" && summary.examined > summary.tested;
+  const dropped = summary.plan?.dropped ?? [];
   return (
     <section className="panel" aria-label="How these claims were found">
       <span className="label">How these claims were found</span>
@@ -44,6 +54,30 @@ export function Exploration({ summary }: { summary: ExplorationSummary }) {
           </>
         )}
       </div>
+      {held && split && (
+        <p className="explain">
+          Claims were chosen on {fmtInt(split.n_exploration)} exploration rows and tested on{" "}
+          {fmtInt(split.n_confirmation)} rows held back from that choice, so looking at many
+          candidates first does not make the tested results look stronger than they are.
+        </p>
+      )}
+      {dropped.length > 0 && (
+        <details style={{ marginTop: 12 }}>
+          <summary>
+            Left out of the plan ({dropped.length})
+          </summary>
+          <ul className="exact-skipped" style={{ marginTop: 8 }}>
+            {dropped.map((d, i) => (
+              <li key={i}>
+                <span className="note-level">{d.reason_code.replace(/_/g, " ").toUpperCase()}</span>
+                <span>
+                  <span className="mono">{d.item}</span>: {d.reason}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       {summary.engine === "api" && (
         <p className="explain">
           A model proposed these claims from column summaries alone; no pair statistics were
