@@ -38,6 +38,7 @@ from pramana.contracts.enums import (
     TestType,
     Verdict,
 )
+from pramana.contracts.interval import EffectInterval
 from pramana.contracts.power import PowerNote
 from pramana.contracts.structure import SplitRecord
 
@@ -136,6 +137,11 @@ class ProofObject(BaseModel):
         default_factory=list,
         description="Falsification attacks run after the gate (PLAN §7); empty unless the "
         "claim passed. A BROKEN attack makes the outcome FRAGILE.",
+    )
+    effect_interval: EffectInterval | None = Field(
+        default=None,
+        description="How precisely the tested rows pin down the effect (design v3, S5). "
+        "Shown beside the effect; the band rule does not use it.",
     )
     power: PowerNote | None = Field(
         default=None,

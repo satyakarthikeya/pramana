@@ -86,6 +86,15 @@ export interface Proof {
   reported_effect?: number | null;
   reported_effect_metric?: string | null;
   permutation_scheme?: PermutationScheme | null;
+  /** How precisely the rows pin down the effect; shown beside it, never used by the gate. */
+  effect_interval?: {
+    estimate: number;
+    low: number;
+    high: number;
+    confidence: number;
+    method: "row_bootstrap" | "entity_bootstrap" | "period_bootstrap";
+    n_resamples: number;
+  } | null;
   /** Smallest effect the rows could have found; only on a tested, non-significant claim. */
   power?: {
     effect_metric: string;

@@ -164,6 +164,20 @@ export function ProofCards({
         ) : (
           <p className="explain">No effect size: the claim was not tested.</p>
         )}
+        {proof.effect_interval ? (
+          <p className="explain">
+            Repeating the study, the effect would likely fall between{" "}
+            <span className="mono">{fmtEffect(proof.effect_interval.low)}</span> and{" "}
+            <span className="mono">{fmtEffect(proof.effect_interval.high)}</span> (
+            {Math.round(proof.effect_interval.confidence * 100)}% interval, resampling{" "}
+            {{
+              row_bootstrap: "rows",
+              entity_bootstrap: "whole entities",
+              period_bootstrap: "whole periods",
+            }[proof.effect_interval.method]}
+            ).
+          </p>
+        ) : null}
       </section>
 
       <section className="proof-card" aria-label="Which rows?">

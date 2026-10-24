@@ -77,6 +77,7 @@ from pramana.verification.falsification.generator import (
     get_generator,
 )
 from pramana.verification.fdr import apply_bh
+from pramana.verification.interval import effect_interval
 from pramana.verification.power import power_note
 from pramana.verification.schemes import (
     FREE_PLAN,
@@ -509,6 +510,42 @@ def _proof_for_result(
     )
 
 
+def _claim_view(proof: ProofObject, tested: _Tested, structure: DataStructure) -> ClaimView:
+    """What was tested, in the form the attacks and the interval recompute it from."""
+    candidate = tested.candidate
+    return ClaimView(
+        claim_type=candidate.claim_type,
+        var_x=candidate.variables[0],
+        var_y=candidate.variables[1],
+        scheme=tested.plan.scheme,
+        entity_column=structure.entity_column,
+        reference_group=candidate.reference_group,
+        unsigned=proof.effect_metric is EffectMetric.EPSILON_SQUARED,
+    )
+
+
+def _with_interval(
+    proof: ProofObject,
+    tested: _Tested,
+    frame: pd.DataFrame,
+    structure: DataStructure,
+    config: VerificationConfig,
+) -> ProofObject:
+    """`proof` with an interval on its effect; changes nothing else and never raises."""
+    try:
+        found = effect_interval(
+            _claim_view(proof, tested, structure),
+            frame,
+            n_resamples=config.statistics.n_bootstrap,
+            confidence=config.statistics.interval_confidence,
+            seed=config.statistics.seed,
+        )
+    except Exception as error:  # descriptive only: a missing interval changes no verdict
+        _emit("interval_failed", proof.insight_id, error=f"{type(error).__name__}: {error}")
+        return proof
+    return proof if found is None else proof.model_copy(update={"effect_interval": found})
+
+
 def _with_power(
     proof: ProofObject,
     tested: _Tested,
@@ -566,15 +603,7 @@ def _attacked(
     lower a verdict and a crash is not evidence against the claim.
     """
     candidate = tested.candidate
-    claim = ClaimView(
-        claim_type=candidate.claim_type,
-        var_x=candidate.variables[0],
-        var_y=candidate.variables[1],
-        scheme=tested.plan.scheme,
-        entity_column=structure.entity_column,
-        reference_group=candidate.reference_group,
-        unsigned=proof.effect_metric is EffectMetric.EPSILON_SQUARED,
-    )
+    claim = _claim_view(proof, tested, structure)
     try:
         results = run_attacks(claim, frame, config.attacks, seed=config.statistics.seed)
     except Exception as error:  # attacks lower verdicts only; a crash changes nothing
@@ -862,6 +891,14 @@ def verify_batch_with_summary(
         if proof.gate_outcome is GateOutcome.INCONCLUSIVE
         and proof.failure_reason is None
         and proof.insight_id in by_id
+        else proof
+        for proof in proofs
+    ]
+
+    # --- interval on the effect: descriptive, on claims that passed the gate -------
+    proofs = [
+        _with_interval(proof, by_id[proof.insight_id], frame, structure, config)
+        if proof.verdict is Verdict.PASS and proof.insight_id in by_id
         else proof
         for proof in proofs
     ]

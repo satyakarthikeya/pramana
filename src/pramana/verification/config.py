@@ -90,6 +90,11 @@ class StatisticsConfig(BaseModel):
         ge=1,
         description="Largest BH family a run may test; n_permutations must resolve it.",
     )
+    interval_confidence: float = Field(
+        gt=0.5,
+        lt=1.0,
+        description="Confidence level of the interval shown beside an effect. Descriptive.",
+    )
     power_target: float = Field(
         gt=0.5,
         lt=1.0,
