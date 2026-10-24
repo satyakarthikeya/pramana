@@ -27,6 +27,7 @@ from uuid import UUID, uuid4
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from pramana.analysis.claim_filters import redundant_correlation
 from pramana.analysis.computed import ComputedAnalysis, compute_analysis
 from pramana.analysis.computed.summary import ranked
 from pramana.analysis.config import HypothesesConfig
@@ -677,6 +678,14 @@ def _validate(
     for claim in spec.claims:
         label = _describe_claim(claim)
         problem = _claim_problem(claim, schema, shape, allowed)
+        if problem is None and claim.claim_type == "correlation":
+            problem = redundant_correlation(
+                claim.variables[0],
+                claim.variables[1],
+                roles,
+                time_column=shape.time_column,
+                time_like={c: p.is_time_like for c, p in schema.columns.items()},
+            )
         if problem is not None:
             ledger.drop("claim", label, *problem)
             continue

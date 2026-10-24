@@ -223,15 +223,15 @@ def segment_growth(ctx: Context) -> list[ExactItem]:
     f_pct, s_pct = 100 * float(growth.iloc[0]), 100 * float(growth.iloc[-1])
     left_out = len(table) - len(eligible)
     if f_pct == s_pct:
-        return [_not_run("segment_growth", f"Every {ctx.group} value changed by the same rate.", amount)]
+        return [_not_run("segment_growth", f"No {ctx.group} value differs in growth rate from the others.", amount)]
 
     def move(pct: float) -> str:
         return f"{'up' if pct >= 0 else 'down'} {abs(pct):.1f}%"
 
     sentence = (
         f"From {prev_label} to {cur_label}, {amount} in {fastest} was {move(f_pct)}, the fastest of "
-        f"{len(eligible)} {ctx.group} values, and in {slowest} {move(s_pct)}, the slowest; all "
-        f"{ctx.group} values together were {move(100 * overall)}."
+        f"{len(eligible)} {ctx.group} values, and in {slowest} {move(s_pct)}, the slowest; the "
+        f"total across {ctx.group} values was {move(100 * overall)}."
     )
     time = ctx.shape.time_column or ""
     return [

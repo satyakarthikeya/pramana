@@ -197,7 +197,9 @@ def test_parts_that_break_the_rules_are_dropped_with_recorded_reasons(hyp) -> No
     assert ("claim", "group_difference", "wrong_shape") in codes
     assert ("claim", "correlation", "wrong_shape") in codes  # region is not numeric
     assert ("claim", "seasonality", "invalid_fields") in codes
-    assert ("claim", "correlation", "duplicate") in codes
+    # units~revenue, cost~revenue and cost~units restate how the table is built (and the
+    # repeated pair is dropped for the same reason before it can be a duplicate)
+    assert ("claim", "correlation", "bookkeeping") in codes
     assert ("claim", "correlation", "over_budget") in codes
     assert reasons >= {"unknown_column", "wrong_shape", "invalid_fields", "duplicate"}
     assert len(outcome.candidates) == 2
