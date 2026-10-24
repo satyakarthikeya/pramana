@@ -125,6 +125,9 @@ class GateOutcome(StrEnum):
                          "we learned nothing", and both fail closed.
     * `NOT_TESTABLE`  -- refused by the admissibility screen before any code ran, so
                          no statistics exist for it and it is not in the BH family.
+    * `FRAGILE`       -- passed the gate, then broke under a falsification attack
+                         (PLAN §7): the effect reversed or collapsed when it was tried
+                         another way. A one-way ratchet: nothing turns it back to PASS.
     """
 
     SUPPORTED = "supported"
@@ -132,3 +135,4 @@ class GateOutcome(StrEnum):
     NEGLIGIBLE = "negligible"
     INCONCLUSIVE = "inconclusive"
     NOT_TESTABLE = "not_testable"
+    FRAGILE = "fragile"

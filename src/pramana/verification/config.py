@@ -37,6 +37,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from pramana.contracts.enums import EffectMetric
+from pramana.verification.attacks.runner import AttacksConfig
 
 #: Repository root, resolved from this file: verification -> pramana -> src -> root.
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -228,6 +229,7 @@ class VerificationConfig(BaseModel):
 
     statistics: StatisticsConfig
     dependence: DependenceConfig
+    attacks: AttacksConfig
     evidence: EvidenceConfig
     executor: ExecutorConfig
     llm: LLMConfig

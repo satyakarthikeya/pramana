@@ -29,6 +29,7 @@ from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from pramana.contracts.attack import AttackResult
 from pramana.contracts.enums import (
     Direction,
     EffectMetric,
@@ -129,6 +130,11 @@ class ProofObject(BaseModel):
         default=None,
         description="Which rows the claim was tested on (PLAN D5). Null when the caller "
         "passed rows without a split.",
+    )
+    attacks: list[AttackResult] = Field(
+        default_factory=list,
+        description="Falsification attacks run after the gate (PLAN §7); empty unless the "
+        "claim passed. A BROKEN attack makes the outcome FRAGILE.",
     )
     outlier_warning: bool = Field(
         default=False, description="The result moved materially when outliers were trimmed."

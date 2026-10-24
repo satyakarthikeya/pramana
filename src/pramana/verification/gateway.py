@@ -53,6 +53,7 @@ from typing import Any
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field
 
+from pramana.contracts.attack import AttackOutcome
 from pramana.contracts.candidate_insight import CandidateInsight
 from pramana.contracts.enums import (
     ClaimType,
@@ -64,6 +65,7 @@ from pramana.contracts.enums import (
 from pramana.contracts.proof_object import ProofObject
 from pramana.contracts.structure import DataStructure, SplitRecord
 from pramana.verification.admissibility import screen
+from pramana.verification.attacks import ClaimView, run_attacks
 from pramana.verification.config import VerificationConfig
 from pramana.verification.evidence import evaluate_gate
 from pramana.verification.executor.runner import COLUMN_POLICY_REASON_PREFIX, execute
@@ -499,6 +501,61 @@ def _proof_for_result(
     )
 
 
+def _attacked(
+    proof: ProofObject,
+    tested: _Tested,
+    frame: pd.DataFrame,
+    structure: DataStructure,
+    config: VerificationConfig,
+) -> ProofObject:
+    """`proof` with its attacks attached, and REJECT / FRAGILE if any broke it.
+
+    Guarantees: only a PASS enters; the result is the same PASS with attacks recorded,
+    or a REJECT whose reason names the attack. Never raises: an attack run that fails
+    as a whole leaves the PASS with no attacks and logs why, because attacks can only
+    lower a verdict and a crash is not evidence against the claim.
+    """
+    candidate = tested.candidate
+    claim = ClaimView(
+        claim_type=candidate.claim_type,
+        var_x=candidate.variables[0],
+        var_y=candidate.variables[1],
+        scheme=tested.plan.scheme,
+        entity_column=structure.entity_column,
+        reference_group=candidate.reference_group,
+        unsigned=proof.effect_metric is EffectMetric.EPSILON_SQUARED,
+    )
+    try:
+        results = run_attacks(claim, frame, config.attacks, seed=config.statistics.seed)
+    except Exception as error:  # attacks lower verdicts only; a crash changes nothing
+        _emit("attacks_failed", proof.insight_id, error=f"{type(error).__name__}: {error}")
+        return proof
+    broken = [r for r in results if r.outcome is AttackOutcome.BROKEN]
+    _emit(
+        "attacks_run",
+        proof.insight_id,
+        survived=sum(r.outcome is AttackOutcome.SURVIVED for r in results),
+        broken=[r.attack_id for r in broken],
+    )
+    if not broken:
+        return proof.model_copy(update={"attacks": results})
+    first = broken[0]
+    return ProofObject.model_validate(
+        {
+            **proof.model_dump(),
+            "verdict": Verdict.REJECT,
+            "gate_outcome": GateOutcome.FRAGILE,
+            "evidence_score": None,
+            "score_components": None,
+            "attacks": [r.model_dump() for r in results],
+            "failure_reason": (
+                f"passed the gate but did not survive the {first.name.lower()} attack: "
+                f"{first.reason}"
+            ),
+        }
+    )
+
+
 def _shadow_template_outcomes(
     tested: Sequence[_Tested],
     frame: pd.DataFrame,
@@ -747,6 +804,15 @@ def verify_batch_with_summary(
             proofs.append(
                 _proof_for_result(item, family_id, q_value, family_size, config, split)
             )
+
+    # --- falsification attacks (PLAN §7): a one-way ratchet on every PASS -----
+    by_id = {item.candidate.insight_id: item for item in tested}
+    proofs = [
+        _attacked(proof, by_id[proof.insight_id], frame, structure, config)
+        if proof.verdict is Verdict.PASS
+        else proof
+        for proof in proofs
+    ]
 
     # --- agreement check (W8): diagnostic, after every verdict is final ------
     # Runs only on the LLM path. Reads the proofs, never writes them.

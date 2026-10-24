@@ -30,6 +30,21 @@ dependence:
   min_clusters: 6                # entities needed to move a label between whole entities
   min_split_entities: 8          # a panel splits by entity only with this many; else by time
 
+attacks:
+  # PLAN §7.2, P5. PROVISIONAL: tuned on the planted cases in
+  # tests/unit/verification/test_attacks.py (each attack catches its case; the whole
+  # set kills a true moderate finding <= 15% of the time). Not yet calibrated on S1.
+  trim_fraction: 0.10          # A1: most rows it may drop, as a share of the rows
+  outlier_z: 3.5               # A1: robust z (median / 1.4826 MAD) beyond which a row is extreme
+  shrink_fraction: 0.5         # an effect below this share of the original has collapsed
+  min_subgroup_n: 30           # rows a half or a subgroup needs before it is judged
+  min_half_periods: 8          # periods each half of an ordered series needs (A2)
+  subgroup_weight_floor: 0.2   # A4: only a level holding this share of rows can break it
+  max_subgroup_columns: 3      # A4: grouping columns examined, in table order
+  max_subgroup_levels: 10      # A4: a grouping column with more levels is skipped
+  min_confound_score: 0.1      # A3: |assoc(x,z)| * |assoc(y,z)| below this: no control
+  identity_tolerance: 1.0e-6   # A7: max deviation, as a share of sd(y), for "exactly"
+
 evidence:
   # Gating bands per effect metric. `min` is the floor below which a result is
   # NEGLIGIBLE no matter how small its q-value is (AGENTS.md §3.5); `strong` is where
