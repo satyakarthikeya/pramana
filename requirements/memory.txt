@@ -5,7 +5,7 @@
 
 # Vector store. NOTE: only src/pramana/memory/ may import this package —
 # there is a CI test that fails the build on stray chromadb imports.
-chromadb>=0.5
+chromadb>=0.5,<2
 
 # Backend
 fastapi>=0.112

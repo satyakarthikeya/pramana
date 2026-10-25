@@ -7,11 +7,11 @@ pydantic-settings>=2.3
 PyYAML>=6.0
 
 # Data (used by analysis, verification stats, and the sandbox whitelist alike)
-pandas>=2.2
-numpy>=1.26
+pandas>=2.2,<4         # verified on 3.1 (str dtype handled in analysis.cleaning)
+numpy>=1.26,<3
 
 # Observability — all LLM calls must be traced (AGENTS.md §2)
-langfuse>=2.40
+langfuse>=3.0,<6        # needs start_as_current_observation (v3+); verified on 5.0
 structlog>=24.1
 
 # Env/secrets loaded from .env locally, secret manager in cloud

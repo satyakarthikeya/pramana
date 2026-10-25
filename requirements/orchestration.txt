@@ -4,7 +4,7 @@
 -r base.txt
 
 # Agent graph
-langgraph>=0.2
+langgraph>=0.2,<2
 langchain-core>=0.3
 
 # Async execution of falsification code (queue plumbing here; task internals in verification)
