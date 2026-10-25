@@ -9,9 +9,11 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from pramana.advisory.models import AdvisoryReport
+from pramana.analysis.analyst.models import AnalystRead
 from pramana.analysis.computed import ComputedAnalysis
 from pramana.analysis.measured import MeasuredAnalysis
 from pramana.analysis.reader import DataBrief
+from pramana.analysis.statements.models import CheckedStatement
 from pramana.analysis.workspace.ledger import ExplorationSummary
 from pramana.contracts import ProofObject, Verdict
 from pramana.memory.retrieval import RetrievedLesson
@@ -144,6 +146,22 @@ class DatasetView(Payload):
     measured_failed_version: int = Field(default=0, ge=0)
     #: A build has been scheduled; nobody should schedule another.
     measured_pending: bool = False
+    #: The analyst agent's reading of the Exact and Measured results (extra analyses it asked
+    #: for are inside `measured`). Built right after the Measured tier; None until then.
+    analyst: AnalystRead | None = None
+
+
+class StatementRequest(Payload):
+    """A sentence to check against a stored table."""
+
+    text: str = Field(min_length=3, max_length=600)
+
+
+class StatementResults(Payload):
+    """What code found for each statement the analyst read in the sentence."""
+
+    results: list[CheckedStatement]
+    notes: list[str] = Field(default_factory=list)
 
 
 class DatasetSummary(Payload):

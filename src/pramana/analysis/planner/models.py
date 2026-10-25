@@ -52,6 +52,7 @@ DropReason = Literal[
     "duplicate",
     "wrong_shape",
     "not_renderable",
+    "too_few_rows",
     "unknown_item",
     "invalid_fields",
     "bookkeeping",

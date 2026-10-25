@@ -316,6 +316,10 @@ export function Results({
   const open = all.find((r) => r.insight_id === selected) ?? null;
   const tested = all.length;
   const run = results.run;
+  const thinDrops = (results.exploration?.plan?.dropped ?? []).filter(
+    (d) => d.reason_code === "too_few_rows",
+  );
+  const thin = thinDrops.length > 0 ? thinDrops : null;
   const sorted = [...results.verified_insights].sort(
     (a, b) => Math.abs(b.proof.effect_size ?? 0) - Math.abs(a.proof.effect_size ?? 0),
   );
@@ -376,6 +380,14 @@ export function Results({
                 {tested} tested, 0 verified, {results.rejected_claims.length} rejected. This is a
                 result. Nothing was marked verified, and every reason is below.
               </p>
+              {thin && (
+                <p>
+                  {thin.length} proposed claim{thin.length === 1 ? " was" : "s were"} not tested
+                  because the table is small: half of the rows are kept back for the strict test,
+                  and the other half had too few complete rows to propose a claim. The Report tab
+                  still shows every figure that needs no test.
+                </p>
+              )}
             </div>
           ) : (
             <div className="stack">

@@ -128,6 +128,7 @@ computed:
   # Nothing here is a statistical threshold and nothing here reaches the gateway or memory.
   sector_engine: api            # api (DeepSeek reads column names, traced) | rules (offline)
   summary_engine: api           # api (DeepSeek rewords the top figures, number-checked) | template
+  analyst_engine: agent         # agent (DeepSeek uses tools, and Python if workspace.sandbox is on, then writes the findings) | api (two calls, no tools) | template; all number-checked
   max_chart_points: 120         # periods drawn per line chart (most recent); keeps stored views small
   max_measures: 6               # numeric columns analysed per table
   max_segments: 12              # rows shown per segment table; the rest are grouped as "other"
@@ -178,7 +179,7 @@ measured:
   max_missing_fraction: 0.5     # a column missing more than this is not offered to a model
   max_categorical_levels: 12    # a text column with more levels than this is not offered as a feature
   time_budget_seconds: 180      # tasks not started before this are shown as "not run"
-  min_rows: 60                  # fewer usable rows than this and no model is fitted
+  min_rows: 40                  # fewer usable rows than this and no model is fitted (scores on small tables carry wide fold-to-fold spread)
   outer_folds: 5                # held-out folds that produce the reported score
   inner_folds: 3                # folds used inside each training part to pick between grid settings
   min_class_rows: 20            # rows the smallest class needs before a class target is modelled

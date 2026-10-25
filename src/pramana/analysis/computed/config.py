@@ -17,6 +17,7 @@ class ComputedConfig(BaseModel):
 
     sector_engine: Literal["api", "rules"]
     summary_engine: Literal["api", "template"]
+    analyst_engine: Literal["agent", "api", "template"] = "template"
     max_chart_points: int = Field(ge=12, le=1000)
     max_measures: int = Field(ge=1, le=50)
     max_segments: int = Field(ge=2, le=100)
@@ -44,4 +45,6 @@ def load_computed_config(path: Path | str = DEFAULT_CONFIG_PATH) -> ComputedConf
         raw["sector_engine"] = engine
     if engine := os.getenv("PRAMANA_SUMMARY_ENGINE"):
         raw["summary_engine"] = engine
+    if engine := os.getenv("PRAMANA_ANALYST_ENGINE"):
+        raw["analyst_engine"] = engine
     return ComputedConfig.model_validate(raw)

@@ -543,6 +543,68 @@ export interface MeasuredAnalysis {
   excluded: Exclusion[];
   seconds: number;
 }
+export type StatementStatus =
+  | "matches"
+  | "off_by"
+  | "ambiguous"
+  | "tested"
+  | "not_tested"
+  | "not_testable"
+  | "cannot_check";
+export interface StatementReading {
+  label: string;
+  value: number | null;
+  matches: boolean;
+}
+export interface StatementCheck {
+  statement: Record<string, unknown>;
+  result: {
+    kind: string;
+    status: StatementStatus;
+    headline: string;
+    detail: string;
+    readings: StatementReading[];
+  };
+}
+export interface StatementResults {
+  results: StatementCheck[];
+  notes: string[];
+}
+
+export interface AnalystFact {
+  id: string;
+  tier: "exact" | "measured" | "described";
+  title: string;
+  sentence: string;
+  values: Record<string, Scalar>;
+  table: Record<string, Scalar>[];
+  columns: string[];
+}
+export interface AnalystRequest {
+  task: string;
+  target: string | null;
+  features: string[];
+  accepted: boolean;
+  note: string;
+}
+export interface AnalystStep {
+  id: string;
+  tool: string;
+  summary: string;
+  output: string;
+  ok: boolean;
+}
+export interface AnalystRead {
+  version: number;
+  source: "model" | "template";
+  paragraphs: { fact_ids: string[]; text: string; checks?: StatementCheck["result"][] }[];
+  facts: AnalystFact[];
+  requests: AnalystRequest[];
+  steps: AnalystStep[];
+  paragraphs_dropped: number;
+  fallback_reason: string | null;
+}
+
 export interface DatasetView {
   dataset_id: string;
   name: string;
@@ -556,6 +618,7 @@ export interface DatasetView {
   measured?: MeasuredAnalysis | null;
   measured_pending?: boolean;
   measured_failed_version?: number;
+  analyst?: AnalystRead | null;
 }
 export interface DatasetSummary {
   dataset_id: string;
@@ -633,6 +696,9 @@ export const api = {
   },
   datasetRuns(id: string): Promise<RunView[]> {
     return fetch(`/api/datasets/${id}/runs`).then((r) => json<RunView[]>(r));
+  },
+  checkStatements(id: string, text: string): Promise<StatementResults> {
+    return post(`/api/datasets/${id}/statements`, { text }).then((r) => json<StatementResults>(r));
   },
   analyse(id: string, question: string): Promise<RunView> {
     const form = new FormData();

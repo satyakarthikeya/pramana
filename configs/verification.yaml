@@ -118,7 +118,7 @@ evidence:
       strong: 0.40
 
 executor:
-  timeout_seconds: 60
+  timeout_seconds: 300       # one execution; 60 s was too short for tables of ~27,000 held-out rows (diamonds)
   max_memory_mb: 1024
   max_retries: 1             # after retries are exhausted: fail-closed, never PASS
   allowed_imports:           # AGENTS.md §4 — untrusted LLM-generated code
