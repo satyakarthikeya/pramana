@@ -153,7 +153,7 @@ def inprocess_verification_adapter(
 
         options["generate"] = generate
     from pramana.common.paths import DATA_DIR
-    from pramana.orchestration.verification_integration import gate_rows
+    from pramana.orchestration.verification_integration import gate_history, gate_rows
 
     rows, split = gate_rows(
         state.dataset,
@@ -162,6 +162,9 @@ def inprocess_verification_adapter(
         run_id=state.run_id,
         looks_db=DATA_DIR / "looks.sqlite3",
     )
+    history = gate_history(state.dataset, state.data_structure, config)
+    if history is not None:
+        options["history"] = history
     proofs, summary = verify_batch_with_summary(
         state.candidate_insights,
         rows,

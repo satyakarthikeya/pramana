@@ -1,4 +1,11 @@
-import type { AttackOutcome, AttackResult, PermutationScheme, Proof, SplitRecord } from "../api";
+import type {
+  AttackOutcome,
+  AttackResult,
+  ForecastEvidence,
+  PermutationScheme,
+  Proof,
+  SplitRecord,
+} from "../api";
 import { fmtEffect, fmtInt, fmtP, metricSymbol } from "../format";
 import { useAlpha } from "../hooks";
 import { Broken, Check, Dash } from "./Icons";
@@ -16,6 +23,8 @@ export function nullInWords(scheme: PermutationScheme): string {
       return "labels moved between whole entities";
     case "paired":
       return "each entity compared with itself";
+    case "block_sign_flip":
+      return "the method's and the baseline's errors swapped for whole blocks of backtest origins";
     default: {
       const unreachable: never = scheme;
       return unreachable;
@@ -105,6 +114,84 @@ function AttackRow({ attack }: { attack: AttackResult }) {
   );
 }
 
+const METHOD_WORDS: Record<ForecastEvidence["method"], string> = {
+  trend_seasonal: "linear trend with seasonal dummies",
+  holt_winters: "Holt-Winters exponential smoothing",
+};
+
+/**
+ * The backtest behind a forecast claim, in plain words and a small table. Past accuracy on
+ * periods the method did not see: nothing here says what the next periods will be.
+ */
+export function ForecastCard({ forecast }: { forecast: ForecastEvidence }) {
+  const baseline = forecast.baseline === "seasonal_naive" ? "seasonal-naive" : "last-value";
+  const unit = forecast.period === "quarter" ? "quarters" : "months";
+  const pct = (v: number) => `${Math.round(v * 100)}%`;
+  const rows = forecast.origins.slice(-12);
+  return (
+    <section className="proof-card" aria-label="Backtest">
+      <span className="label">Backtest</span>
+      <p>
+        {METHOD_WORDS[forecast.method]}, scored on {fmtInt(forecast.n_origins)} origins from{" "}
+        <span className="mono">{forecast.first_origin}</span> to{" "}
+        <span className="mono">{forecast.last_origin}</span>, {forecast.horizon} {unit} ahead each.
+        Scaled error <b className="mono">{forecast.mase_model.toFixed(2)}</b> against{" "}
+        <span className="mono">{forecast.mase_baseline.toFixed(2)}</span> for the {baseline}{" "}
+        forecast: <b>{pct(forecast.error_reduction)}</b> less error.
+      </p>
+      {forecast.horizon > 1 && (
+        <p className="explain">
+          Error reduction by horizon:{" "}
+          <span className="mono">
+            {forecast.horizon_reductions.map((r, i) => `${i + 1}: ${pct(r)}`).join(", ")}
+          </span>
+          .
+        </p>
+      )}
+      {forecast.reduction_vs_last_value !== null && forecast.baseline === "seasonal_naive" && (
+        <p className="explain">
+          Against a last-value forecast the same method had{" "}
+          <span className="mono">{pct(forecast.reduction_vs_last_value)}</span> less error.
+        </p>
+      )}
+      {forecast.interval_coverage !== null && forecast.interval_level !== null && (
+        <p className="explain">
+          The {pct(forecast.interval_level)} range built on the earlier origins covered{" "}
+          <span className="mono">{pct(forecast.interval_coverage)}</span> of the later ones
+          {forecast.interval_calibrated === false
+            ? ": accuracy held up, but the stated range is not calibrated."
+            : "."}
+        </p>
+      )}
+      {rows.length > 0 && (
+        <table className="data-table" aria-label="Last backtest origins: actual and forecast">
+          <thead>
+            <tr>
+              <th scope="col">Forecast for</th>
+              <th scope="col">Ahead</th>
+              <th scope="col" className="num">Actual</th>
+              <th scope="col" className="num">Method</th>
+              <th scope="col" className="num">{baseline}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={`${r.origin}-${r.horizon}`}>
+                <td className="mono">{r.target}</td>
+                <td className="mono">{r.horizon}</td>
+                <td className="num mono">{r.actual.toLocaleString("en-US", { maximumFractionDigits: 1 })}</td>
+                <td className="num mono">{r.forecast.toLocaleString("en-US", { maximumFractionDigits: 1 })}</td>
+                <td className="num mono">{r.baseline.toLocaleString("en-US", { maximumFractionDigits: 1 })}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <p className="explain">{forecast.disclaimer}</p>
+    </section>
+  );
+}
+
 /** The broken attack, if any, for a claim that passed and then failed. */
 export function brokenAttack(proof: Pick<Proof, "attacks">): AttackResult | undefined {
   return proof.attacks?.find((a) => a.outcome === "broken");
@@ -180,11 +267,14 @@ export function ProofCards({
               row_bootstrap: "rows",
               entity_bootstrap: "whole entities",
               period_bootstrap: "whole periods",
+              origin_block_bootstrap: "blocks of backtest origins",
             }[proof.effect_interval.method]}
             ).
           </p>
         ) : null}
       </section>
+
+      {proof.forecast ? <ForecastCard forecast={proof.forecast} /> : null}
 
       <section className="proof-card" aria-label="Which rows?">
         <span className="label">Which rows?</span>

@@ -65,6 +65,7 @@ from pramana.contracts.proof_object import ProofObject
 from pramana.contracts.structure import DataStructure, SplitRecord
 from pramana.verification.admissibility import screen
 from pramana.verification.attacks import ClaimView, run_attacks
+from pramana.verification import forecast_claim
 from pramana.verification.config import VerificationConfig
 from pramana.verification.evidence import evaluate_gate
 from pramana.verification.executor.runner import COLUMN_POLICY_REASON_PREFIX, execute
@@ -112,6 +113,7 @@ _METRIC_BY_CLAIM_TYPE: dict[ClaimType, EffectMetric] = {
     ClaimType.GROUP_DIFFERENCE: EffectMetric.CLIFFS_DELTA,
     ClaimType.PERIOD_CHANGE: EffectMetric.RELATIVE_CHANGE,
     ClaimType.SEASONALITY: EffectMetric.EPSILON_SQUARED,
+    ClaimType.FORECAST: EffectMetric.MASE_REDUCTION,
 }
 
 #: Prefix on every family identifier, so the string is self-describing in a log line.
@@ -202,7 +204,7 @@ class _Tested:
     correction, never leaves this module, and never becomes output.
     """
 
-    __slots__ = ("candidate", "program", "payload", "failure_reason", "plan")
+    __slots__ = ("candidate", "program", "payload", "failure_reason", "plan", "frame", "rerun")
 
     def __init__(
         self,
@@ -211,12 +213,18 @@ class _Tested:
         payload: dict[str, Any] | None,
         failure_reason: str | None,
         plan: TestPlan = FREE_PLAN,
+        frame: pd.DataFrame | None = None,
     ) -> None:
         self.candidate = candidate
         self.program = program
         self.payload = payload
         self.failure_reason = failure_reason
         self.plan = plan
+        #: The rows this claim was executed on. For a forecast claim they include the earlier
+        #: periods it is fitted on; for every other claim they are the batch's own frame.
+        self.frame = frame
+        #: A forecast claim's backtest rerun in this process, shared by the steps after the gate.
+        self.rerun: tuple[Any, Any] | None = None
 
     @property
     def p_value(self) -> float:
@@ -439,7 +447,7 @@ def _run_one(
             attempts=result.attempts,
             reason=result.failure_reason,
         )
-        return _Tested(candidate, program, None, result.failure_reason, plan)
+        return _Tested(candidate, program, None, result.failure_reason, plan, frame)
 
     incomplete = _incomplete_payload_reason(result.payload)
     if incomplete is not None:
@@ -448,15 +456,15 @@ def _run_one(
         # reported effect. Treated like any other failed execution: kept in the family
         # at p = 1.0, so it can never become SUPPORTED.
         _emit("payload_incomplete", candidate.insight_id, reason=incomplete)
-        return _Tested(candidate, program, None, incomplete, plan)
+        return _Tested(candidate, program, None, incomplete, plan, frame)
 
     drifted = _spec_drift(program, result.payload)
     if drifted is not None:
         _emit("spec_drift", candidate.insight_id, reason=drifted)
-        return _Tested(candidate, program, None, drifted, plan)
+        return _Tested(candidate, program, None, drifted, plan, frame)
 
     _emit("execution_verified", candidate.insight_id, attempts=result.attempts)
-    return _Tested(candidate, program, result.payload, None, plan)
+    return _Tested(candidate, program, result.payload, None, plan, frame)
 
 
 def _proof_for_failed_execution(
@@ -576,6 +584,16 @@ def _claim_view(proof: ProofObject, tested: _Tested, structure: DataStructure) -
     )
 
 
+def _forecast_rerun(tested: _Tested, config: VerificationConfig) -> tuple[Any, Any]:
+    """A forecast claim's backtest, rerun once in this process and shared by the later steps."""
+    if tested.rerun is None:
+        assert tested.plan.forecast is not None and tested.frame is not None
+        tested.rerun = forecast_claim.rerun(
+            tested.plan.forecast, tested.frame, tested.candidate.variables[1], config
+        )
+    return tested.rerun
+
+
 def _with_interval(
     proof: ProofObject,
     tested: _Tested,
@@ -585,6 +603,10 @@ def _with_interval(
 ) -> ProofObject:
     """`proof` with an interval on its effect; changes nothing else and never raises."""
     try:
+        if tested.candidate.claim_type is ClaimType.FORECAST:
+            test, _ = _forecast_rerun(tested, config)
+            found = forecast_claim.forecast_interval(test, tested.plan.forecast, config)  # type: ignore[arg-type]
+            return proof if found is None else proof.model_copy(update={"effect_interval": found})
         found = effect_interval(
             _claim_view(proof, tested, structure),
             frame,
@@ -612,6 +634,11 @@ def _with_power(
     """
     try:
         payload = tested.payload or {}
+        if tested.candidate.claim_type is ClaimType.FORECAST:
+            forecast_note = forecast_claim.forecast_power(payload, config)
+            if forecast_note is None:
+                return proof
+            return proof.model_copy(update={"power": forecast_note})
         n_observations = payload.get("n_observations")
         if n_observations is None or proof.effect_metric is None:
             return proof
@@ -640,6 +667,72 @@ def _with_power(
     return proof if note is None else proof.model_copy(update={"power": note})
 
 
+def _forecast_attacked(
+    proof: ProofObject, tested: _Tested, config: VerificationConfig
+) -> ProofObject:
+    """F1..F6 on a forecast claim that passed: the same one-way ratchet as `_attacked`.
+
+    Guarantees: only a PASS enters; the result is the same PASS with the attacks recorded, or a
+    REJECT / FRAGILE whose reason names the first check that broke it and says a break is not
+    proof the forecast is bad. A run that fails as a whole leaves the PASS unattacked and logs
+    why, because attacks can only lower a verdict and a crash is not evidence against a claim.
+    """
+    try:
+        test, _ = _forecast_rerun(tested, config)
+        results = forecast_claim.forecast_attacks(test, config)
+    except Exception as error:  # attacks lower verdicts only; a crash changes nothing
+        _emit("attacks_failed", proof.insight_id, error=f"{type(error).__name__}: {error}")
+        return proof
+    broken = [r for r in results if r.outcome is AttackOutcome.BROKEN]
+    _emit(
+        "attacks_run",
+        proof.insight_id,
+        survived=sum(r.outcome is AttackOutcome.SURVIVED for r in results),
+        broken=[r.attack_id for r in broken],
+    )
+    if not broken:
+        return proof.model_copy(update={"attacks": results})
+    first = broken[0]
+    return ProofObject.model_validate(
+        {
+            **proof.model_dump(),
+            "verdict": Verdict.REJECT,
+            "gate_outcome": GateOutcome.FRAGILE,
+            "evidence_score": None,
+            "score_components": None,
+            "attacks": [r.model_dump() for r in results],
+            "failure_reason": (
+                f"passed the gate but did not hold under the {first.name.lower()} check: "
+                f"{first.reason}. A broken check is not proof the forecast is bad: it means the "
+                f"backtest's advantage did not survive that check on these periods."
+            ),
+        }
+    )
+
+
+def _with_forecast_evidence(
+    proof: ProofObject, tested: _Tested, config: VerificationConfig
+) -> ProofObject:
+    """`proof` with the backtest table the card shows; changes nothing else and never raises."""
+    try:
+        test, series = _forecast_rerun(tested, config)
+        evidence = forecast_claim.build_evidence(
+            test,
+            series,
+            tested.plan.forecast,  # type: ignore[arg-type]
+            list(proof.attacks),
+            config,
+        )
+    except Exception as error:  # descriptive only: a missing table changes no verdict
+        _emit(
+            "forecast_evidence_failed",
+            proof.insight_id,
+            error=f"{type(error).__name__}: {error}",
+        )
+        return proof
+    return proof.model_copy(update={"forecast": evidence})
+
+
 def _attacked(
     proof: ProofObject,
     tested: _Tested,
@@ -655,6 +748,8 @@ def _attacked(
     lower a verdict and a crash is not evidence against the claim.
     """
     candidate = tested.candidate
+    if candidate.claim_type is ClaimType.FORECAST:
+        return _forecast_attacked(proof, tested, config)
     claim = _claim_view(proof, tested, structure)
     hints = None
     if config.attacks.refuter_enabled:
@@ -802,6 +897,7 @@ def verify_batch(
     generate: Generator | None = None,
     structure: DataStructure | None = None,
     split: SplitRecord | None = None,
+    history: pd.DataFrame | None = None,
 ) -> list[ProofObject]:
     """Verify a batch and return one proof object per candidate.
 
@@ -810,7 +906,13 @@ def verify_batch(
     `verify_batch_with_summary` instead; the per-claim result is identical.
     """
     return verify_batch_with_summary(
-        candidates, frame, config, generate=generate, structure=structure, split=split
+        candidates,
+        frame,
+        config,
+        generate=generate,
+        structure=structure,
+        split=split,
+        history=history,
     )[0]
 
 
@@ -822,6 +924,7 @@ def verify_batch_with_summary(
     generate: Generator | None = None,
     structure: DataStructure | None = None,
     split: SplitRecord | None = None,
+    history: pd.DataFrame | None = None,
 ) -> tuple[list[ProofObject], BatchSummary]:
     """Verify a whole batch of candidate insights: one proof object each, plus a summary.
 
@@ -848,6 +951,10 @@ def verify_batch_with_summary(
       declare independent rows, and every proof records that as `free`.
     * **Tested on the rows given.** `frame` is the confirmation rows when the run was
       split (PLAN D5); `split` is recorded on every proof so that can be checked.
+    * **History for forecast claims only.** `history` is the earlier rows of a time-ordered
+      split. A forecast claim is fitted on them (before each backtest origin) and scored on
+      `frame` alone; no other claim type reads it, and with `claims.forecast_enabled` false
+      it is never used.
 
     Raises `ValueError` for a batch containing a repeated `insight_id`, which would
     silently collapse two verdicts into one, and for a batch larger than
@@ -861,6 +968,8 @@ def verify_batch_with_summary(
         )
     structure = structure or DataStructure.independent_rows()
     frame = with_period_column(frame, structure)
+    if history is not None:
+        history = with_period_column(history, structure)
     if not candidates:
         return [], BatchSummary(
             bh_family_id=_family_id(candidates),
@@ -884,20 +993,28 @@ def verify_batch_with_summary(
     # Nothing is corrected or gated yet: BH needs every p-value in hand first.
     outcomes: list[ProofObject | _Tested] = []
     for candidate in candidates:
-        admissibility = screen(candidate, columns)
+        admissibility = screen(
+            candidate, columns, forecast_enabled=config.claims.forecast_enabled
+        )
         if not admissibility.admissible:
             reason = admissibility.reason or "the claim was refused by the admissibility screen"
             _emit("screened_out", candidate.insight_id, reason=reason)
             outcomes.append(_not_testable(candidate, family_id, seed, reason, split))
             continue
 
-        plan = assign_plan(candidate, frame, structure, config)
+        is_forecast = candidate.claim_type is ClaimType.FORECAST
+        plan = (
+            assign_plan(candidate, frame, structure, config, history=history, split=split)
+            if is_forecast
+            else assign_plan(candidate, frame, structure, config)
+        )
         if isinstance(plan, str):
             _emit("screened_out", candidate.insight_id, reason=plan)
             outcomes.append(_not_testable(candidate, family_id, seed, plan, split))
             continue
 
-        outcome = _run_one(candidate, frame, config, generator, tally, plan, split)
+        run_frame = forecast_claim.forecast_frame(history, frame) if is_forecast else frame
+        outcome = _run_one(candidate, run_frame, config, generator, tally, plan, split)
         if isinstance(outcome, str):
             outcomes.append(_not_testable(candidate, family_id, seed, outcome, split))
         else:
@@ -975,6 +1092,16 @@ def verify_batch_with_summary(
     proofs = [
         _attacked(proof, by_id[proof.insight_id], frame, structure, config)
         if proof.verdict is Verdict.PASS
+        else proof
+        for proof in proofs
+    ]
+
+    # --- the backtest behind a forecast claim, for its card: descriptive, never gated --
+    proofs = [
+        _with_forecast_evidence(proof, by_id[proof.insight_id], config)
+        if proof.insight_id in by_id
+        and by_id[proof.insight_id].candidate.claim_type is ClaimType.FORECAST
+        and by_id[proof.insight_id].payload is not None
         else proof
         for proof in proofs
     ]

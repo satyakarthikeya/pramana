@@ -38,6 +38,7 @@ from pramana.contracts.enums import (
     TestType,
     Verdict,
 )
+from pramana.contracts.forecast import ForecastEvidence
 from pramana.contracts.interval import EffectInterval
 from pramana.contracts.power import PowerNote
 from pramana.contracts.structure import SplitRecord
@@ -153,6 +154,11 @@ class ProofObject(BaseModel):
         default=None,
         description="How small an effect these rows could have detected (design v3, S1). "
         "Set only on a claim that was tested and not significant; descriptive, never gated.",
+    )
+    forecast: ForecastEvidence | None = Field(
+        default=None,
+        description="Forecast claims only: the backtest behind the verdict (past out-of-sample "
+        "accuracy, never a statement about the next periods). Null for every other claim.",
     )
     outlier_warning: bool = Field(
         default=False, description="The result moved materially when outliers were trimmed."

@@ -11,7 +11,13 @@ from uuid import UUID
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from pramana.contracts import CandidateInsight, DataStructure, ProofObject, SplitRecord
+from pramana.contracts import (
+    CandidateInsight,
+    ClaimType,
+    DataStructure,
+    ProofObject,
+    SplitRecord,
+)
 from pramana.verification.admissibility import screen
 from pramana.verification.config import VerificationConfig
 from pramana.verification.falsification.generator import (
@@ -27,6 +33,7 @@ from pramana.verification.schemes import (
     TestPlan,
     assign_plan,
     confirmation_frame,
+    split_rows,
     with_period_column,
 )
 
@@ -57,6 +64,23 @@ def gate_rows(
     return rows, split.model_copy(
         update={"prior_looks": prior, "look_budget": config.dependence.max_prior_looks}
     )
+
+
+def gate_history(
+    frame: pd.DataFrame, structure: DataStructure | None, config: VerificationConfig
+) -> pd.DataFrame | None:
+    """The earlier rows a forecast claim is fitted on, or None.
+
+    Guarantees: None unless `claims.forecast_enabled` is true and the run was split by time (the
+    only split in which every held-back period is later than the history); the rows are exactly
+    the exploration split, so they never include a held-back row. Only forecast claims read them.
+    """
+    if structure is None or not config.claims.forecast_enabled:
+        return None
+    explore, _, record = split_rows(frame, structure, config)
+    if record.method != "by_time":
+        return None
+    return frame.iloc[explore].reset_index(drop=True)
 
 
 def validate_summary(
@@ -126,10 +150,17 @@ def prepare_verification(
     rows = with_period_column(frame, planned)
     programs = []
     for candidate in candidates:
-        admission = screen(candidate, list(frame.columns))
+        admission = screen(
+            candidate, list(frame.columns), forecast_enabled=config.claims.forecast_enabled
+        )
         try:
             if not admission.admissible:
                 raise GeneratorError(admission.reason or "Claim is not testable")
+            if candidate.claim_type is ClaimType.FORECAST:
+                # Forecast claims are tested with the vetted template only: the generator
+                # selected here (the model-written one) refuses them, and nothing replaces it.
+                generate(candidate, config)
+                raise GeneratorError("a forecast claim is tested by the vetted template only")
             plan = assign_plan(candidate, rows, planned, config)
             if isinstance(plan, str):
                 raise GeneratorError(plan)

@@ -30,7 +30,9 @@ class EffectInterval(BaseModel):
     low: float
     high: float
     confidence: float = Field(gt=0.0, lt=1.0)
-    method: Literal["row_bootstrap", "entity_bootstrap", "period_bootstrap"]
+    method: Literal[
+        "row_bootstrap", "entity_bootstrap", "period_bootstrap", "origin_block_bootstrap"
+    ]
     n_resamples: int = Field(ge=1)
 
     @model_validator(mode="after")
