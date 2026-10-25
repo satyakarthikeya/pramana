@@ -331,6 +331,8 @@ export interface SystemStatus {
   };
   chat_ready: boolean;
   chat_blockers: string[];
+  /** "model" (DeepSeek) or "rules" (no model: fixed tools and the gateway only). */
+  chat_engine?: "model" | "rules";
   alpha: number;
 }
 export type AnswerKind =
@@ -630,6 +632,11 @@ export const api = {
   },
   dataset(id: string): Promise<DatasetView> {
     return fetch(`/api/datasets/${id}`).then((r) => json<DatasetView>(r));
+  },
+  deleteDataset(id: string): Promise<void> {
+    return fetch(`/api/datasets/${id}`, { method: "DELETE" }).then(async (r) => {
+      if (!r.ok) throw await failure(r);
+    });
   },
   datasetRuns(id: string): Promise<RunView[]> {
     return fetch(`/api/datasets/${id}/runs`).then((r) => json<RunView[]>(r));

@@ -157,8 +157,13 @@ function Exchange({ item, onOpen }: { item: ChatExchange; onOpen: (id: string) =
           </details>
         )}
         <p className="chat-work mono">
-          {w.turns} model {w.turns === 1 ? "call" : "calls"} · {w.tool_calls} tool{" "}
-          {w.tool_calls === 1 ? "step" : "steps"} · {fmtInt(w.input_tokens + w.output_tokens)} tokens
+          {w.input_tokens + w.output_tokens === 0
+            ? "built-in assistant, no model"
+            : `${w.turns} model ${w.turns === 1 ? "call" : "calls"}`}{" "}
+          · {w.tool_calls} tool {w.tool_calls === 1 ? "step" : "steps"}
+          {w.input_tokens + w.output_tokens > 0
+            ? ` · ${fmtInt(w.input_tokens + w.output_tokens)} tokens`
+            : ""}
         </p>
       </article>
     </li>
@@ -326,6 +331,13 @@ export function Ask({ dataset, system }: { dataset: DatasetView; system: SystemS
               {asking ? "Working…" : "Ask"} <Arrow />
             </button>
           </form>
+        )}
+        {system?.chat_engine === "rules" && !blocked && (
+          <p className="explain">
+            Answered by the built-in assistant (no model): name a column, for example "average
+            age", "missing values", "average income by region" or "is age associated with
+            income?". Relationship questions are tested by the same gate as analysis runs.
+          </p>
         )}
         {asking && (
           <p className="explain" role="status">

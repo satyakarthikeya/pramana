@@ -247,6 +247,7 @@ export function DatasetPage({ id, tab, runId }: { id: string; tab: Tab; runId: s
   const [question, setQuestion] = useState("");
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [system, setSystem] = useState<SystemStatus | null>(null);
 
   const loadRuns = useCallback(async () => {
@@ -297,6 +298,24 @@ export function DatasetPage({ id, tab, runId }: { id: string; tab: Tab; runId: s
     }
   };
 
+  const remove = async () => {
+    if (!dataset) return;
+    const sure = window.confirm(
+      `Delete ${dataset.name}? Its file, runs and chat are removed. Verified memory is kept.`,
+    );
+    if (!sure) return;
+    setDeleting(true);
+    setStartError(null);
+    try {
+      await api.deleteDataset(id);
+      await refresh();
+      window.location.hash = "#/";
+    } catch (error) {
+      setStartError(error instanceof Error ? error.message : "The dataset could not be deleted.");
+      setDeleting(false);
+    }
+  };
+
   const active = runs.find((r) => r.status === "running" || r.status === "pending");
   const shownRun = runId ?? runs[0]?.run_id ?? null;
 
@@ -321,6 +340,15 @@ export function DatasetPage({ id, tab, runId }: { id: string; tab: Tab; runId: s
                 <span className="chip">added {new Date(dataset.created_at).toLocaleDateString()}</span>
               </div>
             </div>
+            <button
+              type="button"
+              className="btn btn-ghost btn-compact"
+              disabled={Boolean(active) || deleting}
+              title={active ? "Wait for the active run to finish" : undefined}
+              onClick={remove}
+            >
+              {deleting ? "Deleting…" : "Delete dataset"}
+            </button>
           </div>
 
           <form

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { api, type SystemStatus } from "../api";
 import { useWorkspace } from "../store";
 import { fmtInt } from "../format";
 import { AppShell, useFilePicker } from "./AppShell";
@@ -22,6 +23,11 @@ export function Home() {
   const picker = useFilePicker((file) => stage(file));
   const [name, setName] = useState("");
   const [question, setQuestion] = useState("");
+  const [system, setSystem] = useState<SystemStatus | null>(null);
+
+  useEffect(() => {
+    api.system().then(setSystem, () => setSystem(null));
+  }, []);
 
   useEffect(() => {
     setName(staged ? suggestedName(staged) : "");
@@ -93,6 +99,13 @@ export function Home() {
                 onChange={(e) => setQuestion(e.target.value)}
               />
             </label>
+            {system && system.blockers.length > 0 && (
+              <p className="dz-error" role="alert">
+                The table will be added and profiled, but analysis cannot start: a model is
+                switched on and {system.blockers.join("; ")}. Add the keys to the server's{" "}
+                <span className="mono">.env</span> and restart, or use the offline profile.
+              </p>
+            )}
             <div className="dz-actions">
               <button type="submit" className="btn btn-primary btn-hero" disabled={!ready}>
                 {starting ? "Uploading and starting…" : "Start analysis"} <Arrow />

@@ -1463,7 +1463,8 @@ text.axis {
   flex: 1;
   min-width: 0;
 }
-@media (max-width: 900px) {
+/* The rail takes 288px, so the side ledger needs a wide window; stack it below that. */
+@media (max-width: 1240px) {
   .chat {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--s5);

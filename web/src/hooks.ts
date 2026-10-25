@@ -14,10 +14,13 @@ export function useRun(id: string | null, onFinished?: () => void) {
     if (!id) return;
     let stopped = false;
     let timer: number | undefined;
+    let failures = 0;
     const step = async () => {
       try {
         const view = await api.run(id);
         if (stopped) return;
+        failures = 0;
+        setProblem(null);
         setRun(view);
         if (view.status === "pending" || view.status === "running") {
           timer = window.setTimeout(step, 1500);
@@ -31,7 +34,14 @@ export function useRun(id: string | null, onFinished?: () => void) {
         }
         onFinished?.();
       } catch (error) {
-        if (!stopped) setProblem(error instanceof Error ? error.message : "Could not load this run.");
+        if (stopped) return;
+        // A dropped connection or a server restart is usually brief: keep following the run
+        // with a growing delay, and only show the problem once it has lasted a while.
+        failures += 1;
+        if (failures >= 4) {
+          setProblem(error instanceof Error ? error.message : "Could not load this run.");
+        }
+        if (failures < 20) timer = window.setTimeout(step, Math.min(15000, 1500 * 2 ** failures));
       }
     };
     step();
