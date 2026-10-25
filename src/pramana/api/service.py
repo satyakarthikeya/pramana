@@ -52,6 +52,19 @@ def data_preview(state: PramanaState) -> DataPreview:
     return build_preview(state.dataset, schema, removed, v1_settings().preview_rows)
 
 
+def _rows_tested(proof: Any, dataset: Any, variables: list[str]) -> int | None:
+    """How many rows the test used: the proof's own count, else the table's complete rows.
+
+    The gate tests only the held-back rows, so the whole table's count would overstate it.
+    """
+    power = getattr(proof, "power", None)
+    if power is not None and power.unit == "observations":
+        return int(power.n_effective)
+    if hasattr(dataset, "dropna"):
+        return int(dataset.dropna(subset=variables).shape[0])
+    return None
+
+
 class RunService:
     """Bound local runs, preserve the full verification family, and persist only guarded results."""
 
@@ -320,11 +333,7 @@ class RunService:
                         effect_strength=effect_strength(proof),
                         n_permutations=permutation_count(proof),
                         chart=self._chart(candidate, state),
-                        complete_rows=(
-                            int(state.dataset.dropna(subset=candidate.variables).shape[0])
-                            if hasattr(state.dataset, "dropna")
-                            else None
-                        ),
+                        complete_rows=_rows_tested(proof, state.dataset, candidate.variables),
                     )
                 )
             if state.status not in {RunStatus.COMPLETED, RunStatus.DEGRADED, RunStatus.FAILED}:

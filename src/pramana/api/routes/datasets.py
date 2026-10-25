@@ -10,7 +10,13 @@ from starlette.concurrency import run_in_threadpool
 from pramana.api.auth import User
 from pramana.api.datasets import DatasetReadError, profile_file
 from pramana.api.deps import current_user, get_service
-from pramana.api.models import DatasetSummary, DatasetView, RunView
+from pramana.api.models import (
+    DatasetSummary,
+    DatasetView,
+    RunView,
+    StatementRequest,
+    StatementResults,
+)
 from pramana.api.routes.system import model_blockers
 from pramana.api.service import RunService
 from pramana.api.v1 import v1_settings
@@ -74,6 +80,9 @@ async def upload_dataset(
         if service.datasets.needs_measured(view):
             view = service.datasets.schedule_measured(view)
             background.add_task(service.datasets.build_measured, dataset_id, user.user_id)
+        elif service.datasets.needs_analyst(view):
+            service.datasets.schedule_analyst(view)
+            background.add_task(service.datasets.build_analyst, dataset_id, user.user_id)
         return view
     finally:
         await file.close()
@@ -103,6 +112,9 @@ def get_dataset(
         if service.datasets.needs_measured(view):
             view = service.datasets.schedule_measured(view)
             background.add_task(service.datasets.build_measured, dataset_id, user.user_id)
+        elif service.datasets.needs_analyst(view):
+            service.datasets.schedule_analyst(view)
+            background.add_task(service.datasets.build_analyst, dataset_id, user.user_id)
         return view
     except KeyError:
         raise HTTPException(404, "Dataset not found.") from None
@@ -161,3 +173,41 @@ def start_run(
     except Exception:
         service.release()
         raise
+
+
+def _tested_pairs(service: RunService, dataset_id: UUID, owner_id: UUID) -> list[dict[str, object]]:
+    """Variables and verdicts of the claims the gateway tested in this dataset's latest run."""
+    for run in service.repository.list_runs(limit=200, owner_id=owner_id):
+        if run.dataset_id != dataset_id or run.status != "completed":
+            continue
+        try:
+            results = service.repository.results(run.run_id, owner_id)
+        except KeyError:
+            return []
+        out: list[dict[str, object]] = []
+        for row in [*(results.verified_insights if results else []), *(results.rejected_claims if results else [])]:
+            chart = row.chart
+            if chart is None:
+                continue
+            pair = (chart.x, chart.y) if chart.kind == "scatter" else (chart.group, chart.value)
+            out.append({"x": pair[0], "y": pair[1], "verdict": row.proof.verdict.value, "q": row.proof.q_value})
+        return out
+    return []
+
+
+@router.post("/{dataset_id}/statements", response_model=StatementResults)
+def check_statements(
+    dataset_id: UUID, body: StatementRequest, service: Service, user: Owner
+) -> StatementResults:
+    """Check what a sentence claims: a model reads it, code recomputes it from the table."""
+    try:
+        service.datasets.get(dataset_id, user.user_id)
+    except KeyError:
+        raise HTTPException(404, "Dataset not found.") from None
+    try:
+        checked, notes = service.datasets.check_text(
+            dataset_id, user.user_id, body.text, _tested_pairs(service, dataset_id, user.user_id)
+        )
+    except ValueError as problem:
+        raise HTTPException(422, str(problem)) from None
+    return StatementResults(results=checked, notes=notes)

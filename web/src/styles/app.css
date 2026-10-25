@@ -1688,3 +1688,55 @@ text.axis {
   font-size: 14px;
   line-height: 20px;
 }
+
+.analyst-text {
+  display: grid;
+  gap: var(--s3);
+  max-width: 720px;
+  margin: var(--s4) 0;
+}
+.analyst-text p {
+  margin: 0;
+  font-size: 16px;
+  line-height: 24px;
+}
+.analyst-table {
+  margin-top: var(--s5);
+  max-width: 720px;
+}
+
+.statement-input {
+  display: flex;
+  gap: var(--s3);
+  max-width: 720px;
+  margin: var(--s4) 0;
+}
+.statement-input input {
+  flex: 1;
+  height: 44px;
+  padding: 0 var(--s4);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font: inherit;
+}
+.statement-results {
+  list-style: none;
+  margin: var(--s4) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s3);
+  max-width: 720px;
+}
+.statement-result {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: var(--s4);
+}
+.statement-result[data-status="matches"] { border-color: var(--accent); }
+.statement-result[data-status="off_by"] { border-color: var(--reject); }
+.statement-headline { margin: var(--s2) 0; font-size: 16px; line-height: 24px; }
+.statement-readings { margin: var(--s2) 0 0; padding-left: var(--s4); font-size: 13px; }
+
+.statement-check { margin: var(--s2) 0 0; }
+.statement-check[data-status="matches"] .label { color: var(--accent); }

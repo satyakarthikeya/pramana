@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type DatasetView, type RunView, type SystemStatus } from "../api";
 import { useRun } from "../hooks";
 import { fmtInt } from "../format";
 import { useWorkspace } from "../store";
 import { AppShell } from "./AppShell";
 import { Ask } from "./Ask";
+import { Analyst } from "./Analyst";
 import { Brief } from "./Brief";
+import { CheckStatement } from "./CheckStatement";
 import { Computed } from "./Computed";
 import { ForecastHeadline, Measured } from "./Measured";
 import { Overview } from "./Charts";
@@ -28,6 +30,8 @@ function Overviewtab({ dataset }: { dataset: DatasetView }) {
     <div className="report">
       <ForecastHeadline dataset={dataset} />
     </div>
+    <Analyst dataset={dataset} />
+    <CheckStatement datasetId={dataset.dataset_id} />
     {dataset.computed && <Computed computed={dataset.computed} />}
     <details className="more">
     <summary>
@@ -270,10 +274,17 @@ export function DatasetPage({ id, tab, runId }: { id: string; tab: Tab; runId: s
   }, [id, loadRuns]);
 
   // Measured results are built after the upload response; follow them without faking progress.
-  const pending = Boolean(dataset?.measured_pending);
+  // The analyst's read follows the Measured tier; give up after a few minutes if it never comes.
+  const waitingForAnalyst = Boolean(dataset?.measured && !dataset.analyst);
+  const pending = Boolean(dataset?.measured_pending) || waitingForAnalyst;
+  const polls = useRef(0);
   useEffect(() => {
-    if (!pending) return;
+    polls.current = 0;
+  }, [id]);
+  useEffect(() => {
+    if (!pending || polls.current >= 60) return;
     const timer = window.setTimeout(() => {
+      polls.current += 1;
       api.dataset(id).then(setDataset, () => undefined);
     }, 4000);
     return () => window.clearTimeout(timer);

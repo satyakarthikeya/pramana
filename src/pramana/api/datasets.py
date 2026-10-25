@@ -13,6 +13,7 @@ from uuid import UUID
 import pandas as pd
 from pydantic import ValidationError
 
+from pramana.analysis.analyst.models import ANALYST_VERSION, AnalystRead
 from pramana.analysis.computed import (
     COMPUTED_VERSION,
     ComputedAnalysis,
@@ -162,6 +163,94 @@ def compute_measured_tier(path: Path, computed: ComputedAnalysis | None) -> Meas
     return measured_tier(cleaned, schema, computed)
 
 
+def _tier_setup(
+    frame: pd.DataFrame, schema: SchemaProfile, computed: ComputedAnalysis | None
+) -> tuple[Any, dict[str, str], bool, Any]:
+    """Shape, sector roles, additivity and measure roles shared by the Measured tier and the
+    analyst's extra analyses, so both see the same table the user sees."""
+    if computed is not None:
+        pack = pack_for(computed.sector, load_packs())
+        return computed.shape, dict(computed.sector.roles), pack.additive_measures, pack.measures
+    return classify_shape(frame, schema), {}, True, []
+
+
+def analyst_tier(
+    path: Path,
+    computed: ComputedAnalysis | None,
+    measured: MeasuredAnalysis | None,
+    *,
+    trace_id: UUID,
+) -> tuple[MeasuredAnalysis | None, AnalystRead | None]:
+    """The analyst agent's step: it may ask for extra analyses (code lints and runs them),
+    then reads every result in words. Never raises; with the model off, the read is the
+    code's own sentences and no extra analysis is run."""
+    from pramana.analysis import clean_dataset, infer_schema, load_config, load_dataset
+    from pramana.analysis.analyst.facts import build_facts
+    from pramana.analysis.analyst.read import build_read, choose_requests
+
+    try:
+        cleaned, _ = clean_dataset(load_dataset(path))
+        schema = infer_schema(cleaned, load_config().schema_inference)
+        engine = load_computed_config().analyst_engine
+        shape, roles, additive, measures = _tier_setup(cleaned, schema, computed)
+        record: list = []
+        if engine != "template" and measured is not None:
+            config = load_measured_config()
+            requests, record = choose_requests(
+                cleaned, schema, shape, roles, measured, config, trace_id=trace_id
+            )
+            if requests:
+                extra = compute_measured(
+                    cleaned,
+                    schema,
+                    shape,
+                    config=config,
+                    roles=roles,
+                    requests=requests,
+                    additive=additive,
+                    measure_roles=measures,
+                )
+                measured = measured.model_copy(update={"items": [*measured.items, *extra.items]})
+        facts = build_facts(computed, measured, cleaned, schema)
+        names = [str(c) for c in cleaned.columns]
+        read = None
+        reason = None
+        if engine == "agent":
+            from pramana.analysis.analyst.agentic import agentic_read
+            from pramana.analysis.workspace import load_workspace_config
+
+            try:
+                read = agentic_read(
+                    cleaned,
+                    schema,
+                    load_config().hypotheses,
+                    load_workspace_config(),
+                    facts,
+                    names,
+                    record,
+                    trace_id=trace_id,
+                    time_column=shape.time_column,
+                    additive=additive,
+                )
+            except Exception as problem:
+                logger.warning("agentic_read_failed", reason=str(problem)[:200])
+                reason = f"the tool-using agent could not finish ({str(problem)[:120]})"
+        if read is None:
+            read = build_read(
+                facts,
+                names,
+                record,
+                trace_id=trace_id,
+                engine="template" if engine == "template" else "api",
+            )
+            if reason and read.fallback_reason is None:
+                read = read.model_copy(update={"fallback_reason": reason})
+        return measured, read
+    except Exception:
+        logger.exception("analyst_tier_failed")
+        return measured, None
+
+
 def compute_brief(path: Path) -> DataBrief | None:
     """Rebuild the Data Reader's brief for a stored file, or None if it cannot be read."""
     from pramana.analysis import clean_dataset, infer_schema, load_config, load_dataset
@@ -224,6 +313,7 @@ class DatasetRepository:
         #: Datasets whose Measured tier this process is building right now; a pending
         #: flag stored by a process that has since stopped is therefore stale.
         self._measuring: set[UUID] = set()
+        self._analysing: set[UUID] = set()
         path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as connection:
             connection.execute("""CREATE TABLE IF NOT EXISTS datasets (
@@ -420,6 +510,84 @@ class DatasetRepository:
             logger.exception("measured_build_failed")
         finally:
             self._measuring.discard(dataset_id)
+        self._analysing.add(dataset_id)
+        self.build_analyst(dataset_id, owner_id)
+
+    def check_text(
+        self,
+        dataset_id: UUID,
+        owner_id: UUID | None,
+        text: str,
+        tested: list[dict[str, Any]],
+    ) -> tuple[list[Any], list[str]]:
+        """Read a sentence into structured statements (a model) and recompute each (code).
+
+        Raises `ValueError` with a safe message when the model cannot read the sentence.
+        """
+        from pramana.analysis import clean_dataset, infer_schema, load_config, load_dataset
+        from pramana.analysis.statements.check import check_statement
+        from pramana.analysis.statements.models import CheckedStatement
+        from pramana.analysis.statements.parse import parse_statements
+
+        view = self.get(dataset_id, owner_id)
+        cleaned, _ = clean_dataset(load_dataset(self.file_path(dataset_id, owner_id)))
+        schema = infer_schema(cleaned, load_config().schema_inference)
+        shape, _, additive, _ = _tier_setup(cleaned, schema, view.computed)
+        statements, notes = parse_statements(
+            text, cleaned, schema, time_column=shape.time_column, trace_id=dataset_id
+        )
+        checked = [
+            CheckedStatement(
+                statement=s.model_dump(mode="json", exclude_none=True),
+                result=check_statement(
+                    s, cleaned, time_column=shape.time_column, additive=additive, tested=tested
+                ),
+            )
+            for s in statements
+        ]
+        return checked, notes
+
+    def needs_analyst(self, view: DatasetView) -> bool:
+        """A Measured tier exists and the analyst has not read it at this version."""
+        if view.measured is None or view.dataset_id in self._measuring:
+            return False
+        if view.dataset_id in self._analysing:
+            return False
+        return view.analyst is None or view.analyst.version < ANALYST_VERSION
+
+    def schedule_analyst(self, view: DatasetView) -> None:
+        """Claim the analyst step before the background task is queued, so a second open
+        while the model works does not queue another."""
+        self._analysing.add(view.dataset_id)
+
+    def build_analyst(self, dataset_id: UUID, owner_id: UUID | None = None) -> None:
+        """Let the analyst agent add analyses and read the results (a background task).
+
+        The view is read again just before saving, so a slow model never overwrites a
+        newer tier. The result is stored even when the model was not used (a code read), so
+        a failing model is not asked on every open.
+        """
+        try:
+            try:
+                view = self.get(dataset_id, owner_id)
+                path = self.file_path(dataset_id, owner_id)
+            except KeyError:
+                return
+            if view.measured is None or (
+                view.analyst is not None and view.analyst.version >= ANALYST_VERSION
+            ):
+                return
+            measured, read = analyst_tier(path, view.computed, view.measured, trace_id=dataset_id)
+            if read is None:
+                return
+            latest = self.get(dataset_id, owner_id)
+            if latest.measured is None or latest.measured.version != view.measured.version:
+                return
+            self._save(latest.model_copy(update={"measured": measured, "analyst": read}))
+        except Exception:
+            logger.exception("analyst_build_failed")
+        finally:
+            self._analysing.discard(dataset_id)
 
     def delete(self, dataset_id: UUID, owner_id: UUID) -> None:
         """Remove one owner's dataset record; KeyError when it is not theirs."""

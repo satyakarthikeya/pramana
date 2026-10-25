@@ -309,6 +309,19 @@ def cross_validate(
     return results
 
 
+def _rank_correlation(X: pd.DataFrame, y: pd.Series, column: str) -> float | None:
+    """Spearman correlation of one feature with the target on the rows the model used.
+
+    It tells the reader which way the column moves with the target. It is a description of
+    these rows, not the model's own effect and not a test.
+    """
+    try:
+        rho = X[column].astype(float).corr(y.astype(float), method="spearman")
+    except (KeyError, TypeError, ValueError):
+        return None
+    return float(rho) if np.isfinite(rho) else None
+
+
 def _fmt(value: float) -> str:
     return f"{value:.2f}"
 
@@ -493,14 +506,18 @@ def run_driver(
     order = np.argsort(-shares, kind="stable")
     agreement = _rank_agreement([r.importance for r in results])
     values["rank_agreement"] = agreement
-    table_rows = [
-        row(
-            feature=_group_name(groups[i]),
-            share_pct=float(shares[i]),
-            score_drop=float(drops[i]),
+    table_rows = []
+    for i in order[:10]:
+        rho = _rank_correlation(table.X, table.y, groups[i][0]) if task == "regression" else None
+        table_rows.append(
+            row(
+                feature=_group_name(groups[i]),
+                share_pct=float(shares[i]),
+                score_drop=float(drops[i]),
+                rank_correlation=rho,
+                direction=None if rho is None else ("higher" if rho > 0 else "lower"),
+            )
         )
-        for i in order[:10]
-    ]
     sentence = (
         f"A {family.label} beats the {baseline_name} baseline by {_fmt(lift)} in {metric} "
         f"on rows it did not see ({_fmt(model_score)} against {_fmt(base_score)}, "

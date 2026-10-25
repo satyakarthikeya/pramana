@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import yaml
@@ -67,5 +68,9 @@ class WorkspaceConfig(BaseModel):
 
 
 def load_workspace_config(path: Path | str = DEFAULT_CONFIG_PATH) -> WorkspaceConfig:
-    raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
-    return WorkspaceConfig.model_validate(raw["workspace"])
+    raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))["workspace"]
+    # Turning the Python sandbox on is the installer's choice (see sandbox.py), so it can be
+    # set per install without editing the committed file.
+    if flag := os.getenv("PRAMANA_SANDBOX_ENABLED"):
+        raw["sandbox"]["enabled"] = flag.strip().lower() in {"1", "true", "yes"}
+    return WorkspaceConfig.model_validate(raw)
