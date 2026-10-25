@@ -315,8 +315,11 @@ def _forecast(s: ForecastStatement) -> CheckResult:
         kind="forecast",
         status="not_testable",
         headline=f"A projection of {s.measure} cannot be checked against this table.",
-        detail="Nobody can verify the future. It can be judged two ways: how the same method would "
-        "have done on past periods (a backtest), and by comparing it with the real figure when it arrives.",
+        detail="Nobody can verify the future. The gateway can test how accurate the same method was "
+        "on past periods against a naive baseline (a backtest, shown as 'held up in backtest'). "
+        "That check is switched off by default and needs about 46 months of monthly data, so it "
+        "would not run on a short table. A forecast can also be scored against the real figure "
+        "when it arrives.",
     )
 
 
