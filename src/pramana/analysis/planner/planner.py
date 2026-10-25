@@ -380,6 +380,20 @@ def _describe_claim(claim: PlannerClaim) -> str:
     return f"{claim.claim_type}({', '.join(claim.variables)})"
 
 
+def _thin_exploration(variables: list[str], frame: pd.DataFrame, minimum: int) -> str | None:
+    """The reason text when the exploration half is too small to propose this claim."""
+    columns = [name for name in variables if name in frame.columns]
+    if len(columns) != len(variables):
+        return None
+    rows = len(frame[columns].dropna())
+    if rows >= minimum:
+        return None
+    return (
+        f"only {rows} complete rows are in the exploration half of the table and {minimum} are "
+        "needed to propose a claim; the other half is kept back for the strict test"
+    )
+
+
 def _describe_request(request: PlannedMeasuredRequest) -> str:
     return f"{request.task}(target={request.target}, features={request.features})"
 
@@ -718,6 +732,10 @@ def _validate(
                 claim_screen=claim_screen,
             )
         if candidate is None:
+            thin = _thin_exploration(claim.variables, frame, config.min_observations)
+            if thin is not None:
+                ledger.drop("claim", label, "too_few_rows", thin)
+                continue
             ledger.drop(
                 "claim",
                 label,

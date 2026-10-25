@@ -515,3 +515,14 @@ def test_the_prompt_steers_time_tables_away_from_latest_month_claims() -> None:
 
     assert "Avoid period_change on daily, weekly or monthly rows" in _SYSTEM
     assert "seasonality claim" in _SYSTEM and "group_difference of the main amount" in _SYSTEM
+
+
+def test_a_claim_on_a_table_too_small_to_explore_says_so(hyp) -> None:
+    rng = np.random.default_rng(9)
+    x = rng.normal(size=24)
+    frame = pd.DataFrame({"a": x, "b": 2 * x + rng.normal(size=24), "c": rng.normal(size=24)})
+    outcome = plan(frame, hyp, Script(spec(claims=[claim("correlation", "a", "b")])))
+    assert outcome.candidates == []
+    drop = outcome.record.dropped[0]
+    assert drop.reason_code == "too_few_rows"
+    assert "only 24 complete rows" in drop.reason and "30 are needed" in drop.reason
