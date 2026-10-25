@@ -7,7 +7,7 @@ import { AppShell } from "./AppShell";
 import { Ask } from "./Ask";
 import { Brief } from "./Brief";
 import { Computed } from "./Computed";
-import { Measured } from "./Measured";
+import { ForecastHeadline, Measured } from "./Measured";
 import { Overview } from "./Charts";
 import { Arrow } from "./Icons";
 import { Processing } from "./Processing";
@@ -25,6 +25,9 @@ function Overviewtab({ dataset }: { dataset: DatasetView }) {
   const heads = p.sample_rows[0] ? Object.keys(p.sample_rows[0]) : [];
   return (
     <>
+    <div className="report">
+      <ForecastHeadline dataset={dataset} />
+    </div>
     {dataset.computed && <Computed computed={dataset.computed} />}
     <details className="more">
     <summary>

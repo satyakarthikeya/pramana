@@ -39,7 +39,7 @@ python scripts/calibration/gate_report_card.py --reps 100   # gate FPR / power /
 
 Offline run: `PRAMANA_ANALYSIS_ENGINE=deterministic PRAMANA_VERIFICATION_GENERATOR=template
 PRAMANA_LANGFUSE_ENABLED=false`. Demo profile: `PRAMANA_ANALYSIS_ENGINE=planner` and
-`PRAMANA_VERIFICATION_GENERATOR=template` (`.env.example` sets `llm`; override it).
+`PRAMANA_VERIFICATION_GENERATOR=template` (also the `.env.example` and Compose default).
 
 ## Where the current work is
 
