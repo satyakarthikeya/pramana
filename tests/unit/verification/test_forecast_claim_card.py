@@ -34,7 +34,7 @@ def test_a_replicate_of_each_cheap_shape_runs_and_summarises() -> None:
 
 def test_a_thirty_six_month_series_is_not_testable_at_two_periods_ahead() -> None:
     card = _load()
-    card._init(199)
+    card._init(199, force_default=True)  # the planner itself drops this request earlier
     record = card.replicate(("true", 36, 0, 7, 2))
     assert record["status"] == "not_testable" and "too few backtest origins" in record["reason"]
 
