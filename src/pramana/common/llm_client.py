@@ -144,6 +144,29 @@ def _completion(value: dict[str, Any], settings: LLMSettings) -> Completion:
     )
 
 
+_AUTH_ATTEMPTS = 3
+_AUTH_BACKOFF_SECONDS = 1.0
+
+
+def _authenticated_langfuse() -> Any:
+    """The Langfuse client once its credentials check out, or `LLMUnavailable`.
+
+    Guarantees: inference never starts without a client whose `auth_check()` passed; a
+    network blip is retried a few times (a one-off failure used to end a whole run) and
+    only then fails closed. There is no untraced fallback.
+    """
+    for attempt in range(_AUTH_ATTEMPTS):
+        try:
+            client = get_langfuse_client(LangfuseSettings(enabled=True))
+            if client is not None and client.auth_check():
+                return client
+        except Exception:
+            pass
+        if attempt + 1 < _AUTH_ATTEMPTS:
+            time.sleep(_AUTH_BACKOFF_SECONDS * (attempt + 1))
+    raise LLMUnavailable("Langfuse authentication is required before inference")
+
+
 def complete_chat(
     settings: LLMSettings,
     messages: Sequence[ChatMessage],
@@ -165,12 +188,7 @@ def complete_chat(
         raise ValueError("A run UUID, messages and a temperature in [0, 2] are required")
     if not 1 <= max_tokens <= 131072:
         raise ValueError("max_tokens must be between 1 and 131072")
-    try:
-        client = get_langfuse_client(LangfuseSettings(enabled=True))
-        if client is None or not client.auth_check():
-            raise LLMUnavailable("Langfuse authentication failed")
-    except Exception:
-        raise LLMUnavailable("Langfuse authentication is required before inference") from None
+    client = _authenticated_langfuse()
     observe = getattr(client, "start_as_current_observation", None)
     if observe is None:
         raise LLMUnavailable("Configured Langfuse tracing is required before inference")
