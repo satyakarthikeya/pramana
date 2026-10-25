@@ -94,7 +94,9 @@ _Action = TypeAdapter(Annotated[_Tool | _Final, Field(discriminator="action")])
 
 
 def _clip(text: str, limit: int) -> str:
-    return text if len(text) <= limit else text[:limit] + ' ..."truncated"'
+    """`text` cut to at most `limit` characters, marker included (fields cap at `limit`)."""
+    marker = ' ..."truncated"'
+    return text if len(text) <= limit else text[: max(0, limit - len(marker))] + marker
 
 
 _STATEMENT = TypeAdapter(Statement)
@@ -182,9 +184,17 @@ def agentic_read(
     retried = False
     dropped = 0
 
-    while turns < budget.max_turns and tokens < budget.max_total_tokens:
+    asked_final = False
+    while turns < budget.max_turns:
+        if asked_final and tokens >= budget.max_total_tokens:
+            break  # it was asked for the findings and spent the budget anyway
         turns += 1
-        if turns == budget.max_turns:
+        # Each turn re-sends the conversation, so tokens grow fast. Ask for the findings
+        # while there is still room for them, not after the budget is gone.
+        if not asked_final and (
+            turns == budget.max_turns or tokens >= 0.7 * budget.max_total_tokens
+        ):
+            asked_final = True
             messages.append(
                 ChatMessage(
                     role="user", content='Budget reached. Reply now with {"action":"final",...}.'

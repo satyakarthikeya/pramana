@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pramana.advisory.models import AdvisoryReport
 from pramana.analysis.analyst.models import AnalystRead
 from pramana.analysis.computed import ComputedAnalysis
+from pramana.analysis.insights import InsightReport
 from pramana.analysis.measured import MeasuredAnalysis
 from pramana.analysis.reader import DataBrief
 from pramana.analysis.statements.models import CheckedStatement
@@ -134,6 +135,9 @@ class DatasetView(Payload):
     preview: DataPreview
     overview: DataOverview | None = None
     brief: DataBrief | None = None
+    #: The analyst's read: outcome, drivers, change over time, comparisons, data quality.
+    #: Every number is computed by code; its claims are what an analysis run tests.
+    insights: InsightReport | None = None
     #: The Exact tier: arithmetic with its formulas. Shown to the user, never to a model.
     computed: ComputedAnalysis | None = None
     #: The COMPUTED_VERSION whose build failed for this table, so a table the Exact tier

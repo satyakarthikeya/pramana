@@ -105,6 +105,7 @@ def get_dataset(
     try:
         view = service.datasets.get(dataset_id, user.user_id)
         view = service.datasets.backfill_brief(view, user.user_id)
+        view = service.datasets.backfill_insights(view, user.user_id)
         view = service.datasets.backfill_computed(view, user.user_id)
         if service.datasets.needs_model_summary(view):
             view = service.datasets.schedule_summary(view)

@@ -21,6 +21,7 @@ from pramana.analysis.computed import (
     load_computed_config,
 )
 from pramana.analysis.computed.summary import summarise
+from pramana.analysis.insights import INSIGHTS_VERSION, InsightReport, build_insights
 from pramana.analysis.measured import (
     MEASURED_VERSION,
     MeasuredAnalysis,
@@ -251,6 +252,26 @@ def analyst_tier(
         return measured, None
 
 
+def safe_insights(frame: pd.DataFrame, schema: SchemaProfile) -> InsightReport | None:
+    """The analyst's read of a cleaned table, or None; odd data never stops an upload."""
+    try:
+        return build_insights(frame, schema)
+    except Exception:
+        logger.exception("insights_failed")
+        return None
+
+
+def compute_insights(path: Path) -> InsightReport | None:
+    """Rebuild the analyst's read for a stored file, or None if it cannot be read."""
+    from pramana.analysis import clean_dataset, infer_schema, load_config, load_dataset
+
+    try:
+        cleaned, _ = clean_dataset(load_dataset(path))
+        return safe_insights(cleaned, infer_schema(cleaned, load_config().schema_inference))
+    except Exception:
+        return None
+
+
 def compute_brief(path: Path) -> DataBrief | None:
     """Rebuild the Data Reader's brief for a stored file, or None if it cannot be read."""
     from pramana.analysis import clean_dataset, infer_schema, load_config, load_dataset
@@ -290,6 +311,7 @@ def profile_file(
         brief = read_data(cleaned, schema)
     except Exception:
         brief = None
+    insights = safe_insights(cleaned, schema)
     computed = exact_tier(cleaned, schema, trace_id=dataset_id)
     return DatasetView(
         dataset_id=dataset_id,
@@ -300,6 +322,7 @@ def profile_file(
         preview=preview,
         overview=overview,
         brief=brief,
+        insights=insights,
         computed=computed,
         computed_failed_version=COMPUTED_VERSION if computed is None else 0,
     )
@@ -335,14 +358,13 @@ class DatasetRepository:
             return DatasetView.model_validate_json(raw)
         except ValidationError:
             data = json.loads(raw)
-            for derived in ("brief", "computed", "measured"):
+            derived_keys = ("brief", "insights", "computed", "measured")
+            for derived in derived_keys:
                 try:
                     DatasetView.model_validate(
                         {
                             **data,
-                            "brief": None,
-                            "computed": None,
-                            "measured": None,
+                            **dict.fromkeys(derived_keys),
                             derived: data.get(derived),
                         }
                     )
@@ -394,6 +416,17 @@ class DatasetRepository:
                 "UPDATE datasets SET view_json = ? WHERE dataset_id = ?",
                 (updated.model_dump_json(), str(view.dataset_id)),
             )
+        return updated
+
+    def backfill_insights(self, view: DatasetView, owner_id: UUID | None = None) -> DatasetView:
+        """Add (or rebuild) the analyst's read for a dataset stored by an older version."""
+        if view.insights is not None and view.insights.version >= INSIGHTS_VERSION:
+            return view
+        insights = compute_insights(self.file_path(view.dataset_id, owner_id))
+        if insights is None:
+            return view
+        updated = view.model_copy(update={"insights": insights})
+        self._save(updated)
         return updated
 
     def _save(self, view: DatasetView) -> None:

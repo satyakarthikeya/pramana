@@ -17,7 +17,7 @@ Scalar = float | int | str | bool | None
 #: 4 = review fixes (blank segments, calendar windows, inf, signs, non-answers).
 #: 5 = margins, single-row outliers, fiscal-year window names.
 #: 6 = the analyst layer: story, price/volume/mix, segment growth, customer view.
-COMPUTED_VERSION = 6
+COMPUTED_VERSION = 7  # 7: general tables average non-additive measures
 
 
 class ExactItem(BaseModel):

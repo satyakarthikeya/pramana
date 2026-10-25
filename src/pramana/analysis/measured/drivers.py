@@ -94,6 +94,19 @@ def families(task: Task, config: MeasuredConfig, n_rows: int | None = None) -> l
         menu = [f for f in menu if f.key != "svm"]
     if n_rows is not None and n_rows > config.grids.knn_max_rows:
         menu = [f for f in menu if f.key != "knn"]
+    if n_rows is not None:
+        # Nested folds train on about half the rows; k must not exceed what one fold has,
+        # or a small table (51 states) crashes the whole model family.
+        largest = max(1, int(n_rows * 0.5) - 1)
+        fitted = []
+        for family in menu:
+            if family.key == "knn":
+                ks = [k for k in config.grids.knn_neighbors if k <= largest]
+                if not ks:
+                    continue
+                family = Family(family.key, family.label, family.estimator, {"model__n_neighbors": ks})
+            fitted.append(family)
+        menu = fitted
     return menu
 
 

@@ -60,7 +60,7 @@ hypotheses:
   # Fail-closed floors. Below any of these no candidate is emitted at all, rather
   # than one the gateway could only ever return INCONCLUSIVE for while still
   # consuming a slot in the BH family.
-  min_observations: 30         # pairwise-complete rows required to propose anything
+  min_observations: 20         # pairwise-complete rows required to propose anything (= the gate's own floor)
   min_group_size: 10           # rows a level needs to count as a comparable group
   min_group_levels: 2
   max_group_levels: 10

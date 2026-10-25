@@ -188,9 +188,15 @@ def detect_sector(
             reasons=[f"{pack.label} chosen by override"],
         )
 
-    scored = sorted(
-        ((_score(roles_for(columns, p)), name) for name, p in packs.items()), reverse=True
-    )
+    def eligible_score(pack: SectorPack) -> int:
+        # Demographics alone (age, sex, region) appear in every kind of table; a pack is a
+        # candidate only when one of its own measures is present (Titanic is not health).
+        roles = roles_for(columns, pack)
+        if pack.measures and not set(roles.values()) & set(pack.measures):
+            return 0
+        return _score(roles)
+
+    scored = sorted(((eligible_score(p), name) for name, p in packs.items()), reverse=True)
     if not scored or scored[0][0] < MIN_ROLES_FOR_SECTOR:
         best = scored[0][0] if scored else 0
         return SectorMatch(

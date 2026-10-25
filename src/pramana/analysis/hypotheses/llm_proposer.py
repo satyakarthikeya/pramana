@@ -159,7 +159,12 @@ def render_candidate(
     if not px.usable_for_hypotheses or not py.usable_for_hypotheses:
         return None
     pair = usable_pair(frame, x, y, config.min_observations)
-    if pair is None or py.role is not ColumnRole.NUMERIC:
+    # The outcome must be a number. A 0/1 outcome (survived, churned) reads as ordinal; its
+    # mean is a rate, so a group comparison on it is a comparison of rates.
+    numeric_y = py.role is ColumnRole.NUMERIC or (
+        py.role is ColumnRole.ORDINAL and pd.api.types.is_numeric_dtype(frame[y])
+    )
+    if pair is None or not numeric_y:
         return None
     direction = Direction(proposal.direction) if proposal.direction else None
     reference = proposal.reference_group

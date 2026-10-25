@@ -73,8 +73,15 @@ def clean_dataset(
             {"column": column, "reason": "duplicate column name"} for column in duplicate_columns
         )
 
-    duplicate_rows = int(frame.duplicated().sum())
-    if duplicate_rows:
+    # Identical rows are a double entry only when the table identifies its records (an id
+    # column). Without one they are usually different people or events that look alike
+    # (two Titanic passengers with the same class, sex, age and fare), so they are kept.
+    duplicate_rows = 0
+    has_identifier = any(
+        frame[c].nunique(dropna=True) >= 0.9 * len(frame) for c in frame.columns
+    ) if len(frame) else False
+    if has_identifier and frame.duplicated().any():
+        duplicate_rows = int(frame.duplicated().sum())
         frame = frame.drop_duplicates().reset_index(drop=True)
 
     missing_detected = {
@@ -141,6 +148,11 @@ def clean_dataset(
                         }
                     )
 
+    built = _calendar_date(frame)
+    if built is not None:
+        frame[built.name] = built
+        conversions.append({"column": str(built.name), "to": "date built from year and month"})
+
     report = CleaningReport(
         original_shape=original_shape,
         final_shape=(len(frame), len(frame.columns)),
@@ -158,3 +170,48 @@ def clean_dataset(
         invalid_numeric_values=invalid_numeric,
     )
     return frame, report
+
+
+_MONTHS = {
+    name: number
+    for number, names in enumerate(
+        [
+            ("january", "jan"), ("february", "feb"), ("march", "mar"), ("april", "apr"),
+            ("may",), ("june", "jun"), ("july", "jul"), ("august", "aug"),
+            ("september", "sep", "sept"), ("october", "oct"), ("november", "nov"),
+            ("december", "dec"),
+        ],
+        start=1,
+    )
+    for name in names
+}
+
+
+def _calendar_date(frame: pd.DataFrame) -> pd.Series | None:
+    """A monthly date from separate `year` and `month` columns, or None.
+
+    Tables such as `year, month, passengers` hold a monthly time series, but neither
+    column is a date, so the series was read as twelve "month" groups. Built only when the
+    table has no date column already, both columns parse fully, and the name is free.
+    """
+    if any(pd.api.types.is_datetime64_any_dtype(frame[c]) for c in frame.columns):
+        return None
+    lowered = {str(c).strip().lower(): c for c in frame.columns}
+    year_col, month_col = lowered.get("year"), lowered.get("month")
+    if year_col is None or month_col is None or "date" in lowered:
+        return None
+    years = pd.to_numeric(frame[year_col], errors="coerce")
+    raw = frame[month_col]
+    months = pd.to_numeric(raw, errors="coerce")
+    if months.isna().any():
+        months = raw.astype(str).str.strip().str.lower().map(_MONTHS)
+    if years.isna().any() or months.isna().any():
+        return None
+    if not (years.between(1000, 3000).all() and months.between(1, 12).all()):
+        return None
+    dates = pd.to_datetime(
+        {"year": years.astype(int), "month": months.astype(int), "day": 1}, errors="coerce"
+    )
+    if dates.isna().any() or dates.duplicated().any():
+        return None  # several rows per month: not one series; leave the table as it is
+    return dates.rename("date")

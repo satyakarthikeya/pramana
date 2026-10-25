@@ -690,8 +690,13 @@ def outliers(ctx: Context) -> list[ExactItem]:
             if row_item is not None:
                 row_items.append(row_item)
         if ctx.keys is not None:
-            series = values.groupby(ctx.keys).sum(min_count=1).dropna().sort_index()
-            unit = f"{ctx.shape.period} totals"
+            grouped = values.groupby(ctx.keys)
+            if ctx.pack.additive_measures:
+                series = grouped.sum(min_count=1).dropna().sort_index()
+                unit = f"{ctx.shape.period} totals"
+            else:  # a yearly total of life expectancy or BMI means nothing
+                series = grouped.mean().dropna().sort_index()
+                unit = f"{ctx.shape.period} averages"
             where = [str(k) for k in series.index]
             n_rows = int((values.notna() & ctx.keys.notna()).sum())
         else:
@@ -1471,6 +1476,15 @@ def compute_analysis(
     )
     exclude = {c for c in (shape.time_column, weight, group) if c}
     exclude |= {c for c, p in schema.columns.items() if p.role is ColumnRole.ID_LIKE}
+    if match.sector == "general" and pack.additive_measures:
+        # The general pack cannot know its measures. Sum only when every measure is a
+        # count or an amount by name: a total life expectancy or a share of total age
+        # means nothing, so anything else is averaged.
+        from pramana.analysis.semantics import is_additive
+
+        named = _measures(frame, schema, match, pack, exclude, config.max_measures)
+        if named and not all(is_additive(m) for m in named):
+            pack = pack.model_copy(update={"additive_measures": False})
     ctx = Context(
         frame=frame,
         schema=schema,
