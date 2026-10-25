@@ -69,6 +69,9 @@ def test_deepseek_analysis_failure_is_safe_and_actionable_in_website_api(
     monkeypatch.setattr(
         "pramana.analysis.hypotheses.llm_proposer.get_langfuse_client", lambda _: None
     )
+    # The API refuses such a run up front; skip that check to test the in-run safety net
+    # (a key that stops working mid-run must still fail closed).
+    monkeypatch.setattr("pramana.api.routes.runs.model_blockers", lambda: [])
     with TestClient(create_app(service=real_service(tmp_path))) as client:
         sign_in(client)
         run_id = run_sample(client)["run_id"]
@@ -87,7 +90,7 @@ def test_deepseek_analysis_failure_is_safe_and_actionable_in_website_api(
     [
         (b"a,b\n", "no data rows"),
         (b"constant\n1\n1\n1\n", "No usable"),
-        (b"a,b\n\xff,1\n", "could not be read"),
+        (b"a,b\n\x81\x8d,1\n", "could not be read"),
     ],
 )
 def test_bad_tables_have_friendly_messages_without_tracebacks(
@@ -222,6 +225,7 @@ def test_generator_unavailable_is_an_explicit_api_error_with_retained_proofs(
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     # 80 rows: the proposer explores half of them (PLAN D5) and needs 20 or more
     content = pd.DataFrame({"x": range(80), "y": range(80)}).to_csv(index=False).encode()
+    monkeypatch.setattr("pramana.api.routes.runs.model_blockers", lambda: [])
     with TestClient(create_app(service=real_service(tmp_path))) as client:
         sign_in(client)
         run_id = client.post("/api/runs", files={"file": ("table.csv", content)}).json()["run_id"]

@@ -421,6 +421,16 @@ class DatasetRepository:
         finally:
             self._measuring.discard(dataset_id)
 
+    def delete(self, dataset_id: UUID, owner_id: UUID) -> None:
+        """Remove one owner's dataset record; KeyError when it is not theirs."""
+        with self._connect() as connection:
+            removed = connection.execute(
+                "DELETE FROM datasets WHERE dataset_id = ? AND owner_id = ?",
+                (str(dataset_id), str(owner_id)),
+            ).rowcount
+        if not removed:
+            raise KeyError(str(dataset_id))
+
     def claim_unowned(self, owner_id: UUID) -> None:
         """Hand datasets stored before accounts existed to the first account."""
         with self._connect() as connection:

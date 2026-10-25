@@ -11,6 +11,7 @@ from pramana.api.auth import User
 from pramana.api.datasets import DatasetReadError, profile_file
 from pramana.api.deps import current_user, get_service
 from pramana.api.models import DatasetSummary, DatasetView, RunView
+from pramana.api.routes.system import model_blockers
 from pramana.api.service import RunService
 from pramana.api.v1 import v1_settings
 
@@ -107,6 +108,17 @@ def get_dataset(
         raise HTTPException(404, "Dataset not found.") from None
 
 
+@router.delete("/{dataset_id}", status_code=204)
+def delete_dataset(dataset_id: UUID, service: Service, user: Owner) -> None:
+    """Delete a dataset with its file, runs and chat. Verified memory is not touched."""
+    try:
+        service.delete_dataset(dataset_id, user.user_id)
+    except KeyError:
+        raise HTTPException(404, "Dataset not found.") from None
+    except RuntimeError as error:
+        raise HTTPException(409, str(error)) from None
+
+
 @router.get("/{dataset_id}/runs", response_model=list[RunView])
 def dataset_runs(dataset_id: UUID, service: Service, user: Owner) -> list[RunView]:
     try:
@@ -133,6 +145,13 @@ def start_run(
         raise HTTPException(404, "Dataset not found.") from None
     if view.usable_columns == 0:
         raise HTTPException(422, "No usable measurement columns remain after cleaning.")
+    if blockers := model_blockers():
+        raise HTTPException(
+            503,
+            "The configured analysis model cannot run: " + "; ".join(blockers) + ". "
+            "Add the keys to .env and restart, or start the offline profile "
+            "(PRAMANA_ANALYSIS_ENGINE=deterministic).",
+        )
     if not service.reserve():
         raise HTTPException(429, "A run is already active; try again after it finishes.")
     try:

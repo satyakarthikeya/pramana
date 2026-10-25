@@ -43,6 +43,15 @@ class ChatRepository:
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self.path, timeout=30)
 
+    def delete_dataset(self, dataset_id: UUID, owner_id: UUID) -> None:
+        """Remove one owner's conversation and chat testing ledger for a dataset."""
+        with self._connect() as connection:
+            for table in ("chat_exchanges", "chat_tests"):
+                connection.execute(
+                    f"DELETE FROM {table} WHERE dataset_id = ? AND owner_id = ?",
+                    (str(dataset_id), str(owner_id)),
+                )
+
     # ---- conversation ---------------------------------------------------------------
     @staticmethod
     def _load(raw: str, message_id: str, dataset_id: str) -> ChatExchange:

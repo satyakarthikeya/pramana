@@ -65,6 +65,22 @@ class RunRepository:
             raise KeyError(str(run_id))
         return RunView.model_validate_json(row[0])
 
+    def run_ids(self, owner_id: UUID) -> set[str]:
+        """Every run id this owner has, for scoping shared stores to their own work."""
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT run_id FROM runs WHERE owner_id = ?", (str(owner_id),)
+            ).fetchall()
+        return {str(row[0]) for row in rows}
+
+    def owner_of(self, run_id: UUID) -> UUID | None:
+        """The run's owner, or None for a run stored before accounts existed."""
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT owner_id FROM runs WHERE run_id = ?", (str(run_id),)
+            ).fetchone()
+        return UUID(row[0]) if row and row[0] else None
+
     def list_runs(
         self, limit: int = 50, offset: int = 0, owner_id: UUID | None = None
     ) -> list[RunView]:
@@ -128,6 +144,14 @@ class RunRepository:
                 "SELECT results_json FROM runs WHERE run_id = ?", (str(run_id),)
             ).fetchone()
         return RunResults.model_validate_json(row[0]) if row and row[0] else None
+
+    def delete(self, run_ids: list[UUID], owner_id: UUID) -> None:
+        """Remove these runs of one owner, with their stored results."""
+        with self._connect() as connection:
+            connection.executemany(
+                "DELETE FROM runs WHERE run_id = ? AND owner_id = ?",
+                [(str(run_id), str(owner_id)) for run_id in run_ids],
+            )
 
     def claim_unowned(self, owner_id: UUID) -> None:
         """Hand runs made before accounts existed to the first account."""

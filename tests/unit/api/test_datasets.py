@@ -59,7 +59,8 @@ def test_bad_uploads_are_refused_with_plain_messages(tmp_path: Path) -> None:
         header_only = client.post("/api/datasets", files={"file": ("a.csv", b"a,b\n")})
         assert header_only.status_code == 422
         assert "no data rows" in header_only.json()["detail"]
-        unreadable = client.post("/api/datasets", files={"file": ("a.csv", b"a,b\n\xff,1\n")})
+        # Bytes no supported encoding decodes (0x81 and 0x8D are undefined even in cp1252).
+        unreadable = client.post("/api/datasets", files={"file": ("a.csv", b"a,b\n\x81\x8d,1\n")})
         assert unreadable.status_code == 422
         assert "could not be read" in unreadable.json()["detail"]
         assert "Traceback" not in unreadable.text
@@ -284,3 +285,40 @@ def test_a_brief_written_by_an_older_version_never_breaks_a_saved_dataset(tmp_pa
         reopened = client.get(f"/api/datasets/{dataset['dataset_id']}")
         assert reopened.status_code == 200
         assert reopened.json()["brief"]["headline"] == dataset["brief"]["headline"]
+
+
+def test_a_latin1_semicolon_export_is_read(tmp_path: Path) -> None:
+    body = "name;score\n" + "".join(f"Jos\xe9 {i};{i}\n" for i in range(40))
+    with TestClient(create_app(service=service_for(tmp_path))) as client:
+        sign_in(client)
+        stored = client.post("/api/datasets", files={"file": ("x.csv", body.encode("cp1252"))})
+        assert stored.status_code == 201
+        assert stored.json()["preview"]["columns"] == 2
+
+
+def test_deleting_a_dataset_removes_its_file_runs_and_chat(tmp_path: Path) -> None:
+    with TestClient(create_app(service=service_for(tmp_path))) as client:
+        sign_in(client)
+        dataset = client.post("/api/datasets", files={"file": ("bp.csv", _csv())}).json()
+        dataset_id = dataset["dataset_id"]
+        run = client.post(f"/api/datasets/{dataset_id}/runs").json()
+        assert client.delete(f"/api/datasets/{dataset_id}").status_code == 204
+        assert client.get(f"/api/datasets/{dataset_id}").status_code == 404
+        assert client.get(f"/api/runs/{run['run_id']}").status_code == 404
+        assert client.get("/api/datasets").json() == []
+        assert not (tmp_path / "api/datasets" / dataset_id).exists()
+        assert client.delete(f"/api/datasets/{dataset_id}").status_code == 404
+
+
+def test_a_run_that_needs_a_missing_model_is_refused_up_front(
+    tmp_path: Path, monkeypatch
+) -> None:
+    with TestClient(create_app(service=service_for(tmp_path))) as client:
+        sign_in(client)
+        dataset = client.post("/api/datasets", files={"file": ("bp.csv", _csv())}).json()
+        monkeypatch.setenv("PRAMANA_ANALYSIS_ENGINE", "planner")
+        monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+        refused = client.post(f"/api/datasets/{dataset['dataset_id']}/runs")
+        assert refused.status_code == 503
+        assert "DEEPSEEK_API_KEY" in refused.json()["detail"]
+        assert client.get("/api/runs").json() == []

@@ -177,3 +177,7 @@ def test_real_graph_gateway_memory_and_results(
         assert all(item["proof"]["verdict"] == "PASS" for item in memory)
         hits = client.post("/api/memory/search", json={"query": "age bmi"}).json()
         assert hits
+        # Another account sees none of these lessons: their text names this table's columns.
+        sign_in(client, "someone-else@example.com")
+        assert client.get("/api/memory").json() == []
+        assert client.post("/api/memory/search", json={"query": "age bmi"}).json() == []

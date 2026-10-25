@@ -159,6 +159,7 @@ class ChromaLessonStore:
                 embedding.DOWNLOAD_PATH = (
                     persistent_path(config).parent / "models" / config.embedding_model
                 )
+                self._embedding_function = embedding
             self._collection = client.get_or_create_collection(
                 name=config.collection,
                 embedding_function=embedding,
@@ -265,6 +266,18 @@ class ChromaLessonStore:
                     ],
                 )
         return lessons
+
+    def warm(self) -> None:
+        """Connect and load the embedding model once, ahead of the first run that needs it.
+
+        The model (about 79 MB) downloads on first use; without this the first run with a
+        PASS waits on that download at "Writing verified memory". Writes nothing.
+        """
+        with self._lock:
+            self._connect()
+            embed = self._embedding_function
+        if embed is not None:
+            embed(["warm-up"])
 
     def browse(self, *, limit: int = 50, offset: int = 0) -> list[Lesson]:
         """Return validated source lessons only; refuse corrupt persisted proofs."""

@@ -55,6 +55,10 @@ def test_chat_readiness_names_what_is_missing_without_values(
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     for name in ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY"):
         monkeypatch.delenv(name, raising=False)
+    # The offline profile chats with the rule-based assistant, which needs no model.
+    offline = _status(tmp_path / "offline")
+    assert offline["chat_engine"] == "rules" and offline["chat_ready"] is True
+    monkeypatch.setenv("PRAMANA_CHAT_ENGINE", "model")
     status = _status(tmp_path)
     assert status["chat_ready"] is False
     assert status["chat_blockers"] == [

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from threading import Thread
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request
@@ -13,11 +14,21 @@ from fastapi.staticfiles import StaticFiles
 
 from pramana.api.routes import auth, chat, datasets, memory, results, runs, system
 from pramana.api.service import RunService
+from pramana.common.logging import get_logger
 from pramana.common.paths import DATA_DIR
 from pramana.memory.config import load_memory_settings
 
 #: The built web UI. Docker serves it from nginx; locally `npm run build` in web/ enables it here.
 WEB_DIST = Path(__file__).resolve().parents[3] / "web" / "dist"
+
+
+def _warm_memory(service: RunService) -> None:
+    """Load verified memory in the background; a failure is logged and retried by the run."""
+    try:
+        service.store.warm()
+        get_logger(component="api").info("memory_ready")
+    except Exception as error:
+        get_logger(component="api").warning("memory_warm_failed", error_type=type(error).__name__)
 
 
 def create_app(*, service: RunService | None = None) -> FastAPI:
@@ -28,6 +39,9 @@ def create_app(*, service: RunService | None = None) -> FastAPI:
         selected = service or RunService(DATA_DIR, load_memory_settings())
         selected.repository.recover_interrupted()
         application.state.run_service = selected
+        if service is None:
+            # Fetch the memory embedding model now, not inside the first run that passes a claim.
+            Thread(target=_warm_memory, args=(selected,), name="memory-warm", daemon=True).start()
         yield
 
     application = FastAPI(title="PRAMANA", version="0.1.0", lifespan=lifespan)

@@ -37,6 +37,7 @@ from pramana.chat.models import (
     ClaimOutcome,
     LedgerRecord,
 )
+from pramana.chat.rules import RuleChat
 from pramana.chat.store import ChatRepository
 from pramana.common.llm_client import (
     ChatMessage,
@@ -63,6 +64,22 @@ class ChatRateLimited(RuntimeError):
 
 class ChatInputError(ValueError):
     """The question or the dataset cannot be used. `str()` is safe to display."""
+
+
+def chat_engine() -> str:
+    """Who drives chat: `model` (DeepSeek) or `rules` (no model), chosen in configuration.
+
+    `PRAMANA_CHAT_ENGINE` decides; unset, it follows the analysis engine, so the offline
+    profile (`deterministic`) chats with rules and every model profile with the model. A
+    model that is configured but unavailable still fails closed; this is never a fallback.
+    """
+    engine = os.getenv("PRAMANA_CHAT_ENGINE", "").strip().lower()
+    if engine in {"model", "rules"}:
+        return engine
+    if engine:
+        raise ValueError("PRAMANA_CHAT_ENGINE must be 'model' or 'rules'")
+    offline = load_analysis_config().hypotheses.proposer.engine == "deterministic"
+    return "rules" if offline else "model"
 
 
 def _chat_reason(proof: ProofObject) -> str:
@@ -163,6 +180,8 @@ class ChatService:
     # ---- the model ------------------------------------------------------------------
     @staticmethod
     def _default_chat(message_id: UUID) -> ChatFn:
+        if chat_engine() == "rules":
+            return RuleChat()
         proposer = load_analysis_config().hypotheses.proposer
         budget = load_workspace_config().chat
         key = os.getenv(proposer.api_key_env)

@@ -20,6 +20,7 @@ from fastapi import (
 from pramana.api.auth import User
 from pramana.api.deps import current_user, get_service
 from pramana.api.models import RunView
+from pramana.api.routes.system import model_blockers
 from pramana.api.service import RunService
 
 router = APIRouter(prefix="/runs", tags=["runs"])
@@ -41,6 +42,11 @@ async def create_run(
     if suffix not in {".csv", ".xlsx"}:
         await file.close()
         raise HTTPException(415, "Upload a CSV or XLSX file.")
+    if blockers := model_blockers():
+        await file.close()
+        raise HTTPException(
+            503, "The configured analysis model cannot run: " + "; ".join(blockers) + "."
+        )
     if not service.reserve():
         await file.close()
         raise HTTPException(429, "A run is already active; try again after it finishes.")

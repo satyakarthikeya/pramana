@@ -249,8 +249,15 @@ def run_chat_turn(
                 )
             )
         reply = chat(messages)
-        tokens_in += reply.input_tokens or sum(_estimate(m.content) for m in messages)
-        tokens_out += reply.output_tokens or _estimate(reply.content)
+        # Estimate only when the provider reported nothing; a reported 0 (no model) stays 0.
+        tokens_in += (
+            reply.input_tokens
+            if reply.input_tokens is not None
+            else sum(_estimate(m.content) for m in messages)
+        )
+        tokens_out += (
+            reply.output_tokens if reply.output_tokens is not None else _estimate(reply.content)
+        )
         messages.append(ChatMessage(role="assistant", content=reply.content))
         try:
             action = _Action.validate_json(reply.content)

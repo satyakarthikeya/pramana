@@ -93,6 +93,31 @@ class RunService:
         """Return a previously reserved execution slot."""
         self._slots.release()
 
+    def delete_dataset(self, dataset_id: UUID, owner_id: UUID) -> None:
+        """Remove a dataset, its file, its runs and its chat. Verified memory is kept.
+
+        Raises KeyError when the dataset is not the owner's, and RuntimeError while one
+        of its runs is still active (deleting the file under a run would fail it).
+        """
+        import shutil
+
+        path = self.datasets.file_path(dataset_id, owner_id)
+        runs = [
+            run
+            for run in self.repository.list_runs(limit=1000, owner_id=owner_id)
+            if run.dataset_id == dataset_id
+        ]
+        if any(run.status in {RunStatus.PENDING, RunStatus.RUNNING} for run in runs):
+            raise RuntimeError("A run on this dataset is still active.")
+        self.datasets.delete(dataset_id, owner_id)
+        self.repository.delete([run.run_id for run in runs], owner_id)
+        self.chat.repository.delete_dataset(dataset_id, owner_id)
+        folder = self.root / "api/datasets" / str(dataset_id)
+        if path.parent.resolve() == folder.resolve():
+            shutil.rmtree(folder, ignore_errors=True)
+        for run in runs:
+            shutil.rmtree(self.root / "runs" / str(run.run_id), ignore_errors=True)
+
     def _run_workflow(self, run_id: UUID, path: Path, query: str | None) -> PramanaState:
         state = new_run(str(path), user_query=query)
         state.run_id = run_id
@@ -148,9 +173,21 @@ class RunService:
                 raise DataInputError("The file has no data rows. Upload a table with measurements.")
             return result
 
+        owner = self.repository.owner_of(run_id)
+        mine = self.repository.run_ids(owner) if owner else set()
+
         def prepare(current: PramanaState) -> Any:
             self.repository.progress(run_id, "Cleaning data and detecting column types")
             result = dict(adapters.subagents(current))
+            # Hints come only from this account's own earlier runs: a lesson's text names
+            # another person's columns and findings.
+            kept = [
+                item
+                for item in result.get("retrieved_lessons", [])
+                if item["lesson"]["run_id"] in mine
+            ]
+            result["retrieved_lessons"] = kept
+            result["lesson_hints"] = [item["lesson"]["text"] for item in kept]
             prepared = PramanaState.model_validate({**current.model_dump(), **result})
             schema = SchemaProfile.model_validate(prepared.schema_profile)
             preview = data_preview(prepared)

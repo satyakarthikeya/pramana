@@ -150,6 +150,7 @@ def test_a_busy_verifier_means_the_claim_is_not_tested(
 def test_without_a_model_chat_fails_closed_and_stores_nothing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setenv("PRAMANA_CHAT_ENGINE", "model")
     with _client(tmp_path, None, monkeypatch) as client:
         sign_in(client)
         dataset = _upload(client)
