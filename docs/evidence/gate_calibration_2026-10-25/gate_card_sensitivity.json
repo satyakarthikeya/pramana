@@ -1,0 +1,659 @@
+[
+  {
+    "shape": "gaussian",
+    "n": 60,
+    "rho": 0.2,
+    "attempts": 634,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 47,
+          "A3": 7,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 52,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 861,
+        "could_not_tell": 200
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 7,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 7,
+        "a2_too_noisy": 47,
+        "little_checked": 0,
+        "checks_ran": 814,
+        "could_not_tell": 247
+      },
+      "interval@0.2": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 7,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 7,
+        "a2_too_noisy": 47,
+        "little_checked": 0,
+        "checks_ran": 814,
+        "could_not_tell": 247
+      },
+      "interval@0.4": {
+        "broken": {
+          "A1": 0,
+          "A2": 2,
+          "A3": 7,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 9,
+        "a2_too_noisy": 45,
+        "little_checked": 0,
+        "checks_ran": 816,
+        "could_not_tell": 245
+      }
+    }
+  },
+  {
+    "shape": "gaussian",
+    "n": 60,
+    "rho": 0.3,
+    "attempts": 322,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 33,
+          "A3": 5,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 38,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 877,
+        "could_not_tell": 200
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 5,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 5,
+        "a2_too_noisy": 33,
+        "little_checked": 0,
+        "checks_ran": 844,
+        "could_not_tell": 233
+      },
+      "interval@0.2": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 5,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 5,
+        "a2_too_noisy": 33,
+        "little_checked": 0,
+        "checks_ran": 844,
+        "could_not_tell": 233
+      },
+      "interval@0.4": {
+        "broken": {
+          "A1": 0,
+          "A2": 1,
+          "A3": 5,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 6,
+        "a2_too_noisy": 32,
+        "little_checked": 0,
+        "checks_ran": 845,
+        "could_not_tell": 232
+      }
+    }
+  },
+  {
+    "shape": "gaussian",
+    "n": 60,
+    "rho": 0.0,
+    "attempts": 4079,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 51,
+          "A3": 9,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 60,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 868,
+        "could_not_tell": 200
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 1,
+          "A3": 9,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 10,
+        "a2_too_noisy": 50,
+        "little_checked": 0,
+        "checks_ran": 818,
+        "could_not_tell": 250
+      },
+      "interval@0.2": {
+        "broken": {
+          "A1": 0,
+          "A2": 2,
+          "A3": 9,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 11,
+        "a2_too_noisy": 49,
+        "little_checked": 0,
+        "checks_ran": 819,
+        "could_not_tell": 249
+      },
+      "interval@0.4": {
+        "broken": {
+          "A1": 0,
+          "A2": 9,
+          "A3": 9,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 18,
+        "a2_too_noisy": 42,
+        "little_checked": 0,
+        "checks_ran": 826,
+        "could_not_tell": 242
+      }
+    }
+  },
+  {
+    "shape": "gaussian",
+    "n": 120,
+    "rho": 0.2,
+    "attempts": 340,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 46,
+          "A3": 9,
+          "A4": 1,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 53,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1037,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 1,
+          "A3": 9,
+          "A4": 1,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 11,
+        "a2_too_noisy": 45,
+        "little_checked": 0,
+        "checks_ran": 992,
+        "could_not_tell": 45
+      },
+      "interval@0.2": {
+        "broken": {
+          "A1": 0,
+          "A2": 1,
+          "A3": 9,
+          "A4": 1,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 11,
+        "a2_too_noisy": 45,
+        "little_checked": 0,
+        "checks_ran": 992,
+        "could_not_tell": 45
+      },
+      "interval@0.4": {
+        "broken": {
+          "A1": 0,
+          "A2": 4,
+          "A3": 9,
+          "A4": 1,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 14,
+        "a2_too_noisy": 42,
+        "little_checked": 0,
+        "checks_ran": 995,
+        "could_not_tell": 42
+      }
+    }
+  },
+  {
+    "shape": "gaussian",
+    "n": 120,
+    "rho": 0.3,
+    "attempts": 219,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 20,
+          "A3": 4,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 24,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1052,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 4,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 4,
+        "a2_too_noisy": 20,
+        "little_checked": 0,
+        "checks_ran": 1032,
+        "could_not_tell": 20
+      },
+      "interval@0.2": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 4,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 4,
+        "a2_too_noisy": 20,
+        "little_checked": 0,
+        "checks_ran": 1032,
+        "could_not_tell": 20
+      },
+      "interval@0.4": {
+        "broken": {
+          "A1": 0,
+          "A2": 1,
+          "A3": 4,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 5,
+        "a2_too_noisy": 19,
+        "little_checked": 0,
+        "checks_ran": 1033,
+        "could_not_tell": 19
+      }
+    }
+  },
+  {
+    "shape": "gaussian",
+    "n": 120,
+    "rho": 0.0,
+    "attempts": 3675,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 52,
+          "A3": 9,
+          "A4": 9,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 63,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1027,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 9,
+          "A4": 9,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 17,
+        "a2_too_noisy": 52,
+        "little_checked": 0,
+        "checks_ran": 975,
+        "could_not_tell": 52
+      },
+      "interval@0.2": {
+        "broken": {
+          "A1": 0,
+          "A2": 1,
+          "A3": 9,
+          "A4": 9,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 18,
+        "a2_too_noisy": 51,
+        "little_checked": 0,
+        "checks_ran": 976,
+        "could_not_tell": 51
+      },
+      "interval@0.4": {
+        "broken": {
+          "A1": 0,
+          "A2": 3,
+          "A3": 9,
+          "A4": 9,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 20,
+        "a2_too_noisy": 49,
+        "little_checked": 0,
+        "checks_ran": 978,
+        "could_not_tell": 49
+      }
+    }
+  },
+  {
+    "shape": "gaussian",
+    "n": 300,
+    "rho": 0.2,
+    "attempts": 219,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 22,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 22,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1010,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 0,
+        "a2_too_noisy": 22,
+        "little_checked": 0,
+        "checks_ran": 988,
+        "could_not_tell": 22
+      },
+      "interval@0.2": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 0,
+        "a2_too_noisy": 22,
+        "little_checked": 0,
+        "checks_ran": 988,
+        "could_not_tell": 22
+      },
+      "interval@0.4": {
+        "broken": {
+          "A1": 0,
+          "A2": 2,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 2,
+        "a2_too_noisy": 20,
+        "little_checked": 0,
+        "checks_ran": 990,
+        "could_not_tell": 20
+      }
+    }
+  },
+  {
+    "shape": "gaussian",
+    "n": 300,
+    "rho": 0.3,
+    "attempts": 200,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 4,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 4,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1040,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 0,
+        "a2_too_noisy": 4,
+        "little_checked": 0,
+        "checks_ran": 1036,
+        "could_not_tell": 4
+      },
+      "interval@0.2": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 0,
+        "a2_too_noisy": 4,
+        "little_checked": 0,
+        "checks_ran": 1036,
+        "could_not_tell": 4
+      },
+      "interval@0.4": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 0,
+        "a2_too_noisy": 4,
+        "little_checked": 0,
+        "checks_ran": 1036,
+        "could_not_tell": 4
+      }
+    }
+  },
+  {
+    "shape": "gaussian",
+    "n": 300,
+    "rho": 0.0,
+    "attempts": 3679,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 47,
+          "A3": 1,
+          "A4": 6,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 54,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1001,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 1,
+          "A4": 6,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 7,
+        "a2_too_noisy": 47,
+        "little_checked": 0,
+        "checks_ran": 954,
+        "could_not_tell": 47
+      },
+      "interval@0.2": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 1,
+          "A4": 6,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 7,
+        "a2_too_noisy": 47,
+        "little_checked": 0,
+        "checks_ran": 954,
+        "could_not_tell": 47
+      },
+      "interval@0.4": {
+        "broken": {
+          "A1": 0,
+          "A2": 3,
+          "A3": 1,
+          "A4": 6,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 10,
+        "a2_too_noisy": 44,
+        "little_checked": 0,
+        "checks_ran": 957,
+        "could_not_tell": 44
+      }
+    }
+  }
+]

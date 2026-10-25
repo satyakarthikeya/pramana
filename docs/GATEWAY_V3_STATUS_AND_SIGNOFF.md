@@ -71,6 +71,25 @@ it. These are single-claim families, so the Benjamini-Hochberg step and correlat
 families (weakness W3 in the design) are NOT measured. Power is for two effect sizes
 only. The attack false-kill rate is for one planted shape (not a real table).
 
+**Added 2026-10-25 (branch `feat/satya/verif-report-card-v2`; full tables, seeds and the
+reproduction commands in `docs/evidence/GATE_CALIBRATION_2026-10-25.md`).** Synthetic,
+author-built tables; 200 replicates per cell; 95% Wilson intervals in the note.
+
+| Row | Result | Reading |
+|---|---|---|
+| BH on correlated families of 8 claims through the real gateway (6 designs, 200 runs each) | False discovery proportion after BH 0.018 to 0.050 (SE 0.005 to 0.015); at least one false PASS in 4% to 12.5% of runs | Within about one SE of 0.05 everywhere, mixed-sign design included; the all-null mixed-sign row (0.050 +/- 0.015) cannot separate control from a mild excess. Without correction, 26.5% of all-null runs had a false PASS. |
+| Gateway PASS (BH + floor + attacks) against BH alone | Power 0.05 to 0.07 lower; false discovery proportion 0.005 to 0.013 lower | The attacks cost more power than they save in false passes. |
+| False KILL, shipped A2 (point) rule, true rho 0.2 / 0.3, clean shapes | 6% to 24% at n 60 to 120; 0% to 14% at n 300 | The earlier row "0.000" was one shape at rho 0.4, n 200. |
+| False KILL, A2 on evidence (`break_rule: interval`) | 0% to 7% on the same cells | Same cells, same tables. |
+| Planted late-only effect caught by A2 (should be broken) | point 62% / 88% / 96%; interval 8% / 19% / 51% at n 60 / 120 / 300 | The evidence rule gives up most of the detection. Not a free fix. |
+| Luck-passes broken (false survive = 100% minus this) | point 22% to 34%; interval 2% to 8% (clean shapes) | The attacks are not a second line against false positives; BH is. |
+| A5 on a table with 5% extreme rows; A3 with 9 noisy copies of x | break a true effect 29% (A5) and 14% (A3) | Not changed; each needs its own rule and measurement. |
+
+The attack rows use a stand-in gate (Spearman p < 0.05 and the effect floor at a family of one
+claim) so thousands of tables can be tried; the family rows use the real gateway. The older
+statement that the attack set breaks a true effect 0% of the time holds only for the one shape
+and size it was measured on.
+
 **Live runs, real DeepSeek, planner engine, integrated stack:**
 
 | Table | Before (this session) | Now | Runtime |
@@ -102,7 +121,8 @@ held fixed), in 259 s.
 
 ## 5. Sign-off sheet
 
-"Direction" = approved in chat 2026-10-24. Tick "Code reviewed" after reading the diff.
+"Direction" = approved in chat 2026-10-24 (rows 1-9) or under the overnight delegation of
+2026-10-25 (rows 11-15). Tick "Code reviewed" after reading the diff; nothing is ticked as signed.
 
 | # | Change | Why it needs you (AGENTS.md) | Direction | Code reviewed | Signed |
 |---|---|---|---|---|---|
@@ -116,6 +136,12 @@ held fixed), in 259 s.
 | 8 | Spec hash and drift refusal | statistics correctness | approved in direction | [ ] | [ ] |
 | 9 | Planner prompt steering (F3) | analysis model prompt | approved | [ ] | [ ] |
 | 10 | Chat control / online FDR (S9) | | parked, not built | | |
+| 11 | `attacks.break_rule` (point / interval), `false_kill_budget`, `damage_resamples`, `min_capacity`; default `point`, nothing changes until you flip it | the attack rule decides FRAGILE (a REJECT); thresholds in one file, 3.3; shared config | added in commit fe42e7d (not an owner-approved row); reviewed and finished 25 Oct 2026 under the overnight delegation as a flag defaulting to today's behaviour. **Default not changed**; needs your direction | [ ] | [ ] |
+| 12 | Interval rule falls back to the point rule where no interval exists (block-differenced series) and records `details.fallback` | attack rule | approved in chat, overnight delegation, 25 Oct 2026 (flag is off) | [ ] | [ ] |
+| 13 | Wording: "Held up" always shows K of M checks that could be run, N that could not tell, "little checked" below `min_capacity`; FRAGILE names the check and says a break is not proof the claim is false | wording of verdicts | approved in chat, overnight delegation, 25 Oct 2026 | [ ] | [ ] |
+| 14 | Chat reply states the chance that at least one chat claim passed by luck (1 - (1 - alpha)^k) | wording; statistics disclosure | approved in chat, overnight delegation, 25 Oct 2026 | [ ] | [ ] |
+| 15 | Report card v2 (`--v2 families/attacks/flaws/sensitivity/cross-check`) and the calibration note | measurement only; no verdict changes | approved in chat, overnight delegation, 25 Oct 2026 | [ ] | [ ] |
+| 16 | **Open for you:** flip `break_rule` to `interval` (and choose `false_kill_budget`, 0.4 measured better than 0.10)? Change A5 and A3? | a verdict-changing default | **not decided**: the measured trade is in `docs/evidence/GATE_CALIBRATION_2026-10-25.md` section 5 and 6 | | |
 
 Invariants checked by tests in this stack: a tested claim that is not significant gets
 no interval and attacks never run on it; a REJECT is never upgraded; a FRAGILE claim is a
@@ -132,7 +158,7 @@ count is refused; proofs written before these fields still load.
 - Attacks for period-change and seasonality claims: still "does not apply" for all seven.
 - T5 (segment drove the change), T7 (model beats baseline), T8 (adjusted association) as
   tested claims; a chart for the new claim types.
-- BH on correlated claim families and a real-data attack false-kill rate are unmeasured.
+- BH on correlated claim families is measured on one dependence structure (section 4, 25 Oct); a real-data attack false-kill rate is still unmeasured, as are group-difference and trend claims in families.
 - Evaluation (P0) is parked. Docker was not run.
 - The analyst layer (docs/ANALYST_LAYER_STATUS.md) does not change the gateway. A table above
   3,000 rows is now analysed with its trend claims left out (the Sen-slope memory ceiling is
