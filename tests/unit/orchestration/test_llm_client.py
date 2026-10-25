@@ -212,3 +212,29 @@ def test_transport_bounds_response_and_passes_timeout(monkeypatch: pytest.Monkey
 
 def test_redirects_are_not_followed_with_authorization() -> None:
     assert llm._NoRedirect().redirect_request(None) is None
+
+
+def test_a_one_off_auth_failure_is_retried_but_a_persistent_one_still_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(llm, "_AUTH_BACKOFF_SECONDS", 0.0)
+    calls = {"n": 0}
+
+    class Flaky:
+        def auth_check(self) -> bool:
+            calls["n"] += 1
+            return calls["n"] >= 2  # the first check fails, the second passes
+
+    monkeypatch.setattr(llm, "get_langfuse_client", lambda _: Flaky())
+    assert isinstance(llm._authenticated_langfuse(), Flaky) and calls["n"] == 2
+
+    class Down:
+        def auth_check(self) -> bool:
+            calls["n"] += 1
+            raise OSError("network down")
+
+    calls["n"] = 0
+    monkeypatch.setattr(llm, "get_langfuse_client", lambda _: Down())
+    with pytest.raises(llm.LLMUnavailable, match="authentication"):
+        llm._authenticated_langfuse()
+    assert calls["n"] == llm._AUTH_ATTEMPTS
