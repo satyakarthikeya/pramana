@@ -170,7 +170,8 @@ def test_the_whole_attack_set_rarely_kills_a_true_finding(config, n) -> None:
 
 
 def _interval(config):
-    return config.model_copy(update={"break_rule": "interval"})
+    # 200 resamples (the minimum the config allows) keeps this file quick; the rule is unchanged
+    return config.model_copy(update={"break_rule": "interval", "damage_resamples": 200})
 
 
 def test_a2_interval_rule_still_catches_an_effect_only_in_the_late_periods(config) -> None:
@@ -202,6 +203,43 @@ def test_a2_interval_rule_does_not_break_a_half_that_is_only_noisy(config) -> No
     assert interval_kills < point_kills
     assert interval_kills / 60 <= 0.05
     assert noisy > 0  # the third state is reachable: "could not tell" is not "survived"
+
+
+def test_a2_interval_rule_uses_the_point_rule_where_no_interval_exists(config) -> None:
+    """A block-differenced series has no interval: the flag must not silently drop the check."""
+    rng = np.random.default_rng(4)
+    steps = 40
+    x = np.cumsum(rng.normal(size=steps))
+    frame = pd.DataFrame({PERIOD_COLUMN: np.arange(steps, dtype=float), "x": x,
+                          "y": np.cumsum(0.9 * np.diff(x, prepend=0.0)
+                                         + 0.3 * rng.normal(size=steps))})
+    claim = _corr(scheme=PermutationScheme.BLOCK_DIFFERENCED)
+    point = _by_id(run_attacks(claim, frame, config, seed=1))["A2"]
+    evidence = _by_id(run_attacks(claim, frame, _interval(config), seed=1))["A2"]
+    assert evidence.outcome is point.outcome and evidence.attacked_effect == point.attacked_effect
+    assert evidence.applicable and "point rule" in str(evidence.details["fallback"])
+    assert "fallback" not in point.details
+
+
+def test_a2_planted_null_is_rarely_broken_on_evidence_and_a_planted_late_effect_is_still_caught(
+    config,
+) -> None:
+    """Known answers, interval rule: no effect -> no break; a real late-only effect -> break."""
+    breaks_null = 0
+    for t in range(30):
+        rng = np.random.default_rng(900 + t)
+        frame = pd.DataFrame({"x": rng.normal(size=100), "y": rng.normal(size=100)})
+        result = _by_id(run_attacks(_corr(), frame, _interval(config), seed=t))["A2"]
+        breaks_null += result.outcome is AttackOutcome.BROKEN
+    assert breaks_null <= 3
+    rng = np.random.default_rng(5)
+    periods = np.repeat(np.arange(12), 40)
+    x = rng.normal(size=periods.size)
+    y = np.where(periods >= 8, 1.2 * x, 0.0) + rng.normal(size=periods.size)
+    frame = pd.DataFrame({PERIOD_COLUMN: periods.astype(float), "x": x, "y": y})
+    result = _by_id(run_attacks(_corr(scheme=PermutationScheme.STRATIFIED), frame,
+                                _interval(config), seed=1))["A2"]
+    assert result.outcome is AttackOutcome.BROKEN
 
 
 # --- the ratchet inside the gateway ---------------------------------------------

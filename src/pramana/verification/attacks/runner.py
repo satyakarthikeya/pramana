@@ -81,10 +81,12 @@ class AttacksConfig(BaseModel):
     #: claim is broken only when even the optimistic end of a half's interval is below that
     #: line, so a half that is merely noisy is "too noisy to tell", neither survived nor broken.
     #: `interval` breaks fewer claims than `point`; it ships OFF until the report card's
-    #: false-survive rows have been read by the verification owner.
+    #: false-survive rows have been read by the verification owner. Where no interval exists (a
+    #: block-differenced series) `interval` falls back to `point` and says so in `details.fallback`.
     break_rule: Literal["point", "interval"]
-    #: Interval rule: the share of true claims an attack may wrongly break, split over the
-    #: halves (each half's bound is one-sided at kappa / 2).
+    #: Interval rule: the nominal level of each half's bound (one-sided at kappa / 2). It is an
+    #: upper bound, not the rate you get: the report card measured A2 false kill of 0.1% at 0.10
+    #: and 0.8% at 0.40.
     false_kill_budget: float = Field(gt=0.0, lt=0.5)
     #: Interval rule: bootstrap resamples per half.
     damage_resamples: int = Field(ge=200, le=5000)
@@ -378,7 +380,10 @@ def _a2_halves(
     if any(e is None for e in effects):
         return _not_run("A2", "the effect could not be computed in one of the halves")
     if config.break_rule == "interval":
-        return _a2_interval(claim, halves, effects, original, config, seed, label, len(rows))
+        judged = _a2_interval(claim, halves, effects, original, config, seed, label, len(rows))
+        if judged is not None:
+            return judged
+        # no interval for this scheme (a block-differenced series): say so, use the point rule
     worst = min(effects, key=lambda e: e * _sign(original) if claim.signed else abs(e))
     return _verdict(
         "A2",
@@ -390,6 +395,8 @@ def _a2_halves(
         n_rows=int(len(rows)),
         first_half=effects[0],
         second_half=effects[1],
+        **({"fallback": "point rule: no interval for this scheme"}
+           if config.break_rule == "interval" else {}),
     )
 
 
@@ -420,8 +427,8 @@ def _a2_interval(
         found = effect_interval(
             claim, half, n_resamples=config.damage_resamples, confidence=confidence, seed=seed + i
         )
-        if found is None:  # no interval for this scheme or half: fall back to saying so
-            return _not_run("A2", "no interval is available to judge a half of these rows")
+        if found is None:  # no interval for this scheme or half: the caller uses the point rule
+            return None
         uppers.append(max(found.high * toward, found.low * toward))
     details = dict(first_half=effects[0], second_half=effects[1], bound_first=uppers[0],
                    bound_second=uppers[1], false_kill_budget=config.false_kill_budget)
