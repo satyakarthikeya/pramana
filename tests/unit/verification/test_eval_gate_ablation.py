@@ -9,20 +9,29 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+from collections.abc import Iterator
 from pathlib import Path
+from types import ModuleType
 
 import pytest
+
+from pramana.verification.executor import runner
 
 SCRIPT = Path(__file__).resolve().parents[3] / "scripts" / "calibration" / "eval_gate_ablation.py"
 
 
 @pytest.fixture(scope="module")
-def e1():
+def e1() -> Iterator[ModuleType]:
+    """Restore the sandbox runner even when an ablation check fails."""
+    original = runner._run_once
     spec = importlib.util.spec_from_file_location("eval_gate_ablation", SCRIPT)
     module = importlib.util.module_from_spec(spec)
     sys.modules["eval_gate_ablation"] = module
     spec.loader.exec_module(module)
-    return module
+    try:
+        yield module
+    finally:
+        runner._run_once = original
 
 
 def test_tables_have_the_documented_shape(e1) -> None:
