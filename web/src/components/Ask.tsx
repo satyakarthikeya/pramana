@@ -18,6 +18,9 @@ const MAX_QUESTION = 1000;
 /** What kind of answer this is, always stated, never left for the reader to infer. */
 function KindLabel({ answer }: { answer: ChatAnswer }) {
   if (answer.tested) return <Badge proof={answer.tested.row.proof} single />;
+  if (answer.wording_source === "computed" && answer.kind === "descriptive") {
+    return <span className="chip">COMPUTED SUMMARY · FROM TABLE TOOLS</span>;
+  }
   switch (answer.kind) {
     case "exploratory":
       return (
@@ -109,6 +112,7 @@ function Exchange({ item, onOpen }: { item: ChatExchange; onOpen: (id: string) =
   const a = item.answer;
   const d = a.tested?.disclosure;
   const w = a.work;
+  const withheld = a.wording_source === "computed" || a.notes.some((note) => note.includes("wording was withheld"));
   return (
     <li className="chat-turn">
       <p className="chat-q">
@@ -140,13 +144,14 @@ function Exchange({ item, onOpen }: { item: ChatExchange; onOpen: (id: string) =
             </button>
           </div>
         )}
-        {a.notes.map((n) => (
+        {withheld && <p className="explain">Showing facts calculated from the table because the model's wording could not be used.</p>}
+        {a.notes.filter((note) => !withheld || !note.includes("wording was withheld")).map((n) => (
           <p className="explain" key={n}>
             {n}
           </p>
         ))}
         {a.evidence.length > 0 && (
-          <details className="evidence">
+          <details className="evidence" open={withheld}>
             <summary>
               Where these numbers came from ({a.evidence.length} tool{" "}
               {a.evidence.length === 1 ? "result" : "results"})

@@ -14,7 +14,7 @@ from __future__ import annotations
 import math
 import time
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -74,6 +74,10 @@ class MissingnessArgs(_Args):
     pass
 
 
+class OverviewArgs(_Args):
+    pass
+
+
 class ScanPairsArgs(_Args):
     top: int = Field(default=10, ge=1, le=MAX_SCAN_TOP)
 
@@ -84,10 +88,19 @@ class PythonArgs(_Args):
 
 #: name -> (arguments model, one-line description shown to the model)
 TOOL_SPECS: dict[str, tuple[type[_Args], str]] = {
-    "describe": (DescribeArgs, "Summary of one column: counts, missing, spread or top levels."),
+    "describe": (
+        DescribeArgs,
+        "Summary of one column: counts, missing, numeric sum/mean/spread or top levels.",
+    ),
+    "overview": (
+        OverviewArgs,
+        "What this table contains: exact row/column counts and a bounded list of column "
+        "names, detected roles and missing counts. Use for a general dataset introduction.",
+    ),
     "compare_groups": (
         CompareGroupsArgs,
-        "Per-group n, median and quartiles of a numeric `value` across a categorical `group`.",
+        "Per-group n, sum, mean, median and quartiles of numeric `value` "
+        "across categorical `group`.",
     ),
     "relate": (RelateArgs, "Spearman and Pearson correlation of two numeric columns, with n."),
     "trend": (TrendArgs, "Kendall tau-b of a numeric `value` against a time-like `order` column."),
@@ -131,6 +144,7 @@ class Workspace:
         self.ledger = ledger or ExplorationLedger()
         self._tools: dict[str, Callable[[Any], tuple[dict[str, Any], int]]] = {
             "describe": self._describe,
+            "overview": self._overview,
             "compare_groups": self._compare_groups,
             "relate": self._relate,
             "trend": self._trend,
@@ -155,7 +169,7 @@ class Workspace:
         """Run one tool. Unknown tools, bad arguments and failures come back as results."""
         entry_id = self.ledger.next_id()
         started = time.monotonic()
-        kind = "python" if name == "python" else "tool"
+        kind: Literal["python", "tool"] = "python" if name == "python" else "tool"
         examined = 0
         output: dict[str, Any] | None = None
         error: str | None = None
@@ -235,6 +249,7 @@ class Workspace:
             numbers = present.astype(float)
             if len(numbers):
                 out.update(
+                    sum=_r(numbers.sum()),
                     mean=_r(numbers.mean()),
                     std=_r(numbers.std()),
                     min=_r(numbers.min()),
@@ -264,6 +279,7 @@ class Workspace:
                 {
                     "group": str(level)[:64],
                     "n": int(len(v)),
+                    "sum": _r(v.sum()),
                     "median": _r(v.median()),
                     "q1": _r(v.quantile(0.25)),
                     "q3": _r(v.quantile(0.75)),
@@ -339,6 +355,28 @@ class Workspace:
                 }
                 for name in columns
             ],
+        }, 0
+
+    def _overview(self, _args: OverviewArgs) -> tuple[dict[str, Any], int]:
+        """Describe the table's dimensions, including columns not eligible for claims."""
+        columns = list(self.frame.columns)[:MAX_MISSINGNESS_COLUMNS]
+        return {
+            "rows": len(self.frame),
+            "column_count": len(self.frame.columns),
+            "columns_shown": len(columns),
+            "omitted_columns": len(self.frame.columns) - len(columns),
+            "columns": [
+                {
+                    "column": name,
+                    "role": self.schema.columns[name].role.value
+                    if name in self.schema.columns else "unknown",
+                    "usable_for_claims": self.schema.columns[name].usable_for_hypotheses
+                    if name in self.schema.columns else False,
+                    "missing": int(self.frame[name].isna().sum()),
+                }
+                for name in columns
+            ],
+            "note": "Detected roles describe the table, not its origin or sampling design.",
         }, 0
 
     def _scan_pairs(self, args: ScanPairsArgs) -> tuple[dict[str, Any], int]:

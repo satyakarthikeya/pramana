@@ -109,6 +109,60 @@ def test_a_claim_goes_through_the_real_gateway_and_is_counted(
         assert ledger["records"][0]["label"] == "verified"
 
 
+@pytest.mark.parametrize("question", [
+    "Does age relate to systolic blood pressure?",
+    "Is AGE associated with SBP?",
+    "Does this dataset prove that age causes systolic blood pressure to increase, "
+    "and is it representative of the general population?",
+])
+def test_plain_language_questions_reach_real_gateway_and_preserve_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, question: str,
+) -> None:
+    with _client(tmp_path, Script(CLAIM), monkeypatch) as client:
+        sign_in(client)
+        dataset = _upload(client)
+        response = client.post(f"/api/datasets/{dataset}/chat", json={"question": question})
+        assert response.status_code == 200
+        answer = response.json()["answer"]
+        assert answer["kind"] == "verified", answer["text"]
+        proof = answer["tested"]["row"]["proof"]
+        assert proof["verdict"] == "PASS" and proof["falsification_code"]
+        assert proof["p_value"] == proof["q_value"] < 0.05
+        assert "single-test criteria" in answer["tested"]["row"]["explanation"]
+        assert "correction for multiple tests" not in answer["text"]
+        if "population" in question:
+            assert "Causation:" in answer["text"]
+            assert "Population representativeness:" in answer["text"]
+        history = client.get(f"/api/datasets/{dataset}/chat").json()
+        assert history[-1]["answer"] == answer
+        ledger = client.get(f"/api/datasets/{dataset}/chat/tests").json()
+        assert ledger["chat_tests"] == 1 and len(ledger["records"]) == 1
+
+
+def test_duplicate_removal_is_visible_in_the_answer_and_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import pandas as pd
+
+    frame = sample_frame()
+    uploaded = pd.concat([frame, frame.iloc[:5]], ignore_index=True)
+    with _client(tmp_path, Script(
+        DESCRIBE, {"action":"answer", "text":"500 ages are recorded.", "cites":["x1"]},
+    ), monkeypatch) as client:
+        sign_in(client)
+        dataset = client.post('/api/datasets', files={
+            'file':('duplicates.csv', uploaded.to_csv(index=False).encode()),
+        }).json()['dataset_id']
+        response = client.post(f'/api/datasets/{dataset}/chat', json={'question':'how many ages?'})
+        assert response.status_code == 200
+        answer = response.json()['answer']
+        notes = ' '.join(answer['notes'])
+        assert '500 of 505 uploaded rows' in notes
+        assert '5 exact duplicate rows' in notes
+        assert 'distinct transactions' in notes
+        assert client.get(f'/api/datasets/{dataset}/chat').json()[-1]['answer'] == answer
+
+
 def test_chat_never_writes_to_verified_memory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

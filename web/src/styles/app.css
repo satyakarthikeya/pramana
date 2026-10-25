@@ -1437,6 +1437,7 @@ text.axis {
 .chat-text {
   font: 400 16px/24px var(--font-sans);
   overflow-wrap: anywhere;
+  white-space: pre-line;
 }
 .chat-work {
   font-size: 12px;

@@ -73,6 +73,8 @@ class ChatWork(Payload):
 class ChatAnswer(Payload):
     kind: AnswerKind
     text: str
+    #: Optional for legacy messages. A computed summary never quotes rejected model wording.
+    wording_source: Literal["model", "computed"] | None = None
     evidence: list[Evidence] = Field(default_factory=list, max_length=12)
     tested: ClaimOutcome | None = None
     #: Plain statements added by code, for example why the model's wording was withheld.

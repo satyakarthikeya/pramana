@@ -13,11 +13,13 @@ from collections import OrderedDict
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 from uuid import UUID, uuid4
 
 import pandas as pd
 from structlog.contextvars import bound_contextvars
 
+from pramana.analysis.cleaning import CleaningReport
 from pramana.analysis.config import AnalysisConfig
 from pramana.analysis.config import load_config as load_analysis_config
 from pramana.analysis.reader import DataBrief
@@ -67,6 +69,12 @@ class ChatInputError(ValueError):
 
 def _chat_reason(proof: ProofObject) -> str:
     """The reason line for a chat-tested claim: honest about it being a single, uncorrected test."""
+    if proof.verdict is Verdict.PASS:
+        return (
+            "The association met the gateway's single-test criteria and survived its "
+            "applicable robustness checks. This supports an association in this table, "
+            "not a causal conclusion."
+        )
     if proof.gate_outcome is GateOutcome.INCONCLUSIVE and not proof.failure_reason:
         return (
             "Not statistically significant as a single test (the q-value equals the raw "
@@ -120,7 +128,9 @@ class ChatService:
         self._release = release
         self._chat = chat
         self._verifier = verifier or _gateway
-        self._cache: OrderedDict[tuple[str, int, int], tuple[pd.DataFrame, SchemaProfile]] = (
+        self._cache: OrderedDict[
+            tuple[str, int, int], tuple[pd.DataFrame, SchemaProfile, CleaningReport]
+        ] = (
             OrderedDict()
         )
         self._cache_lock = threading.Lock()
@@ -130,7 +140,7 @@ class ChatService:
     # ---- the table ------------------------------------------------------------------
     def _prepared(
         self, dataset_id: UUID, owner_id: UUID
-    ) -> tuple[pd.DataFrame, SchemaProfile, str]:
+    ) -> tuple[pd.DataFrame, SchemaProfile, str, CleaningReport]:
         """The cleaned table and its schema, built by the same path analysis runs use."""
         from pramana.analysis import clean_dataset, infer_schema, load_dataset
 
@@ -139,14 +149,14 @@ class ChatService:
         key = (str(dataset_id), stat.st_mtime_ns, stat.st_size)
         with self._cache_lock:
             if key not in self._cache:
-                cleaned, _ = clean_dataset(load_dataset(path))
+                cleaned, cleaning = clean_dataset(load_dataset(path))
                 schema = infer_schema(cleaned, load_analysis_config().schema_inference)
-                self._cache[key] = (cleaned, schema)
+                self._cache[key] = (cleaned, schema, cleaning)
                 while len(self._cache) > 8:
                     self._cache.popitem(last=False)
             self._cache.move_to_end(key)
-            frame, schema = self._cache[key]
-        return frame, schema, str(path)
+            frame, schema, cleaning = self._cache[key]
+        return frame, schema, str(path), cleaning
 
     def _run_tests(self, dataset_id: UUID, owner_id: UUID) -> int:
         """Claims tested by analysis runs on this dataset, for the disclosure only."""
@@ -235,7 +245,7 @@ class ChatService:
     ) -> ChatExchange:
         budget = workspace.chat
         try:
-            frame, schema, dataset_ref = self._prepared(dataset_id, owner_id)
+            frame, schema, dataset_ref, cleaning = self._prepared(dataset_id, owner_id)
         except KeyError:
             raise
         except Exception:
@@ -286,7 +296,7 @@ class ChatService:
                     chart=chart,
                     complete_rows=int(frame.dropna(subset=candidate.variables).shape[0]),
                 )
-                label = (
+                label: Literal["verified", "not_testable", "rejected"] = (
                     "verified"
                     if proof.verdict is Verdict.PASS
                     else "not_testable"
@@ -346,6 +356,16 @@ class ChatService:
             ),
             chat_tests_so_far=earlier_chat,
         )
+        if cleaning.duplicate_rows_removed:
+            scope = (
+                f"Data scope: these figures use {cleaning.final_shape[0]:,} of "
+                f"{cleaning.original_shape[0]:,} uploaded rows after cleaning removed "
+                f"{cleaning.duplicate_rows_removed:,} exact duplicate rows. "
+                "If identical rows represent distinct transactions or measurements, "
+                "the cleaned totals do not describe all original records. Confirm the "
+                "removal or supply record identifiers before interpreting these results."
+            )
+            answer = answer.model_copy(update={"notes": [*answer.notes, scope]})
         exchange = ChatExchange(
             message_id=message_id,
             dataset_id=dataset_id,

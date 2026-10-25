@@ -149,6 +149,29 @@ def test_an_invented_number_withholds_the_wording_but_keeps_the_tool_results(set
     assert any("withheld" in note for note in result.notes)
     assert result.evidence and result.evidence[0].output["n"] == 300
     assert result.kind == "descriptive"
+    assert result.wording_source == "computed" and "300 recorded values" in result.text
+
+
+def test_dataset_overview_is_supported_by_actual_dimensions(setup) -> None:
+    frame, *_ = setup
+    script = Script(tool("overview"), answer(
+        f"This table has {len(frame)} rows and {len(frame.columns)} columns.", "x1"
+    ))
+    result = ask(setup, script, question="what is this data about")
+    assert result.wording_source == "computed" and result.kind == "descriptive"
+    assert result.text.startswith("The column names suggest this is a health-related dataset")
+    assert "tentative interpretation" in result.text and "original purpose" in result.text
+    assert result.evidence[0].tool == "overview"
+    assert "overview" in script.seen[0][0].content
+
+
+def test_invalid_overview_wording_is_replaced_with_exact_table_facts(setup) -> None:
+    script = Script(tool("overview"), answer("There are 99999 rows in a clinical trial.", "x1"))
+    result = ask(setup, script, question="what is this data about")
+    assert result.wording_source == "computed"
+    assert "99999" not in result.text and "clinical trial" not in result.text
+    assert "300 rows" in result.text and "Columns include:" in result.text
+    assert result.tested is None and result.work.examined == 0
 
 
 def test_a_number_without_any_cited_result_is_withheld(setup) -> None:
@@ -445,6 +468,84 @@ def test_one_named_column_may_be_paired_with_one_looked_at_column(setup) -> None
     assert result.kind == "verified" and len(verifier.calls) == 1
 
 
+def test_plain_language_compound_question_tests_association_and_explains_limits(setup) -> None:
+    frame, schema, hyp, config = setup
+    renamed = frame.rename(columns={"RIDAGEYR": "age_years", "LBXGLU": "systolic_bp"})
+    schema = infer_schema(renamed, load_config().schema_inference)
+    verifier = Verifier()
+    result = ask(
+        (renamed, schema, hyp, config),
+        Script(test_claim("age_years", "systolic_bp")), verifier,
+        question="Does this dataset prove that age causes systolic blood pressure to increase, "
+        "and is it representative of the general population?",
+    )
+    assert result.kind == "verified" and len(verifier.calls) == 1
+    assert "Causation:" in result.text and "Population representativeness:" in result.text
+    assert "association only" in result.text and "q = 0.004" in result.text
+
+
+def test_ambiguous_name_cannot_be_resolved_by_the_models_own_tools(setup) -> None:
+    frame, _, hyp, config = setup
+    renamed = frame.rename(columns={
+        "RIDAGEYR": "age_years", "LBXGLU": "systolic_bp", "noise": "diastolic_bp",
+    })
+    schema = infer_schema(renamed, load_config().schema_inference)
+    verifier = Verifier()
+    result = ask(
+        (renamed, schema, hyp, config),
+        Script(tool("describe", column="systolic_bp"), test_claim("age_years", "systolic_bp")),
+        verifier, question="Does age relate to blood pressure?",
+    )
+    assert result.kind == "not_tested" and verifier.calls == []
+    assert "clarify" in result.text and "ambiguous_column_reference" in result.notes
+
+
+def test_unsupported_parts_are_answered_even_when_model_does_not_cite_tools(setup) -> None:
+    result = ask(
+        setup, Script(answer("Yes, it represents everyone.")),
+        question="Is this representative of the general population?",
+    )
+    assert "cannot establish" in result.text and "sampling" in result.text.lower()
+    assert "Yes, it represents everyone" not in result.text and result.tested is None
+
+
+def test_cited_table_counts_cannot_support_population_claims(setup) -> None:
+    result = ask(
+        setup, Script(tool("overview"), answer("This is representative of everyone.", "x1")),
+        question="Is this representative of the general population?",
+    )
+    assert "This is representative of everyone" not in result.text
+    assert "Population representativeness:" in result.text and result.tested is None
+
+
+def test_multiple_relationships_disclose_which_columns_were_not_tested(setup) -> None:
+    result = ask(
+        setup, Script(test_claim("RIDAGEYR", "LBXGLU")),
+        question="Are RIDAGEYR and noise related to LBXGLU?",
+    )
+    assert result.kind == "verified"
+    assert "Other referenced columns were not tested: noise" in result.text
+
+
+@pytest.mark.parametrize("question", [
+    "Predict the exact humidity next year.",
+    "Forecast next month's sales.",
+    "Predict future demand from this table.",
+    "What will demand be next month?",
+    "Next year, predict demand.",
+    "Predict demand for 2027.",
+])
+def test_future_predictions_get_a_capability_explanation_without_unrelated_statistics(
+    setup, question: str,
+) -> None:
+    verifier = Verifier()
+    script = Script()
+    result = ask(setup, script, verifier, question=question)
+    assert result.kind == "not_tested" and "No forecast was run" in result.text
+    assert "current average is not a future prediction" in result.text
+    assert result.work.turns == 0 and verifier.calls == [] and script.seen == []
+
+
 def test_descriptive_answers_about_one_column_still_work(setup) -> None:
     script = Script(
         tool("describe", column="LBXGLU"),
@@ -452,3 +553,36 @@ def test_descriptive_answers_about_one_column_still_work(setup) -> None:
     )
     result = ask(setup, script)
     assert result.kind == "descriptive" and result.notes == []
+
+
+def test_recorded_forecast_error_can_be_described(setup) -> None:
+    frame, _, hypotheses, config = setup
+    frame = frame.rename(columns={"noise": "forecastError"})
+    schema = infer_schema(frame, load_config().schema_inference)
+    script = Script(
+        tool("describe", column="forecastError"),
+        answer("The forecastError column contains 300 values.", "x1"),
+    )
+    verifier = Verifier()
+    result = ask(
+        (frame, schema, hypotheses, config), script, verifier,
+        question="What is the average forecast error in this table?",
+    )
+    assert result.kind == "descriptive" and result.evidence[0].tool == "describe"
+    assert result.work.turns == 2 and verifier.calls == []
+
+
+def test_unanswered_association_does_not_masquerade_as_a_table_overview(setup) -> None:
+    script = Script(
+        tool("overview"),
+        answer("Household income is not recorded, so its association cannot be assessed.", "x1"),
+    )
+    verifier = Verifier()
+    result = ask(
+        setup, script, verifier,
+        question="Is household income associated with LBXGLU?",
+    )
+    assert result.kind == "unanswered"
+    assert "No association test was run" in result.text
+    assert "could not answer" in result.text
+    assert result.evidence[0].tool == "overview" and verifier.calls == []
