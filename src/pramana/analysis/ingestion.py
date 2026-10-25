@@ -50,14 +50,50 @@ def load_dataset(
 
     options = {"na_values": list(missing_markers), "keep_default_na": True}
     if source.suffix.lower() == ".csv":
+        encoding = _csv_encoding(source, csv_encoding)
         frame = pd.read_csv(
-            source, encoding=csv_encoding, low_memory=False, **options
+            source,
+            encoding=encoding,
+            sep=_csv_delimiter(source, encoding),
+            low_memory=False,
+            nrows=max_rows + 1,
+            **options,
         )
     else:
-        frame = pd.read_excel(source, engine="openpyxl", **options)
+        frame = pd.read_excel(source, engine="openpyxl", nrows=max_rows + 1, **options)
     if len(frame) > max_rows:
         raise ValueError(f"Dataset exceeds the {max_rows} row limit")
     return frame
+
+
+#: Tried in order when the configured encoding cannot decode the file. cp1252 decodes any
+#: byte sequence, so it is last: the common Excel "CSV" export on Windows.
+_FALLBACK_ENCODINGS = ("utf-8-sig", "cp1252")
+_DELIMITERS = ",;	|"
+
+
+def _csv_encoding(source: Path, preferred: str) -> str:
+    """The first encoding, of the configured one and the fallbacks, that decodes the file."""
+    raw = source.read_bytes()
+    for encoding in (preferred, *_FALLBACK_ENCODINGS):
+        try:
+            raw.decode(encoding)
+        except (UnicodeDecodeError, LookupError):
+            continue
+        return "utf-8-sig" if encoding.lower() in {"utf-8", "utf8"} else encoding
+    return "cp1252"
+
+
+def _csv_delimiter(source: Path, encoding: str) -> str:
+    """Comma unless the header and first rows say semicolon, tab or pipe consistently."""
+    import csv
+
+    with source.open(encoding=encoding, newline="") as handle:
+        sample = handle.read(64 * 1024)
+    try:
+        return csv.Sniffer().sniff(sample, delimiters=_DELIMITERS).delimiter
+    except csv.Error:
+        return ","
 
 
 def get_dataset_metadata(

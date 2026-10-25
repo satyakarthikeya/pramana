@@ -89,13 +89,15 @@ def time_column(
 
 
 def period_keys(
-    frame: pd.DataFrame, column: str, schema: SchemaProfile
+    frame: pd.DataFrame, column: str, schema: SchemaProfile, *, rollup: bool = True
 ) -> tuple[pd.Series, Period]:
     """One sortable period label per row, and the period it represents.
 
     Datetimes become calendar periods ("2025-03" for a month); a daily or weekly
     series longer than ~6 months is rolled up to months so totals are comparable.
     Ordered non-date axes (a `year` or `wave` column) are used as they are.
+    `rollup=False` keeps the column's own resolution (the gate needs it, see
+    `orchestration.analysis_integration.data_structure_for`).
     """
     profile = schema.columns.get(column)
     if profile is not None and profile.role is ColumnRole.DATETIME:
@@ -123,7 +125,7 @@ def period_keys(
             period = "quarter"
         else:
             period = "year"
-        if period in {"day", "week"} and span > 183:
+        if rollup and period in {"day", "week"} and span > 183:
             period = "month"
         code = {"day": "D", "week": "W", "month": "M", "quarter": "Q", "year": "Y"}[period]
         keys = stamps.dt.to_period(code).astype(str).where(stamps.notna())

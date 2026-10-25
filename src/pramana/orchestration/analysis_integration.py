@@ -56,14 +56,22 @@ def _persist_cleaned_frame(frame: pd.DataFrame, run_id: UUID, data_dir: Path) ->
 
 def data_structure_for(frame: pd.DataFrame, schema: Any) -> DataStructure:
     """The table's shape as the gate needs it, from the analysis shape classifier."""
-    from pramana.analysis.shape import classify_shape
+    from pramana.analysis.shape import DataShape, classify_shape, period_keys
 
     shape = classify_shape(frame, schema)
-    period = shape.period if shape.time_column else None
+    kind, period = shape.shape, shape.period if shape.time_column else None
+    entity = shape.entity_column if shape.time_column else None
+    if kind is DataShape.TRANSACTIONS and shape.time_column is not None:
+        # The report rolls a long daily axis up to months, which makes one reading per day
+        # look like "several rows per month". At the column's own resolution such a table
+        # is a time series, and the gate must test it with a null that respects its order.
+        keys, native = period_keys(frame, shape.time_column, schema, rollup=False)
+        if native != period and keys.notna().any() and not keys.dropna().duplicated().any():
+            kind, period, entity = DataShape.TIME_SERIES, native, None
     return DataStructure(
-        shape=TableShape(shape.shape.value),
+        shape=TableShape(kind.value),
         time_column=shape.time_column,
-        entity_column=shape.entity_column if shape.time_column else None,
+        entity_column=entity,
         period=period,
         declared_by="shape_classifier",
     )

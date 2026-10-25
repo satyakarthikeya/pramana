@@ -248,7 +248,8 @@ def _column_brief(name: str, series: pd.Series, profile: ColumnProfile) -> Colum
         )
 
     numbers = _number(present)
-    if series.dtype == object and n >= MIN_ROWS_FOR_SHAPE_CHECKS and len(numbers) / n >= 0.9:
+    stored_as_text = pd.api.types.is_object_dtype(series) or pd.api.types.is_string_dtype(series)
+    if stored_as_text and n >= MIN_ROWS_FOR_SHAPE_CHECKS and len(numbers) / n >= 0.9:
         notes.append(
             ColumnNote(
                 kind="stored_as_text",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import pandas as pd
@@ -27,6 +28,27 @@ class CleaningReport(BaseModel):
     invalid_numeric_values: list[dict[str, Any]]
 
 
+_THOUSANDS = re.compile(r"^\s*[-+]?\d{1,3}(?:,\d{3})+(?:\.\d+)?\s*$")
+
+
+def _as_numbers(series: pd.Series) -> pd.Series:
+    """Numbers stored as text, including thousands commas ("1,200"); others become NaN.
+
+    Commas are removed only when every present value is written as digits with comma
+    groups of three, so a list such as "1,2" is never read as twelve. The result is a
+    plain numpy dtype, never a nullable extension dtype that would carry `pd.NA`.
+    """
+    plain = series.astype(object).where(series.notna(), None)
+    converted = pd.to_numeric(plain, errors="coerce")
+    present = plain.dropna().astype(str)
+    if len(present) and converted.notna().sum() < len(present):
+        numeric = pd.to_numeric(present, errors="coerce").notna()
+        if bool((present.str.match(_THOUSANDS) | numeric).all()):
+            stripped = plain.map(lambda v: v.replace(",", "") if isinstance(v, str) else v)
+            converted = pd.to_numeric(stripped, errors="coerce")
+    return converted
+
+
 def clean_dataset(
     dataframe: pd.DataFrame,
     *,
@@ -48,8 +70,7 @@ def clean_dataset(
     if duplicate_columns:
         frame = frame.loc[:, ~frame.columns.duplicated()]
         removed.extend(
-            {"column": column, "reason": "duplicate column name"}
-            for column in duplicate_columns
+            {"column": column, "reason": "duplicate column name"} for column in duplicate_columns
         )
 
     duplicate_rows = int(frame.duplicated().sum())
@@ -57,14 +78,15 @@ def clean_dataset(
         frame = frame.drop_duplicates().reset_index(drop=True)
 
     missing_detected = {
-        str(column): int(count)
-        for column, count in frame.isna().sum().items()
-        if count
+        str(column): int(count) for column, count in frame.isna().sum().items() if count
     }
     invalid_numeric: list[dict[str, Any]] = []
     for column in frame.columns:
-        if pd.api.types.is_object_dtype(frame[column]):
-            converted = pd.to_numeric(frame[column], errors="coerce")
+        # pandas 3 reads text as the `str` dtype, not `object`; both hold numbers-as-text.
+        if pd.api.types.is_object_dtype(frame[column]) or pd.api.types.is_string_dtype(
+            frame[column]
+        ):
+            converted = _as_numbers(frame[column])
             non_missing = frame[column].notna().sum()
             if non_missing and converted.notna().sum() == non_missing:
                 frame[column] = converted
@@ -73,9 +95,7 @@ def clean_dataset(
             continue
         if column in numeric_ranges:
             lower, upper = numeric_ranges[column]
-            invalid = int(
-                ((frame[column] < lower) | (frame[column] > upper)).fillna(False).sum()
-            )
+            invalid = int(((frame[column] < lower) | (frame[column] > upper)).fillna(False).sum())
             if invalid:
                 invalid_numeric.append(
                     {
@@ -101,17 +121,11 @@ def clean_dataset(
             continue
 
         unique_ratio = frame[column].nunique(dropna=True) / row_count
-        dominant_ratio = frame[column].value_counts(
-            dropna=False, normalize=True
-        ).iloc[0]
+        dominant_ratio = frame[column].value_counts(dropna=False, normalize=True).iloc[0]
         if dominant_ratio >= near_constant_threshold:
-            near_constant.append(
-                {"column": column, "dominant_ratio": float(dominant_ratio)}
-            )
+            near_constant.append({"column": column, "dominant_ratio": float(dominant_ratio)})
         if unique_ratio >= high_cardinality_threshold:
-            high_cardinality.append(
-                {"column": column, "unique_ratio": float(unique_ratio)}
-            )
+            high_cardinality.append({"column": column, "unique_ratio": float(unique_ratio)})
         if unique_ratio >= identifier_threshold:
             identifiers.append({"column": column, "unique_ratio": float(unique_ratio)})
         if pd.api.types.is_string_dtype(frame[column]):
@@ -135,9 +149,7 @@ def clean_dataset(
         type_conversions=conversions,
         missing_values_detected=missing_detected,
         missing_value_summary={
-            str(column): int(count)
-            for column, count in frame.isna().sum().items()
-            if count
+            str(column): int(count) for column, count in frame.isna().sum().items() if count
         },
         near_constant_columns=near_constant,
         high_cardinality_columns=high_cardinality,
