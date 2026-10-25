@@ -24,6 +24,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from pramana.contracts.enums import ClaimType, Direction
+from pramana.contracts.forecast import ForecastSpec
 
 
 class CandidateInsight(BaseModel):
@@ -54,6 +55,11 @@ class CandidateInsight(BaseModel):
         default=None,
         description="For group_difference: the level the claim is about, put first so a "
         "positive effect means what the sentence says.",
+    )
+    forecast: ForecastSpec | None = Field(
+        default=None,
+        description="For forecast claims only: the horizon, method, baseline and aggregation "
+        "the backtest uses. Chosen by code on exploration rows; null for every other claim.",
     )
 
     @field_validator("insight_id", "claim", "dataset_ref", "reference_group")

@@ -44,6 +44,10 @@ class ClaimType(StrEnum):
     PERIOD_CHANGE = "period_change"
     #: T6: some months (or quarters) sit consistently above others (PLAN 5, P7).
     SEASONALITY = "seasonality"
+    #: A forecast method beat a seasonal-naive forecast on periods it did not see. A claim
+    #: about past out-of-sample accuracy, never about the next periods. Behind
+    #: `claims.forecast_enabled` in `configs/verification.yaml`, off by default.
+    FORECAST = "forecast"
 
 
 class Verdict(StrEnum):
@@ -81,6 +85,9 @@ class EffectMetric(StrEnum):
     EPSILON_SQUARED = "epsilon_squared"
     CRAMERS_V = "cramers_v"
     RELATIVE_CHANGE = "relative_change"
+    #: Forecast claims: the share of a seasonal-naive forecast's scaled error the method removed
+    #: (`1 - MASE ratio`), signed; positive means the method was more accurate.
+    MASE_REDUCTION = "mase_reduction"
 
 
 class TableShape(StrEnum):
@@ -114,6 +121,10 @@ class PermutationScheme(StrEnum):
     CLUSTER = "cluster"
     #: The same entities in two periods: each entity's change is sign-flipped.
     PAIRED = "paired"
+    #: Forecast claims: the method's and the baseline's loss are swapped for whole blocks of
+    #: neighbouring backtest origins (one block = one forecast horizon, because the origins of a
+    #: block share their target periods).
+    BLOCK_SIGN_FLIP = "block_sign_flip"
 
 
 class GateOutcome(StrEnum):

@@ -29,12 +29,13 @@ class AttackResult(BaseModel):
     """One attack on one finding, with the numbers it compared.
 
     Guarantees: `reason` is plain text written for the user; a `NOT_RUN` result carries
-    no attacked effect; `attack_id` is one of A1..A7 from the plan's menu.
+    no attacked effect; `attack_id` is one of A1..A7 from the plan's menu, or F1..F6 for a
+    forecast claim.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    attack_id: str = Field(pattern=r"^A[1-7]$")
+    attack_id: str = Field(pattern=r"^(A[1-7]|F[1-6])$")
     name: str = Field(min_length=1)
     outcome: AttackOutcome
     reason: str = Field(min_length=1)

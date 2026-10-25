@@ -32,6 +32,6 @@ class PowerNote(BaseModel):
     effect_metric: EffectMetric
     detectable_effect: float = Field(gt=0.0)
     n_effective: int = Field(ge=1)
-    unit: Literal["observations", "periods", "entities"]
+    unit: Literal["observations", "periods", "entities", "origin_blocks"]
     alpha: float = Field(gt=0.0, lt=1.0)
     target_power: float = Field(gt=0.0, lt=1.0)
