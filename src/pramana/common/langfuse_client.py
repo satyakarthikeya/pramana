@@ -13,13 +13,19 @@ from pramana.common.logging import get_logger
 _client: Any | None = None
 
 
+def langfuse_host() -> str | None:
+    """The Langfuse server: `LANGFUSE_HOST`, or `LANGFUSE_BASE_URL` (the SDK's newer name)."""
+    return (os.getenv("LANGFUSE_HOST") or os.getenv("LANGFUSE_BASE_URL") or "").strip() or None
+
+
 def get_langfuse_client(settings: LangfuseSettings) -> Any | None:
     """Return a shared client, or ``None`` when tracing is disabled or unconfigured."""
     global _client
     if not settings.enabled:
         return None
-    required = ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_HOST")
-    if any(not os.getenv(name) for name in required):
+    host = langfuse_host()
+    required = ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY")
+    if any(not os.getenv(name) for name in required) or not host:
         get_logger(component="langfuse").warning("langfuse_disabled_missing_credentials")
         return None
     if _client is None:
@@ -28,7 +34,7 @@ def get_langfuse_client(settings: LangfuseSettings) -> Any | None:
         _client = Langfuse(
             public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
             secret_key=os.environ["LANGFUSE_SECRET_KEY"],
-            host=os.environ["LANGFUSE_HOST"],
+            host=host,
         )
     return _client
 
