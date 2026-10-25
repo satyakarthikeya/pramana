@@ -265,6 +265,19 @@ def evaluate_gate(
             f"against a NaN is False, so a NaN would sail past the magnitude check and be "
             f"clamped to a full effect leg; the gate refuses to decide on it instead."
         )
+    if not (math.isfinite(q_value) and 0.0 <= q_value <= 1.0):
+        raise ValueError(
+            f"q_value is {q_value!r}, which is not a probability. `min(1.0, nan)` is 1.0 and "
+            f"`nan >= alpha` is False, so a NaN q would pass the significance check; the gate "
+            f"refuses to decide on it instead."
+        )
+    if asserted_direction is not None and effect_metric not in SIGNED_METRICS:
+        raise ValueError(
+            f"the claim asserts a {asserted_direction.value} direction but its effect metric "
+            f"({effect_metric.value}) has no sign (a comparison of more than two groups), so "
+            f"the direction was never tested; restate it without a direction or as one group "
+            f"against another"
+        )
     band = _band_for(effect_metric, config, table_k)
     gated_effect = (
         math.sqrt(abs(effect_size))

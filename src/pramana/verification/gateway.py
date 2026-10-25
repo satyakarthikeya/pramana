@@ -63,9 +63,9 @@ from pramana.contracts.enums import (
 )
 from pramana.contracts.proof_object import ProofObject
 from pramana.contracts.structure import DataStructure, SplitRecord
+from pramana.verification import forecast_claim
 from pramana.verification.admissibility import screen
 from pramana.verification.attacks import ClaimView, run_attacks
-from pramana.verification import forecast_claim
 from pramana.verification.config import VerificationConfig
 from pramana.verification.evidence import evaluate_gate
 from pramana.verification.executor.runner import COLUMN_POLICY_REASON_PREFIX, execute
@@ -81,7 +81,6 @@ from pramana.verification.fdr import apply_bh
 from pramana.verification.interval import effect_interval
 from pramana.verification.power import power_note
 from pramana.verification.refuter import suggest_hints
-from pramana.verification.spec import declared_permutations, spec_hash
 from pramana.verification.schemes import (
     FREE_PLAN,
     PERIOD_COLUMN,
@@ -89,6 +88,7 @@ from pramana.verification.schemes import (
     assign_plan,
     with_period_column,
 )
+from pramana.verification.spec import declared_permutations, spec_hash
 
 _log = logging.getLogger(__name__)
 
@@ -438,7 +438,18 @@ def _run_one(
 
     frozen = _frozen_spec(program, plan, split, candidate, config)
     _emit("spec_frozen", candidate.insight_id, spec_hash=frozen)
-    result = execute(program, frame, config)
+    try:
+        result = execute(program, frame, config)
+    except Exception as error:
+        # One claim's crash (an odd payload, a temp-dir cleanup error on Windows) must
+        # cost that claim its test, never every other claim's proof in the batch.
+        reason = (
+            f"execution could not be completed ({type(error).__name__}); a test that did "
+            f"not finish has not falsified anything"
+        )
+        tally.record(candidate, program.generator, False, reason)
+        _emit("execution_failed", candidate.insight_id, attempts=0, reason=reason)
+        return _Tested(candidate, program, None, reason, plan, frame)
     tally.record(candidate, program.generator, result.ok, result.failure_reason)
     if not result.ok:
         _emit(
@@ -876,15 +887,19 @@ def _shadow_template_outcomes(
         if payload is None:
             outcomes[insight_id] = None
             continue
-        decision = evaluate_gate(
-            q_value=q_value,
-            effect_size=float(payload["effect_size"]),
-            effect_metric=EffectMetric(payload["effect_metric"]),
-            alpha=config.statistics.alpha,
-            p_value_floor=config.p_value_floor,
-            config=config.evidence,
-            asserted_direction=item.candidate.asserted_direction,
-        )
+        try:
+            decision = evaluate_gate(
+                q_value=q_value,
+                effect_size=float(payload["effect_size"]),
+                effect_metric=EffectMetric(payload["effect_metric"]),
+                alpha=config.statistics.alpha,
+                p_value_floor=config.p_value_floor,
+                config=config.evidence,
+                asserted_direction=item.candidate.asserted_direction,
+            )
+        except (ValueError, TypeError):
+            outcomes[insight_id] = None
+            continue
         outcomes[insight_id] = decision.outcome
     return outcomes
 
@@ -1065,9 +1080,20 @@ def verify_batch_with_summary(
                 )
             )
         else:
-            proofs.append(
-                _proof_for_result(item, family_id, q_value, family_size, config, split)
-            )
+            try:
+                proofs.append(
+                    _proof_for_result(item, family_id, q_value, family_size, config, split)
+                )
+            except (ValueError, TypeError) as error:
+                # e.g. a NaN q or a metric with no band: the gate refuses to decide, so
+                # the claim is rejected with the reason instead of aborting the batch.
+                item.failure_reason = f"the gate could not decide on this result: {error}"
+                _emit("gate_refused", item.candidate.insight_id, reason=str(error))
+                proofs.append(
+                    _proof_for_failed_execution(
+                        item, family_id, q_value, family_size, seed, split, config
+                    )
+                )
 
     by_id = {item.candidate.insight_id: item for item in tested}
     # --- power note: descriptive, on claims that were tested and not significant ----

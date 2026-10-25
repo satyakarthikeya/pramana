@@ -190,8 +190,13 @@ class ClaimView:
 
     def _labels(self, rows: pd.DataFrame) -> list[str]:
         labels = sorted(rows[self.var_x].dropna().astype(str).unique().tolist())
-        if self.reference_group is not None and self.reference_group in labels:
-            labels = [self.reference_group] + [n for n in labels if n != self.reference_group]
+        reference = self.reference_group
+        if reference is not None and reference not in labels:
+            # The same level written differently ("1" against "1.0"), as the template does.
+            same = [n for n in labels if _same_level(n, reference)]
+            reference = same[0] if len(same) == 1 else None
+        if reference is not None:
+            labels = [reference] + [n for n in labels if n != reference]
         return labels
 
     def _groups(self, rows: pd.DataFrame) -> list[np.ndarray] | None:
@@ -549,7 +554,7 @@ def _a3_control(
     rows: pd.DataFrame,
     original: float,
     config: AttacksConfig,
-    hints: "AttackHints | None" = None,
+    hints: AttackHints | None = None,
 ):
     if claim.claim_type is ClaimType.TREND or claim.ordered:
         return _not_run(
@@ -614,7 +619,7 @@ def _a4_subgroups(
     rows: pd.DataFrame,
     original: float,
     config: AttacksConfig,
-    hints: "AttackHints | None" = None,
+    hints: AttackHints | None = None,
 ):
     if not claim.signed:
         return _not_run("A4", "the effect has no direction to reverse", applicable=False)
@@ -836,3 +841,11 @@ def run_attacks(
                 _not_run(attack_id, f"the attack failed to run ({type(error).__name__})")
             )
     return results
+
+
+def _same_level(label: str, wanted: str) -> bool:
+    """Whether two labels name the same group level ("1" and "1.0", " A" and "a")."""
+    try:
+        return float(label) == float(wanted)
+    except ValueError:
+        return label.strip().casefold() == wanted.strip().casefold()

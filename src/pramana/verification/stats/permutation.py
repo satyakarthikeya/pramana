@@ -31,6 +31,7 @@ Scope: SCOPE.md 4 step 2
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Sequence
 from typing import Literal
 
@@ -92,7 +93,13 @@ def _validate_run(n_permutations: int, alternative: str) -> None:
 def _p_value(
     observed: float, null_distribution: NDArray[np.float64], alternative: Alternative
 ) -> float:
-    """The add-one p-value: how often chance alone did as well as the real data."""
+    """The add-one p-value: how often chance alone did as well as the real data.
+
+    Raises on a NaN or infinite statistic: every comparison with NaN is False, so a NaN
+    observed value would get the smallest possible p and a NaN in the null would lower it.
+    """
+    if not math.isfinite(observed) or not np.all(np.isfinite(null_distribution)):
+        raise ValueError("the test statistic is not finite on the data or on a shuffle")
     if alternative == "greater":
         as_extreme = null_distribution >= observed - _TOLERANCE
     elif alternative == "less":

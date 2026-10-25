@@ -157,6 +157,13 @@ _GROUP_DIFFERENCE_BODY = '''
 REFERENCE_GROUP = {reference_group!r}
 
 
+def _same_level(label, wanted):
+    try:
+        return float(label) == float(wanted)
+    except ValueError:
+        return label.strip().casefold() == str(wanted).strip().casefold()
+
+
 def falsify(frame):
     """Try to disprove the group difference by reshuffling group membership.
 
@@ -178,10 +185,23 @@ def falsify(frame):
     labels = sorted(columns[VAR_X].astype(str).unique().tolist())
     if len(labels) < 2:
         raise ValueError(f"{VAR_X} has a single level; there is no difference to test")
-    if REFERENCE_GROUP is not None and REFERENCE_GROUP in labels:
+    if REFERENCE_GROUP is not None and REFERENCE_GROUP not in labels:
+        # "1" against labels read as "1.0": the same level written differently.
+        same = [name for name in labels if _same_level(name, REFERENCE_GROUP)]
+        if len(same) != 1:
+            # Never fall back to alphabetical order: the claim's direction is about this
+            # group, so testing it against another one would judge a different sentence.
+            raise ValueError(
+                f"reference group {REFERENCE_GROUP!r} is not a level of {VAR_X}; the "
+                f"claim's direction cannot be tied to a group"
+            )
+        REFERENCE = same[0]
+    else:
+        REFERENCE = REFERENCE_GROUP
+    if REFERENCE is not None:
         # The claim names the group it is about, so put it first: a positive delta
         # then means "the reference group sits higher", which is what the claim says.
-        labels = [REFERENCE_GROUP] + [name for name in labels if name != REFERENCE_GROUP]
+        labels = [REFERENCE] + [name for name in labels if name != REFERENCE]
 
     groups = [
         columns.loc[columns[VAR_X].astype(str) == name, VAR_Y].to_numpy(dtype=float)

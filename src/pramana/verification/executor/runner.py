@@ -311,11 +311,16 @@ def _run_once(
                 [sys.executable, str(harness_path)],
                 capture_output=True,
                 text=True,
+                # The child writes UTF-8 (PYTHONUTF8 below); reading it with the Windows
+                # locale codec would garble any non-ASCII error text in the proof.
+                encoding="utf-8",
+                errors="replace",
                 timeout=config.executor.timeout_seconds,
                 env={
                     **{name: os.environ[name] for name in _PASSTHROUGH_ENV if name in os.environ},
                     provenance.NONCE_ENV_VAR: nonce,
                     "PYTHONHASHSEED": "0",
+                    "PYTHONUTF8": "1",
                     "PYTHONDONTWRITEBYTECODE": "1",
                 },
                 cwd=work,
