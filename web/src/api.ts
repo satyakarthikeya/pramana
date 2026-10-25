@@ -45,7 +45,13 @@ export type GateOutcome =
   | "inconclusive"
   | "not_testable"
   | "fragile";
-export type PermutationScheme = "free" | "block_differenced" | "stratified" | "cluster" | "paired";
+export type PermutationScheme =
+  | "free"
+  | "block_differenced"
+  | "stratified"
+  | "cluster"
+  | "paired"
+  | "block_sign_flip";
 export interface SplitRecord {
   method: "random_rows" | "by_time" | "by_entity" | "none";
   seed: number;
@@ -69,6 +75,37 @@ export interface AttackResult {
   /** False when the check does not apply to this claim or table (not just too little data). */
   applicable?: boolean;
   details: Record<string, number | string | boolean | null>;
+}
+/** One scored backtest point of a forecast claim. */
+export interface ForecastOrigin {
+  origin: string;
+  target: string;
+  horizon: number;
+  actual: number;
+  forecast: number;
+  baseline: number;
+}
+/** The backtest behind a forecast claim: past accuracy on periods the method did not see. */
+export interface ForecastEvidence {
+  method: "trend_seasonal" | "holt_winters";
+  baseline: "seasonal_naive" | "naive";
+  horizon: number;
+  season: number;
+  period: string;
+  n_origins: number;
+  n_blocks: number;
+  first_origin: string;
+  last_origin: string;
+  mase_model: number;
+  mase_baseline: number;
+  error_reduction: number;
+  horizon_reductions: number[];
+  reduction_vs_last_value: number | null;
+  interval_level: number | null;
+  interval_coverage: number | null;
+  interval_calibrated: boolean | null;
+  origins: ForecastOrigin[];
+  disclaimer: string;
 }
 export interface Proof {
   insight_id: string;
@@ -95,7 +132,7 @@ export interface Proof {
     low: number;
     high: number;
     confidence: number;
-    method: "row_bootstrap" | "entity_bootstrap" | "period_bootstrap";
+    method: "row_bootstrap" | "entity_bootstrap" | "period_bootstrap" | "origin_block_bootstrap";
     n_resamples: number;
   } | null;
   /** Smallest effect the rows could have found; only on a tested, non-significant claim. */
@@ -103,12 +140,14 @@ export interface Proof {
     effect_metric: string;
     detectable_effect: number;
     n_effective: number;
-    unit: "observations" | "periods" | "entities";
+    unit: "observations" | "periods" | "entities" | "origin_blocks";
     alpha: number;
     target_power: number;
   } | null;
   split?: SplitRecord | null;
   attacks?: AttackResult[];
+  /** Forecast claims only. */
+  forecast?: ForecastEvidence | null;
 }
 export interface ScatterChart {
   kind: "scatter";

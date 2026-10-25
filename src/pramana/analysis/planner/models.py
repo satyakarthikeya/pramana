@@ -96,12 +96,25 @@ class PlannerClaim(_Frozen):
     reference_group: str | None = Field(default=None, max_length=256)
 
 
+class PlannedForecastRequest(_Frozen):
+    """A request that a forecast of one column be checked: a column and a horizon, nothing else.
+
+    The method, the baseline and the sentence are chosen by code. Only honoured when
+    `claims.forecast_enabled` is true (`configs/verification.yaml`); otherwise it is dropped
+    with its reason recorded.
+    """
+
+    column: str = Field(max_length=256)
+    horizon: int = Field(ge=1, le=24)
+
+
 class AnalysisSpec(_Frozen):
     """The whole of what DeepSeek returns as the plan."""
 
     shape_confirmation: ShapeConfirmation
     measured_requests: list[PlannedMeasuredRequest] = Field(default_factory=list, max_length=20)
     claims: list[PlannerClaim] = Field(default_factory=list, max_length=50)
+    forecast_requests: list[PlannedForecastRequest] = Field(default_factory=list, max_length=5)
     narrative_focus: list[str] = Field(default_factory=list, max_length=20)
 
 
@@ -115,7 +128,7 @@ class PlanDrop(_Frozen):
 
 
 class AcceptedClaim(_Frozen):
-    claim_type: PlannerClaimType
+    claim_type: PlannerClaimType | Literal["forecast"]
     variables: list[str]
     insight_id: str
 

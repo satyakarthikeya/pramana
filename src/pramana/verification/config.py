@@ -187,6 +187,51 @@ class EvidenceConfig(BaseModel):
         return self.effect_thresholds[metric]
 
 
+class ForecastAttacksConfig(BaseModel):
+    """Thresholds of the six forecast attacks (F1-F6); PROVISIONAL, see the evidence note."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    min_origins_per_part: int = Field(ge=2)
+    recent_fraction: float = Field(gt=0.0, lt=0.5)
+    horizon_margin: float = Field(ge=0.0, lt=1.0)
+    interval_tolerance: float = Field(gt=0.0, lt=0.5)
+    calibration_changes_verdict: bool
+    cusum_critical: float = Field(gt=0.0)
+
+
+class ForecastConfig(BaseModel):
+    """How a forecast claim is tested (docs/evidence/FORECAST_CLAIM_2026-10-25.md)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    max_horizon: int = Field(ge=1, le=24)
+    min_origins: int = Field(ge=4)
+    min_blocks: int = Field(ge=4)
+    min_cycles: int = Field(ge=1)
+    min_train_floor: int = Field(ge=4)
+    max_gap_fraction: float = Field(ge=0.0, lt=0.5)
+    seasonal_length: dict[str, int]
+    interval_level: float = Field(gt=0.5, lt=1.0)
+    selection_origins: int = Field(ge=2, le=50)
+    baseline: Literal["auto", "seasonal_naive"]
+    attacks: ForecastAttacksConfig
+
+    @model_validator(mode="after")
+    def _seasonal_lengths_are_cycles(self) -> Self:
+        if not self.seasonal_length or any(v < 2 for v in self.seasonal_length.values()):
+            raise ValueError("seasonal_length needs at least one period type, each with 2 or more")
+        return self
+
+
+class ClaimsConfig(BaseModel):
+    """Claim types that exist in code but are switched on here. Every flag ships `false`."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    forecast_enabled: bool
+
+
 class ExecutorConfig(BaseModel):
     """Sandbox limits and the import whitelist (AGENTS.md 4)."""
 
@@ -251,6 +296,8 @@ class VerificationConfig(BaseModel):
     evidence: EvidenceConfig
     executor: ExecutorConfig
     llm: LLMConfig
+    claims: ClaimsConfig
+    forecast: ForecastConfig
 
     @model_validator(mode="after")
     def _floor_is_below_alpha(self) -> Self:
@@ -282,6 +329,23 @@ class VerificationConfig(BaseModel):
         if stats.n_permutations < needed:
             raise ValueError(
                 f"n_permutations = {stats.n_permutations} cannot resolve a family of "
+                f"m_max = {stats.m_max} at alpha = {stats.alpha}; it needs at least {needed}"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _blocks_resolve_the_largest_family(self) -> Self:
+        """Guarantees: a forecast claim's smallest possible p-value can survive BH at `m_max`.
+
+        A sign-flip null over k blocks has 2**k equally likely patterns, so the smallest
+        two-sided p-value is about 2 / 2**k. A claim that needs k blocks fewer than that could
+        never pass in a full family, however large its effect.
+        """
+        stats = self.statistics
+        needed = math.ceil(math.log2(2.0 * stats.m_max / stats.alpha))
+        if self.forecast.min_blocks < needed:
+            raise ValueError(
+                f"forecast.min_blocks = {self.forecast.min_blocks} cannot resolve a family of "
                 f"m_max = {stats.m_max} at alpha = {stats.alpha}; it needs at least {needed}"
             )
         return self

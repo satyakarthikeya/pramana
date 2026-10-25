@@ -38,12 +38,48 @@ def _could_detect(proof: ProofObject) -> str:
     note = proof.power
     if note is None:
         return ""
+    if note.effect_metric is EffectMetric.MASE_REDUCTION:
+        return (
+            f" With {note.n_effective:,} blocks of backtest origins, a reduction of about "
+            f"{note.detectable_effect * 100:.0f}% of the baseline's error or more would usually "
+            f"have been found; a smaller one could be missed."
+        )
     scale = note.effect_metric.value.replace("_", " ")
     return (
         f" With {note.n_effective:,} {note.unit}, an effect of about "
         f"{note.detectable_effect:.2f} ({scale}) or larger would usually have been found; "
         f"a smaller one could be missed."
     )
+
+
+def _forecast_held_up(proof: ProofObject) -> str:
+    """The sentence for a forecast claim that passed: past accuracy, never the next periods.
+
+    Guarantees: says "held up in backtest", states the error reduction on periods the method did
+    not see and how many further checks survived, says when the stated range is not calibrated,
+    and always carries the proof's own limit sentence. Wording only: it never changes a verdict.
+    """
+    forecast = proof.forecast
+    assert forecast is not None
+    survived, ran = _checks(proof)
+    baseline = "seasonal-naive" if forecast.baseline == "seasonal_naive" else "last-value"
+    tried = (
+        f"survived {survived} of {ran} further checks that could be run"
+        if ran
+        else "no further check could be run"
+    )
+    text = (
+        f"Held up in backtest: the method's error was {forecast.error_reduction * 100:.0f}% "
+        f"lower than a {baseline} forecast on {forecast.n_origins} backtest origins from periods "
+        f"it did not see, and it {tried}."
+    )
+    if forecast.interval_calibrated is False and forecast.interval_coverage is not None:
+        text += (
+            f" Accuracy held up, but the stated range is not calibrated: it covered "
+            f"{forecast.interval_coverage * 100:.0f}% of later periods, not "
+            f"{(forecast.interval_level or 0) * 100:.0f}%."
+        )
+    return f"{text} {forecast.disclaimer}"
 
 
 def _held_up(proof: ProofObject) -> str:
@@ -88,6 +124,14 @@ def _did_not_hold(proof: ProofObject) -> str:
         return "Passed the significance test, but did not hold under a further check."
     survived, ran = _checks(proof)
     reason = broken.reason.strip().rstrip(".")
+    if proof.forecast is not None:
+        return (
+            f"The backtest passed the significance test, but the {broken.name.lower()} check "
+            f"broke it: {reason[:1].lower() + reason[1:]}. {survived} of {ran} further checks "
+            "that could be run survived. A broken check is not proof the forecast is bad: it "
+            "means the backtest's advantage did not survive that check on these periods, so it "
+            f"is not shown as a finding. {proof.forecast.disclaimer}"
+        )
     return (
         f"Passed the significance test, but the {broken.name.lower()} check broke it: "
         f"{reason[:1].lower() + reason[1:]}. {survived} of {ran} further checks that could be "
@@ -100,9 +144,14 @@ def rejection_reason(proof: ProofObject) -> str:
     """Explain an existing verdict without leaking provider errors or deciding it."""
     if (proof.failure_reason or "").startswith("generator unavailable"):
         return "The configured verifier is unavailable. Check its credentials and connection."
+    forecast = proof.forecast is not None
     return {
-        GateOutcome.SUPPORTED: _held_up(proof),
-        GateOutcome.REFUTED: "The observed direction does not support the proposed direction.",
+        GateOutcome.SUPPORTED: _forecast_held_up(proof) if forecast else _held_up(proof),
+        GateOutcome.REFUTED: (
+            "The method was less accurate than the baseline on the periods it did not see."
+            if forecast
+            else "The observed direction does not support the proposed direction."
+        ),
         GateOutcome.NEGLIGIBLE: (
             "Unlikely to be chance, but the effect is below the minimum size that counts as "
             "meaningful, so it is not reported as a finding."

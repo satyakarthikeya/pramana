@@ -37,6 +37,7 @@ const METRIC_SYMBOL: Record<string, string> = {
   epsilon_squared: "eps2",
   cramers_v: "V",
   relative_change: "change",
+  mase_reduction: "error reduction",
 };
 
 export function metricSymbol(metric: string | null): string {

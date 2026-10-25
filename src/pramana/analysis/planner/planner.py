@@ -47,6 +47,7 @@ from pramana.analysis.measured import (
 from pramana.analysis.measured.leakage import lint_features
 from pramana.analysis.measured.prep import num
 from pramana.analysis.planner.config import PlannerConfig, load_planner_config
+from pramana.analysis.planner.forecast_claim import forecast_offer, render_forecast_candidate
 from pramana.analysis.planner.models import (
     AcceptedClaim,
     AnalysisSpec,
@@ -116,6 +117,18 @@ period before). For correlation and trend reference_group is null.
 - Never write claim text, numbers, p-values, code or verdicts anywhere in the reply.
 - At most __CLAIMS__ claims and __REQUESTS__ measured requests. narrative_focus lists up to \
 __FOCUS__ item ids to lead the summary. Empty lists are allowed."""
+
+
+#: Added to the system prompt only when forecast claims are switched on and the vetted template
+#: generator is selected (`forecast_offer`); with the flag off the prompt is unchanged.
+_SYSTEM_FORECAST = """
+- forecast_requests (optional, top level, at most __FORECASTS__): \
+[{"column":<numeric column>,"horizon":<integer 1 to __HORIZON__>}]. It asks that a forecast of \
+that column be checked against a baseline on periods held back from you. You give only the \
+column and the horizon: code chooses the method and the baseline on the rows you were shown, \
+writes the sentence, and the gateway scores it on the held-back periods. It tests how accurate \
+the method WAS on earlier periods, never what the next periods will be. Ask for one only when \
+the brief shows a forecast headline or a clear pattern over time in an amount."""
 
 
 class PlannerOutcome(BaseModel):
@@ -574,8 +587,19 @@ def run_planner(
     )
     if not allowed:
         raise ProposerUnavailable("No usable columns to analyse")
+    offer = forecast_offer()
+    base = _SYSTEM
+    if offer is not None:
+        base = base.replace(
+            "\n- At most __CLAIMS__",
+            _SYSTEM_FORECAST.replace("__FORECASTS__", "2").replace(
+                "__HORIZON__", str(offer.forecast.max_horizon)
+            )
+            + "\n- At most __CLAIMS__",
+            1,
+        )
     system = (
-        _SYSTEM.replace("__CLAIMS__", str(planner.max_claims))
+        base.replace("__CLAIMS__", str(planner.max_claims))
         .replace("__REQUESTS__", str(planner.max_measured_requests))
         .replace("__FOCUS__", str(planner.max_narrative_focus))
     )
@@ -616,6 +640,8 @@ def run_planner(
         offered_ids=offered_ids,
         dataset_ref=dataset_ref,
         claim_screen=claim_screen,
+        forecast_config=offer,
+        additive=pack.additive_measures,
     )
     candidates, accepted_requests, focus, drops, accepted_claims = record
     plan = PlanRecord(
@@ -676,6 +702,8 @@ def _validate(
     offered_ids: set[str],
     dataset_ref: str,
     claim_screen: ClaimScreen | None,
+    forecast_config: Any = None,
+    additive: bool = False,
 ) -> tuple[
     list[CandidateInsight],
     list[PlannedMeasuredRequest],
@@ -753,6 +781,53 @@ def _validate(
                 claim_type=claim.claim_type,
                 variables=list(claim.variables),
                 insight_id=candidate.insight_id,
+            )
+        )
+
+    for forecast_request in spec.forecast_requests:
+        label = f"forecast({forecast_request.column}, horizon={forecast_request.horizon})"
+        if forecast_config is None:
+            ledger.drop(
+                "claim",
+                label,
+                "invalid_fields",
+                "forecast claims are not switched on for this run",
+            )
+            continue
+        if forecast_request.column not in allowed:
+            ledger.drop(
+                "claim",
+                label,
+                "unknown_column",
+                f"{forecast_request.column} is not among the usable columns",
+            )
+            continue
+        if len(candidates) >= claim_cap:
+            ledger.drop("claim", label, "over_budget", f"more than {claim_cap} claims were asked")
+            continue
+        forecast_candidate, why_not = render_forecast_candidate(
+            forecast_request,
+            frame,
+            schema,
+            shape,
+            forecast_config,
+            additive=additive,
+            dataset_ref=dataset_ref,
+        )
+        if forecast_candidate is None:
+            assert why_not is not None
+            ledger.drop("claim", label, *why_not)
+            continue
+        if forecast_candidate.insight_id in seen:
+            ledger.drop("claim", label, "duplicate", "the same claim was already accepted")
+            continue
+        seen.add(forecast_candidate.insight_id)
+        candidates.append(forecast_candidate)
+        accepted_claims.append(
+            AcceptedClaim(
+                claim_type="forecast",
+                variables=list(forecast_candidate.variables),
+                insight_id=forecast_candidate.insight_id,
             )
         )
 

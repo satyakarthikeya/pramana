@@ -113,6 +113,9 @@ evidence:
     relative_change:         # T4 period change, (cur - prev) / |prev|; CONVENTION, PROVISIONAL
       min: 0.05
       strong: 0.25
+    mase_reduction:          # forecast claims: share of the baseline's scaled error removed (1 - MASE ratio)
+      min: 0.10              # MEASURED, PROVISIONAL: docs/evidence/FORECAST_CLAIM_2026-10-25.md section 4
+      strong: 0.40
 
 executor:
   timeout_seconds: 300       # one execution; 60 s was too short for tables of ~27,000 held-out rows (diamonds)
@@ -133,3 +136,33 @@ llm:
   model: deepseek-flash
   temperature: 0.0           # falsification code generation should be near-deterministic
   # API key comes from the DEEPSEEK_API_KEY env var. Never put it in this file.
+
+claims:
+  # Claim types that are built and measured but not yet switched on. A flag here changes what the
+  # planner may ask for and what the gateway will test; with it false every run is exactly what it
+  # was before the type existed. The default is the verification owner's decision (AGENTS.md 8.10)
+  # after reading docs/evidence/FORECAST_CLAIM_2026-10-25.md.
+  forecast_enabled: false
+
+forecast:
+  # A forecast claim is about PAST OUT-OF-SAMPLE ACCURACY on the held-back periods; see
+  # src/pramana/verification/stats/forecast.py. MEASURED values are in the evidence note.
+  max_horizon: 6               # periods ahead a claim may name
+  min_origins: 12              # backtest origins needed in the held-back periods: fewer is NOT_TESTABLE
+  min_blocks: 11               # blocks of origins (origins / horizon); the loader needs 2**blocks to resolve alpha / m_max
+  min_cycles: 2                # full seasonal cycles of history before the first origin
+  min_train_floor: 8           # periods of history before the first origin even without a cycle
+  max_gap_fraction: 0.1        # missing periods in the history tolerated (carried forward from the past)
+  seasonal_length:             # periods per cycle; a period type not listed here has no forecast claim
+    month: 12
+    quarter: 4
+  interval_level: 0.95         # nominal level of the stated prediction interval (checked by F4)
+  selection_origins: 6         # exploration origins used to pick the method and the baseline
+  baseline: auto               # auto: seasonal-naive or last-value, whichever was closer on exploration rows; seasonal_naive: always seasonal-naive
+  attacks:
+    min_origins_per_part: 4    # origins a part (recent third, either side of a break) needs before it is judged
+    recent_fraction: 0.3333    # F2: the most recent share of the origins
+    horizon_margin: 0.0        # F3: a horizon is broken when its reduction is below minus this
+    interval_tolerance: 0.10   # F4: stated interval's coverage may differ from nominal by this much
+    calibration_changes_verdict: false   # F4: false = wording only (accuracy held up, range not calibrated)
+    cusum_critical: 1.358      # F5: Kolmogorov 5% point for the normalised CUSUM of one-step errors

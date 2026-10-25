@@ -37,7 +37,8 @@ from collections.abc import Iterable, Sequence
 from pydantic import BaseModel, ConfigDict, Field
 
 from pramana.contracts.candidate_insight import CandidateInsight
-from pramana.contracts.enums import ClaimType
+from pramana.contracts.enums import ClaimType, Direction
+from pramana.contracts.forecast import render_forecast_claim
 
 #: Words that turn a statistical tendency into a universal law. Matched on word
 #: boundaries so "small" does not trip "all" and "nonetheless" does not trip "none".
@@ -93,6 +94,39 @@ TESTABLE_CLAIM_TYPES: frozenset[ClaimType] = frozenset(
     }
 )
 
+#: Words a forecast claim may never use. A backtest measures how accurate a method WAS on periods
+#: it did not see; "proven", "true" or "will be" would turn that into a statement about the
+#: future, which no test of past accuracy can license. Matched on word boundaries, after the
+#: column's own name is taken out of the sentence.
+FORECAST_REFUSED_TERMS: frozenset[str] = frozenset(
+    {
+        "proven",
+        "prove",
+        "proves",
+        "proof",
+        "true",
+        "truth",
+        "correct",
+        "right",
+        "will be",
+        "will",
+        "going to",
+        "guaranteed",
+        "guarantee",
+        "guarantees",
+        "certain",
+        "certainly",
+        "definitely",
+        "sure",
+    }
+)
+
+#: Claim types that exist but are switched on by a flag in `configs/verification.yaml`.
+#: They are testable only when their flag is true; with it false they are refused like any
+#: claim type with no template, and `TESTABLE_CLAIM_TYPES` (and every message built from it)
+#: stays exactly what it was.
+FLAGGED_CLAIM_TYPES: frozenset[ClaimType] = frozenset({ClaimType.FORECAST})
+
 #: Every supported claim type is a relationship between exactly two columns.
 REQUIRED_VARIABLE_COUNT = 2
 
@@ -133,7 +167,52 @@ def _matched_terms(text: str, vocabulary: Iterable[str]) -> list[str]:
     return sorted(hits)
 
 
-def screen(candidate: CandidateInsight, columns: Sequence[str]) -> AdmissibilityResult:
+def _forecast_refusal(candidate: CandidateInsight) -> AdmissibilityResult | None:
+    """Why a forecast claim is refused on its words or its fields alone, else None."""
+    spec = candidate.forecast
+    text = candidate.claim
+    for name in candidate.variables:
+        text = text.replace(name, " ")
+    hits = _matched_terms(text, FORECAST_REFUSED_TERMS)
+    if hits:
+        return AdmissibilityResult(
+            admissible=False,
+            reason=(
+                f"a forecast claim uses wording {hits} that a backtest cannot support: it "
+                f"measures how accurate a method was on periods it did not see, never what "
+                f"the next periods will be. The sentence is written by code, not proposed."
+            ),
+        )
+    if spec is None:
+        return AdmissibilityResult(
+            admissible=False,
+            reason="a forecast claim must name its horizon and method, and this one names neither.",
+        )
+    if candidate.asserted_direction is not Direction.POSITIVE:
+        return AdmissibilityResult(
+            admissible=False,
+            reason=(
+                "a forecast claim asserts that the method was more accurate than its baseline "
+                "(a positive direction); without it a method that was significantly worse "
+                "could pass."
+            ),
+        )
+    if len(candidate.variables) == REQUIRED_VARIABLE_COUNT and candidate.claim != (
+        render_forecast_claim(candidate.variables[1], spec)
+    ):
+        return AdmissibilityResult(
+            admissible=False,
+            reason=(
+                "a forecast claim's sentence is written by code from its column, method, "
+                "baseline and horizon; this one was not, so it was not tested."
+            ),
+        )
+    return None
+
+
+def screen(
+    candidate: CandidateInsight, columns: Sequence[str], *, forecast_enabled: bool = False
+) -> AdmissibilityResult:
     """Decide whether `candidate` is testable at all, without looking at any data.
 
     Guarantees: the decision depends only on the claim and the column NAMES -- never
@@ -145,7 +224,21 @@ def screen(candidate: CandidateInsight, columns: Sequence[str]) -> Admissibility
     that is not there would crash the executor; refusing it here is the same verdict
     reached honestly and 60 seconds earlier.
     """
-    if candidate.claim_type not in TESTABLE_CLAIM_TYPES:
+    if candidate.claim_type in FLAGGED_CLAIM_TYPES and forecast_enabled:
+        refused = _forecast_refusal(candidate)
+        if refused is not None:
+            return refused
+    elif candidate.claim_type is ClaimType.FORECAST:
+        return AdmissibilityResult(
+            admissible=False,
+            reason=(
+                "forecast claims are switched off (claims.forecast_enabled is false in "
+                "configs/verification.yaml); nothing was tested."
+            ),
+        )
+    if candidate.claim_type not in TESTABLE_CLAIM_TYPES and not (
+        candidate.claim_type is ClaimType.FORECAST and forecast_enabled
+    ):
         supported = ", ".join(sorted(TESTABLE_CLAIM_TYPES))
         return AdmissibilityResult(
             admissible=False,
