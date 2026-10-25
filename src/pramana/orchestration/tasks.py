@@ -113,7 +113,7 @@ def native_verification_handler(
         )
     config = load_verification_config()
     from pramana.contracts import DataStructure
-    from pramana.orchestration.verification_integration import gate_rows
+    from pramana.orchestration.verification_integration import gate_history, gate_rows
 
     raw_structure = request.get("data_structure")
     structure = None if raw_structure is None else DataStructure.model_validate(raw_structure)
@@ -122,6 +122,9 @@ def native_verification_handler(
         frame, structure, config, run_id=run_id, looks_db=artifact_root / "looks.sqlite3"
     )
     options: dict[str, Any] = {"structure": structure, "split": split}
+    history = gate_history(frame, structure, config)
+    if history is not None:
+        options["history"] = history
     if request.get("generated_batch") is not None:
         from pramana.orchestration.verification_integration import PreparedBatch, prepared_generator
 
