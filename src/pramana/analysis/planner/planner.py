@@ -407,6 +407,24 @@ def _thin_exploration(variables: list[str], frame: pd.DataFrame, minimum: int) -
     )
 
 
+def _group_fields_problem(claim: PlannerClaim, frame: pd.DataFrame) -> str | None:
+    """Why a group claim carries a direction or reference group it may not have, or None.
+
+    A claim about more than two groups says only that they differ; naming a reference group
+    or a direction is the model's mistake, and code does not guess what was meant.
+    """
+    if claim.claim_type != "group_difference" or claim.variables[0] not in frame.columns:
+        return None
+    levels = frame[claim.variables[0]].dropna().nunique()
+    if levels > 2 and (claim.direction is not None or claim.reference_group is not None):
+        return (
+            f"{claim.variables[0]} has {levels} groups, and a claim about more than two groups "
+            "cannot name a reference group or a direction "
+            f"(the planner gave direction={claim.direction}, reference_group={claim.reference_group})"
+        )
+    return None
+
+
 def _describe_request(request: PlannedMeasuredRequest) -> str:
     return f"{request.task}(target={request.target}, features={request.features})"
 
@@ -763,6 +781,9 @@ def _validate(
             thin = _thin_exploration(claim.variables, frame, config.min_observations)
             if thin is not None:
                 ledger.drop("claim", label, "too_few_rows", thin)
+                continue
+            if (misfit := _group_fields_problem(claim, frame)) is not None:
+                ledger.drop("claim", label, "invalid_fields", misfit)
                 continue
             ledger.drop(
                 "claim",

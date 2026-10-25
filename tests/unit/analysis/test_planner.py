@@ -526,3 +526,14 @@ def test_a_claim_on_a_table_too_small_to_explore_says_so(hyp) -> None:
     drop = outcome.record.dropped[0]
     assert drop.reason_code == "too_few_rows"
     assert "only 24 complete rows" in drop.reason and "30 are needed" in drop.reason
+
+
+def test_a_direction_on_a_three_group_claim_is_dropped_with_that_reason(hyp) -> None:
+    rng = np.random.default_rng(2)
+    group = np.repeat(["F", "I", "M"], 40)
+    frame = pd.DataFrame({"sex": group, "rings": rng.normal(size=120) + (group == "I") * 2,
+                          "length": rng.normal(size=120)})
+    outcome = plan(frame, hyp, Script(spec(claims=[claim("group_difference", "sex", "rings", "positive", "I")])))
+    assert outcome.candidates == []
+    drop = outcome.record.dropped[0]
+    assert drop.reason_code == "invalid_fields" and "3 groups" in drop.reason
