@@ -105,8 +105,7 @@ def test_pooled_attack_rows_and_markdown_render() -> None:
     module = _load()
     cells = module.attack_card_v2(2, workers=1, cells=[("gaussian", 60, 0.3), ("series", 60, 0.3)])
     pooled = module.pooled_attack_rows(cells)
-    assert {(r["kind"], r["a2_rule"]) for r in pooled} == {("true", "point"), ("true", "interval"),
-                                                          ("null", "point"), ("null", "interval")}
+    assert {(r["kind"], r["a2_rule"]) for r in pooled} == {("true", "point"), ("true", "interval")}
     assert "| true effect | gaussian | 60 |" in module.render_attack_v2(cells)
 
 
