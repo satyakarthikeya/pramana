@@ -73,6 +73,21 @@ def test_describe_matches_pandas_exactly(frame: pd.DataFrame) -> None:
     assert {item["label"]: item["count"] for item in levels} == {"a": 120, "b": 120}
 
 
+def test_overview_counts_all_columns_without_claiming_they_are_all_testable(
+    frame: pd.DataFrame,
+) -> None:
+    data = frame.assign(record_id=range(len(frame)), empty=np.nan)
+    ws = _workspace(data)
+    result = ws.call("overview", {})
+    assert result.ok and result.examined == 0
+    out = result.output
+    assert out["rows"] == len(data) and out["column_count"] == len(data.columns)
+    by_name = {column["column"]: column for column in out["columns"]}
+    assert by_name["empty"]["missing"] == len(data)
+    assert by_name["record_id"]["usable_for_claims"] is False
+    assert "p_value" not in out and "verdict" not in out
+
+
 def test_compare_groups_known_answer(frame: pd.DataFrame) -> None:
     out = _workspace(frame).call("compare_groups", {"value": "shifted", "group": "group"}).output
     by_group = {g["group"]: g for g in out["groups"]}
@@ -80,6 +95,15 @@ def test_compare_groups_known_answer(frame: pd.DataFrame) -> None:
     assert abs(by_group["a"]["median"] - 10) < 0.5 and abs(by_group["b"]["median"] - 20) < 0.5
     assert out["eta_squared"] > 0.9
     assert "no significance" in out["note"]
+
+
+def test_totals_are_computed_by_tools_not_left_for_model_arithmetic() -> None:
+    data = pd.DataFrame({"amount": np.arange(1., 241.), "group": np.tile(["a", "b"],120)})
+    workspace = _workspace(data)
+    assert workspace.call("describe", {"column":"amount"}).output["sum"] == 28920
+    result = workspace.call("compare_groups", {"value":"amount", "group":"group"})
+    totals = {g["group"]:g["sum"] for g in result.output["groups"]}
+    assert totals == {"a":14400, "b":14520}
 
 
 def test_trend_recovers_a_rising_series(frame: pd.DataFrame) -> None:
@@ -116,6 +140,8 @@ def test_failures_are_results_and_cost_nothing(frame: pd.DataFrame) -> None:
         assert not result.ok and result.error and result.examined == 0, (name, args)
     assert ws.ledger.examined == 0
     assert all(not entry.ok for entry in ws.ledger.entries)
+
+
 
 
 def test_examination_budget_refuses_instead_of_overspending(frame: pd.DataFrame) -> None:

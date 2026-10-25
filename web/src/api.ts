@@ -370,6 +370,7 @@ export interface ChatWork {
 export interface ChatAnswer {
   kind: AnswerKind;
   text: string;
+  wording_source?: "model" | "computed" | null;
   evidence: Evidence[];
   tested: ClaimOutcome | null;
   notes: string[];

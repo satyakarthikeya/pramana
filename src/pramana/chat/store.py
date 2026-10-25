@@ -16,7 +16,9 @@ from uuid import UUID
 
 from pydantic import ValidationError
 
+from pramana.analysis.workspace.config import load_workspace_config
 from pramana.chat.models import ChatAnswer, ChatExchange, ChatWork, LedgerRecord
+from pramana.chat.presentation import LEGACY_WITHHELD_TEXT, asks_about_dataset, computed_summary
 
 _UNREADABLE = "This message was saved by an older version of PRAMANA and cannot be shown."
 
@@ -48,7 +50,31 @@ class ChatRepository:
     def _load(raw: str, message_id: str, dataset_id: str) -> ChatExchange:
         """Read a saved exchange; one written by an older version is shown as unreadable."""
         try:
-            return ChatExchange.model_validate_json(raw)
+            exchange = ChatExchange.model_validate_json(raw)
+            # Render old withheld replies readably without rewriting history or making
+            # another model call. The numbers still come only from the stored tools.
+            if exchange.answer.text == LEGACY_WITHHELD_TEXT or (
+                exchange.answer.kind == "descriptive"
+                and asks_about_dataset(exchange.question)
+                and exchange.answer.evidence
+            ):
+                summary = computed_summary(
+                    exchange.answer.evidence,
+                    max_chars=load_workspace_config().chat.max_answer_chars,
+                    question=exchange.question,
+                )
+                if summary:
+                    return exchange.model_copy(
+                        update={
+                            "answer": exchange.answer.model_copy(
+                                update={
+                                    "text": summary,
+                                    "wording_source": "computed",
+                                }
+                            ),
+                        }
+                    )
+            return exchange
         except ValidationError:
             try:
                 question = str(json.loads(raw).get("question", ""))[:4000] or "(unreadable)"

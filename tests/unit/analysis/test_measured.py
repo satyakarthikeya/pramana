@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import re
-import time
+from itertools import count
+from types import SimpleNamespace
 
 import pandas as pd
 import pytest
@@ -329,11 +330,17 @@ def test_large_tables_are_sampled_with_the_logged_seed() -> None:
     assert result.items[0].n_rows <= 100
 
 
-def test_a_spent_time_budget_skips_the_remaining_analyses_visibly() -> None:
+def test_a_spent_time_budget_skips_the_remaining_analyses_visibly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     frame = fx.driver_table()
     schema, shape = fx.prepare(frame)
     tight = fx.fast_config(time_budget_seconds=0.001)
-    time.sleep(0.01)
+    # Spend the budget inside the computation, independent of scheduler/CPU speed.
+    clock = count(step=1.0)
+    monkeypatch.setattr(
+        "pramana.analysis.measured.runner.time", SimpleNamespace(monotonic=lambda: next(clock))
+    )
     result = compute_measured(frame, schema, shape, config=tight)
     assert result.items and all(i.status == "not_run" for i in result.items)
     assert all("time budget" in (i.reason or "") for i in result.items)
