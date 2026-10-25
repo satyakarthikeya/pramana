@@ -37,6 +37,10 @@ statistics correctness. Anything marked owner needs the verification owner's app
 - Risk: **high, owner.** New claim types, new tests and new nulls change p-values. Needs
   known-answer tests (planted null high p, planted effect low p) and a report-card row
   per new type before the planner may propose them. Contract change (§8.7).
+- Status 25 Oct: the forecast-beats-baseline claim is built on `feat/satya/forecast-claims`
+  behind `claims.forecast_enabled` (false), with its report card in
+  `docs/evidence/FORECAST_CLAIM_2026-10-25.md`. The default is the owner's decision after
+  reading that note. Segment growth and concentration are not started.
 
 ### 2.2 Forecast headline in the Report
 - Why: the Measured forecast exists but sits under the planner's analyses at the bottom

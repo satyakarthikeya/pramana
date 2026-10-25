@@ -1,0 +1,218 @@
+{
+ "compared": 17,
+ "identical": 17,
+ "detail": [
+  {
+   "shape": "true",
+   "n": 60,
+   "rep": 0,
+   "p_same": true,
+   "effect_same": true,
+   "outcome_same": true,
+   "real": "supported",
+   "in_process": "supported"
+  },
+  {
+   "shape": "true",
+   "n": 60,
+   "rep": 1,
+   "p_same": true,
+   "effect_same": true,
+   "outcome_same": true,
+   "real": "supported",
+   "in_process": "supported"
+  },
+  {
+   "shape": "true",
+   "n": 60,
+   "rep": 2,
+   "p_same": true,
+   "effect_same": true,
+   "outcome_same": true,
+   "real": "supported",
+   "in_process": "supported"
+  },
+  {
+   "shape": "true",
+   "n": 60,
+   "rep": 3,
+   "p_same": true,
+   "effect_same": true,
+   "outcome_same": true,
+   "real": "supported",
+   "in_process": "supported"
+  },
+  {
+   "shape": "true",
+   "n": 60,
+   "rep": 4,
+   "p_same": true,
+   "effect_same": true,
+   "outcome_same": true,
+   "real": "supported",
+   "in_process": "supported"
+  },
+  {
+   "shape": "true",
+   "n": 60,
+   "rep": 5,
+   "p_same": true,
+   "effect_same": true,
+   "outcome_same": true,
+   "real": "supported",
+   "in_process": "supported"
+  },
+  {
+   "shape": "true",
+   "n": 60,
+   "rep": 6,
+   "p_same": true,
+   "effect_same": true,
+   "outcome_same": true,
+   "real": "supported",
+   "in_process": "supported"
+  },
+  {
+   "shape": "true",
+   "n": 60,
+   "rep": 7,
+   "p_same": true,
+   "effect_same": true,
+   "outcome_same": true,
+   "real": "supported",
+   "in_process": "supported"
+  },
+  {
+   "shape": "null_srw",
+   "n": 60,
+   "rep": 0,
+   "skipped": "planner_dropped"
+  },
+  {
+   "shape": "null_srw",
+   "n": 60,
+   "rep": 1,
+   "skipped": "planner_dropped"
+  },
+  {
+   "shape": "null_srw",
+   "n": 60,
+   "rep": 2,
+   "skipped": "planner_dropped"
+  },
+  {
+   "shape": "null_srw",
+   "n": 60,
+   "rep": 3,
+   "skipped": "planner_dropped"
+  },
+  {
+   "shape": "null_srw",
+   "n": 60,
+   "rep": 4,
+   "skipped": "planner_dropped"
+  },
+  {
+   "shape": "null_srw",
+   "n": 60,
+   "rep": 5,
+   "skipped": "planner_dropped"
+  },
+  {
+   "shape": "null_srw",
+   "n": 60,
+   "rep": 6,
+   "skipped": "planner_dropped"
+  },
+  {
+   "shape": "null_srw",
+   "n": 60,
+   "rep": 7,
+   "p_same": true,
+   "effect_same": true,
+   "outcome_same": true,
+   "real": "inconclusive",
+   "in_process": "inconclusive"
+  },
+  {
+   "shape": "break",
+   "n": 120,
+   "rep": 0,
+   "p_same": true,
+   "effect_same": true,
+   "outcome_same": true,
+   "real": "supported",
+   "in_process": "supported"
+  },
+  {
+   "shape": "break",
+   "n": 120,
+   "rep": 1,
+   "p_same": true,
+   "effect_same": true,
+   "outcome_same": true,
+   "real": "supported",
+   "in_process": "supported"
+  },
+  {
+   "shape": "break",
+   "n": 120,
+   "rep": 2,
+   "p_same": true,
+   "effect_same": true,
+   "outcome_same": true,
+   "real": "supported",
+   "in_process": "supported"
+  },
+  {
+   "shape": "break",
+   "n": 120,
+   "rep": 3,
+   "p_same": true,
+   "effect_same": true,
+   "outcome_same": true,
+   "real": "supported",
+   "in_process": "supported"
+  },
+  {
+   "shape": "break",
+   "n": 120,
+   "rep": 4,
+   "p_same": true,
+   "effect_same": true,
+   "outcome_same": true,
+   "real": "supported",
+   "in_process": "supported"
+  },
+  {
+   "shape": "break",
+   "n": 120,
+   "rep": 5,
+   "p_same": true,
+   "effect_same": true,
+   "outcome_same": true,
+   "real": "inconclusive",
+   "in_process": "inconclusive"
+  },
+  {
+   "shape": "break",
+   "n": 120,
+   "rep": 6,
+   "p_same": true,
+   "effect_same": true,
+   "outcome_same": true,
+   "real": "supported",
+   "in_process": "supported"
+  },
+  {
+   "shape": "break",
+   "n": 120,
+   "rep": 7,
+   "p_same": true,
+   "effect_same": true,
+   "outcome_same": true,
+   "real": "supported",
+   "in_process": "supported"
+  }
+ ]
+}

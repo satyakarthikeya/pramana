@@ -12,6 +12,7 @@
 |---|---|
 | `main` (`origin/main` at `bb5bb77`) | PR #31 merged on 24 Oct (UTC): analyst layer and gateway v3 F1-F7, S1-S8. Everything through PR #31 is on `main` |
 | `chore/satya/cleanup-for-review` | this branch: docs rewrite, archive moves, lint and formatting, five unreferenced helpers removed. Not pushed as a PR yet |
+| `feat/satya/forecast-claims` | forecast claims (gateway claim type, attacks F1-F6, planner request, card) behind `claims.forecast_enabled: false`; evidence in `docs/evidence/FORECAST_CLAIM_2026-10-25.md`. PR open, not merged; the default needs the owner |
 | `origin/docs/satya/research-improvements` | one file, `docs/RESEARCH_improvements.md` (next steps and three evaluation experiments). Pushed, no PR, not merged |
 | other `origin/feat/*`, `origin/docs/*` | merged through PRs #25-#31; check before deleting |
 
