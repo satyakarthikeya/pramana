@@ -64,6 +64,7 @@ SIGNED_METRICS: frozenset[EffectMetric] = frozenset(
         EffectMetric.KENDALL_TAU_B,
         EffectMetric.CLIFFS_DELTA,
         EffectMetric.RELATIVE_CHANGE,
+        EffectMetric.MASE_REDUCTION,
     }
 )
 

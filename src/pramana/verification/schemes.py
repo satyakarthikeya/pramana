@@ -34,12 +34,37 @@ from pramana.contracts.enums import ClaimType, PermutationScheme, TableShape
 from pramana.contracts.structure import DataStructure, SplitRecord
 from pramana.verification.config import DependenceConfig, VerificationConfig
 from pramana.verification.stats.dependence import default_block_length, lag1_autocorrelation
+from pramana.verification.stats.forecast import period_series
 
 #: The reserved column the gate adds: a sortable number per period. No uploaded column
 #: can collide with it in practice, and `with_period_column` refuses one that does.
 PERIOD_COLUMN = "__pramana_period__"
 
 _PERIOD_CODES = {"day": "D", "week": "W", "month": "M", "quarter": "Q", "year": "Y"}
+
+
+class ForecastPlan(BaseModel):
+    """What the gate fixed for one forecast claim before any held-back period is scored.
+
+    Guarantees: frozen; `test_start_period` is the first held-back period (the earliest period
+    of the confirmation rows), so no origin scores an earlier one; `min_train` is the history
+    every origin has at least. The counts are the ones the plan was accepted on.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    method: str
+    baseline: str
+    aggregate: str
+    horizon: int = Field(ge=1)
+    season: int = Field(ge=2)
+    period: str
+    test_start_period: float
+    min_train: int = Field(ge=2)
+    max_gap_fraction: float = Field(ge=0.0)
+    n_periods: int = Field(ge=1)
+    n_origins: int = Field(ge=1)
+    n_blocks: int = Field(ge=1)
 
 
 class TestPlan(BaseModel):
@@ -59,6 +84,7 @@ class TestPlan(BaseModel):
     min_periods: int | None = Field(default=None, ge=1)
     cycle_length: int | None = Field(default=None, ge=2)
     n_periods: int | None = Field(default=None, ge=0)
+    forecast: ForecastPlan | None = None
 
     @property
     def columns(self) -> tuple[str, ...]:
@@ -317,11 +343,118 @@ def _time_claim_plan(
     return TestPlan(scheme=PermutationScheme.FREE, period_column=PERIOD_COLUMN)
 
 
+def _forecast_plan(
+    candidate: CandidateInsight,
+    frame: pd.DataFrame,
+    structure: DataStructure,
+    config: VerificationConfig,
+    history: pd.DataFrame | None,
+    split: SplitRecord | None,
+) -> TestPlan | str:
+    """The plan for a forecast claim, or the plain reason it cannot be tested.
+
+    `frame` is the held-back (confirmation) rows with `PERIOD_COLUMN`; `history` is the earlier
+    rows the method may be fitted on, with the same column. Guarantees: refuses unless the
+    table has a time axis, was split by time, has a period type with a seasonal length in the
+    config, and the held-back periods give at least `forecast.min_origins` origins in at least
+    `forecast.min_blocks` blocks of one horizon each.
+    """
+    settings = config.forecast
+    spec = candidate.forecast
+    if not config.claims.forecast_enabled:
+        return "forecast claims are switched off (claims.forecast_enabled is false)"
+    if spec is None:
+        return "a forecast claim must name its horizon and method; this one names neither"
+    time, target = structure.time_column, candidate.variables[1]
+    if structure.shape is TableShape.CROSS_SECTION or time is None:
+        return "the table has no time axis, so there is nothing to forecast"
+    if candidate.variables[0] != time:
+        return f"a forecast claim starts with the time axis {time!r}"
+    if target not in frame.columns or pd.api.types.is_bool_dtype(frame[target]):
+        return f"{target!r} is not a numeric column"
+    if split is None or split.method != "by_time":
+        how = "no split" if split is None else f"a split by {split.method.replace('_', ' ')}"
+        return (
+            f"a forecast is scored on a later stretch of time held back from the proposer; this "
+            f"run used {how}, so no period is both unseen and later than the history"
+        )
+    period = structure.period or ""
+    season = settings.seasonal_length.get(period)
+    if season is None:
+        return (
+            f"forecast claims are tested on {' or '.join(sorted(settings.seasonal_length))} data "
+            f"only; this table's period is {period or 'unknown'}"
+        )
+    if spec.horizon > settings.max_horizon:
+        return f"a horizon of {spec.horizon} periods exceeds the limit of {settings.max_horizon}"
+    if history is None or history.empty:
+        return (
+            "the earlier periods are needed to fit the method before each origin, and none "
+            "were given to the gate"
+        )
+    both = pd.concat([history, frame], ignore_index=True)
+    held = frame[PERIOD_COLUMN].dropna()
+    if held.empty:
+        return "the held-back rows have no period values"
+    test_start = float(held.min())
+    rows = pd.DataFrame({"p": both[PERIOD_COLUMN], "v": _numeric(both, target)}).dropna()
+    try:
+        series = period_series(
+            rows["p"],
+            rows["v"],
+            aggregate=spec.aggregate,
+            test_start_period=test_start,
+            max_gap_fraction=settings.max_gap_fraction,
+        )
+    except ValueError as error:
+        return f"the series could not be laid out for a backtest: {error}"
+    min_train = max(settings.min_cycles * season, settings.min_train_floor)
+    first = max(series.test_start, min_train)
+    n_origins = series.values.size - spec.horizon + 1 - first
+    n_blocks = math.ceil(max(n_origins, 0) / spec.horizon)
+    if n_origins < settings.min_origins or n_blocks < settings.min_blocks:
+        return (
+            f"too few backtest origins: the held-back periods give {max(n_origins, 0)} origins "
+            f"({n_blocks} blocks of {spec.horizon}), and a forecast claim needs at least "
+            f"{settings.min_origins} origins in {settings.min_blocks} blocks "
+            f"(verification.yaml forecast.min_origins, forecast.min_blocks); a shorter backtest "
+            f"cannot produce a p-value small enough to pass"
+        )
+    lag = season if spec.baseline == "seasonal_naive" else 1
+    before = series.values[:first]
+    if not float(np.mean(np.abs(before[lag:] - before[:-lag]))) > 0.0:
+        return f"{target!r} is constant before the first origin, so errors cannot be scaled"
+    return TestPlan(
+        scheme=PermutationScheme.BLOCK_SIGN_FLIP,
+        period_column=PERIOD_COLUMN,
+        block_length=spec.horizon,
+        min_periods=min_train,
+        n_periods=int(series.values.size),
+        forecast=ForecastPlan(
+            method=spec.method,
+            baseline=spec.baseline,
+            aggregate=spec.aggregate,
+            horizon=spec.horizon,
+            season=season,
+            period=period,
+            test_start_period=test_start,
+            min_train=min_train,
+            max_gap_fraction=settings.max_gap_fraction,
+            n_periods=int(series.values.size),
+            n_origins=int(n_origins),
+            n_blocks=int(n_blocks),
+        ),
+    )
+
+
 def assign_plan(
     candidate: CandidateInsight,
     frame: pd.DataFrame,
     structure: DataStructure,
     config: VerificationConfig,
+    *,
+    history: pd.DataFrame | None = None,
+    split: SplitRecord | None = None,
 ) -> TestPlan | str:
     """The null `candidate` is tested under on `frame`, or the reason it cannot be.
 
@@ -330,6 +463,8 @@ def assign_plan(
     do; a returned string is a refusal written for the user, and the claim then never
     enters the BH family.
     """
+    if candidate.claim_type is ClaimType.FORECAST:
+        return _forecast_plan(candidate, frame, structure, config, history, split)
     if candidate.claim_type in (ClaimType.PERIOD_CHANGE, ClaimType.SEASONALITY):
         return _time_claim_plan(candidate, frame, structure, config)
     if structure.shape is TableShape.CROSS_SECTION:

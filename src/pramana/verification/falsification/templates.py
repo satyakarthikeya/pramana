@@ -50,6 +50,7 @@ from pramana.verification.stats import (
     correlation_test_differenced,
     epsilon_squared,
     eta_squared,
+    forecast_claim_test,
     hedges_g,
     kendall_tau_b,
     outlier_divergence,
@@ -425,6 +426,51 @@ def falsify(frame):
     }
 '''
 
+_FORECAST_BODY = '''
+
+def falsify(frame):
+    """Try to disprove that the method beat the baseline on periods it did not see.
+
+    Rows become one value per period. For every origin from the first held-back period on, the
+    method is fitted on the values before the origin only and scored on the next HORIZON
+    periods; the baseline is scored the same way. The null swaps the two losses for whole blocks
+    of origins (one block = one horizon, because neighbouring origins share their targets).
+    This tests PAST accuracy on held-back periods. It says nothing certain about the next ones.
+    """
+    rows = frame[[VAR_Y, PERIOD]].apply(pd.to_numeric, errors="coerce").dropna()
+    if len(rows) < MIN_OBSERVATIONS:
+        raise ValueError(
+            f"{len(rows)} usable rows for {VAR_Y} is below the configured minimum of "
+            f"{MIN_OBSERVATIONS}; nothing can be concluded"
+        )
+    test = forecast_claim_test(
+        rows[PERIOD].to_numpy(dtype=float), rows[VAR_Y].to_numpy(dtype=float),
+        method=METHOD, baseline=BASELINE, aggregate=AGGREGATE, season=SEASON,
+        horizon=HORIZON, test_start_period=TEST_START, min_train=MIN_TRAIN,
+        max_gap_fraction=MAX_GAP_FRACTION, block_length=BLOCK_LENGTH,
+        n_permutations=N_PERMUTATIONS, seed=SEED,
+    )
+    result = test.result
+    return {
+        "p_value": result.p_value,
+        "effect_size": result.statistic,
+        "effect_metric": "mase_reduction",
+        "reported_effect": test.mase_model / test.mase_baseline,
+        "reported_effect_metric": "mase_ratio",
+        "n_observations": int(test.backtest.n_origins),
+        "n_blocks": int(test.n_blocks),
+        "mase_model": float(test.mase_model),
+        "mase_baseline": float(test.mase_baseline),
+        "block_sd": float(test.block_sd),
+        "mean_baseline_loss": float(test.mean_baseline_loss),
+        "seed": result.seed,
+        "n_permutations": result.n_permutations,
+        "statistic": result.statistic,
+        "scheme": result.scheme.value,
+        "provenance": result.provenance,
+    }
+'''
+
 _NULL_HYPOTHESES: dict[ClaimType, str] = {
     ClaimType.CORRELATION: "{var_x} and {var_y} are unrelated; the observed rank "
     "correlation is an accident of this sample.",
@@ -432,6 +478,8 @@ _NULL_HYPOTHESES: dict[ClaimType, str] = {
     ClaimType.GROUP_DIFFERENCE: "the levels of {var_x} carry no information about {var_y}.",
     ClaimType.PERIOD_CHANGE: "the latest period's {var_y} is no different from the one before.",
     ClaimType.SEASONALITY: "no month (or quarter) of the year sits apart in {var_y}.",
+    ClaimType.FORECAST: "the forecast of {var_y} is no more accurate than its baseline on the "
+    "periods it did not see; its loss and the baseline's are exchangeable.",
 }
 
 _BODIES: dict[ClaimType, str] = {
@@ -455,6 +503,7 @@ _SCHEME_BODIES: dict[tuple[ClaimType, PermutationScheme], str] = {
     (ClaimType.GROUP_DIFFERENCE, PermutationScheme.CLUSTER): _GROUP_DIFFERENCE_BODY,
     (ClaimType.PERIOD_CHANGE, PermutationScheme.PAIRED): _PERIOD_CHANGE_BODY,
     (ClaimType.SEASONALITY, PermutationScheme.STRATIFIED): _SEASONALITY_BODY,
+    (ClaimType.FORECAST, PermutationScheme.BLOCK_SIGN_FLIP): _FORECAST_BODY,
 }
 
 _GROUP_CALLS: dict[PermutationScheme, str] = {
@@ -485,6 +534,7 @@ def render(
     block_length: int | None = None,
     min_periods: int | None = None,
     cycle_length: int | None = None,
+    forecast: dict[str, object] | None = None,
 ) -> str:
     """Render the falsification module for one claim.
 
@@ -528,6 +578,19 @@ def render(
         structural += f"MIN_PERIODS = {min_periods}\n"
     if cycle_length is not None:
         structural += f"CYCLE_LENGTH = {cycle_length}\n"
+    if claim_type is ClaimType.FORECAST:
+        if forecast is None:
+            raise ValueError("a forecast claim is rendered from its forecast plan; none was given")
+        structural += (
+            f"METHOD = {forecast['method']!r}\n"
+            f"BASELINE = {forecast['baseline']!r}\n"
+            f"AGGREGATE = {forecast['aggregate']!r}\n"
+            f"SEASON = {int(forecast['season'])}\n"  # type: ignore[call-overload]
+            f"HORIZON = {int(forecast['horizon'])}\n"  # type: ignore[call-overload]
+            f"TEST_START = {float(forecast['test_start_period'])!r}\n"  # type: ignore[arg-type]
+            f"MIN_TRAIN = {int(forecast['min_train'])}\n"  # type: ignore[call-overload]
+            f"MAX_GAP_FRACTION = {float(forecast['max_gap_fraction'])!r}\n"  # type: ignore[arg-type]
+        )
 
     body = (
         _BODIES[claim_type]

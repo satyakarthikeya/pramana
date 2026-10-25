@@ -238,6 +238,7 @@ def _template_scheme_arguments(plan: TestPlan | None, config: VerificationConfig
         "block_length": constants.get("BLOCK_LENGTH"),
         "min_periods": constants.get("MIN_PERIODS"),
         "cycle_length": constants.get("CYCLE_LENGTH"),
+        **({"forecast": plan.forecast.model_dump()} if plan.forecast is not None else {}),
     }
 
 
@@ -412,6 +413,12 @@ def generate_from_llm(
     the only verdicts it may become are REJECT and NOT_TESTABLE.
     """
     var_x, var_y = _two_variables(candidate)
+    if candidate.claim_type is ClaimType.FORECAST:
+        raise GeneratorError(
+            f"{candidate.insight_id}: a forecast claim is tested with the vetted template only; "
+            f"the llm generator does not write forecast tests, and a run configured for it is "
+            f"never silently switched to the template (AGENTS.md 2)."
+        )
     if candidate.claim_type not in prompts.SUPPORTED_CLAIM_TYPES:
         raise GeneratorError(
             f"{candidate.insight_id}: no falsification prompt for claim_type "
