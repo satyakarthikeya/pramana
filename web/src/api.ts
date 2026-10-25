@@ -607,6 +607,37 @@ export interface AnalystRead {
   fallback_reason: string | null;
 }
 
+export interface InsightClaim {
+  claim_type: "correlation" | "group_difference" | "trend";
+  variables: string[];
+  direction: "positive" | "negative" | null;
+  reference_group: string | null;
+}
+export interface Insight {
+  id: string;
+  section: "outcome" | "drivers" | "time" | "comparison" | "relationships" | "quality";
+  title: string;
+  text: string;
+  importance: number;
+  strength: number | null;
+  columns: string[];
+  values: Record<string, Scalar>;
+  chart: ExactChart | null;
+  claim: InsightClaim | null;
+}
+export interface InsightReport {
+  version: number;
+  rows: number;
+  columns: number;
+  grain: string;
+  target: { column: string; kind: "binary" | "numeric"; positive: string | null; reason: string } | null;
+  time_column: string | null;
+  entity_column: string | null;
+  period: string | null;
+  set_aside: string[];
+  insights: Insight[];
+  questions: string[];
+}
 export interface DatasetView {
   dataset_id: string;
   name: string;
@@ -616,6 +647,7 @@ export interface DatasetView {
   preview: DataPreview;
   overview: DataOverview | null;
   brief: DataBrief | null;
+  insights?: InsightReport | null;
   computed: ComputedAnalysis | null;
   measured?: MeasuredAnalysis | null;
   measured_pending?: boolean;

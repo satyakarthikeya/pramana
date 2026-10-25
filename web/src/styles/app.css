@@ -1740,3 +1740,13 @@ text.axis {
 
 .statement-check { margin: var(--s2) 0 0; }
 .statement-check[data-status="matches"] .label { color: var(--accent); }
+
+/* Key insights: the analyst's read at the top of the report. */
+.insights { display: grid; gap: var(--s5); }
+.insight-grid { display: grid; gap: var(--s5); grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); }
+.insight { background: var(--surface, #fff); border: 1px solid var(--border); border-radius: 12px; padding: var(--s5); display: grid; gap: var(--s3); align-content: start; min-width: 0; }
+.insight-lead { border-color: var(--accent); }
+.insight-title { margin: 0; font-size: 1.05rem; }
+.insight-text { margin: 0; line-height: 1.55; }
+.insight-claim { margin: 0; }
+.insight-list { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 6px; line-height: 1.5; }

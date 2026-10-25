@@ -9,6 +9,7 @@ import { Analyst } from "./Analyst";
 import { Brief } from "./Brief";
 import { CheckStatement } from "./CheckStatement";
 import { Computed } from "./Computed";
+import { Insights } from "./Insights";
 import { ForecastHeadline, Measured } from "./Measured";
 import { Overview } from "./Charts";
 import { Arrow } from "./Icons";
@@ -27,6 +28,9 @@ function Overviewtab({ dataset }: { dataset: DatasetView }) {
   const heads = p.sample_rows[0] ? Object.keys(p.sample_rows[0]) : [];
   return (
     <>
+    {dataset.insights && dataset.insights.insights.length > 0 && (
+      <Insights report={dataset.insights} />
+    )}
     <div className="report">
       <ForecastHeadline dataset={dataset} />
     </div>
