@@ -60,6 +60,6 @@ pinned by a test.
 
 Decision needed: `cramers_v` is banded, gated and tested but no claim type can reach it.
 (a) Add a `categorical_association` claim type: contract change (`ClaimType`/`CandidateInsight` in shared `src/pramana/contracts`, must be announced), plus template, prompt, admissibility, table-permutation in stats, and analysis-agent support; cost: large, multi-owner, ~1 phase.
-(b) Declare it out of scope: mark `cramers_v` unreachable in `docs/SCOPE.md` and OPEN_ISSUES 10, keep the band and its tests; cost: about 30 minutes, no code, and area x education style findings are not testable.
+(b) Declare it out of scope: mark `cramers_v` unreachable in `SCOPE.md` and OPEN_ISSUES 10, keep the band and its tests; cost: about 30 minutes, no code, and area x education style findings are not testable.
 Recommendation: (b) now, because the demo's claims are covered by the four live metrics and (a) is a contract change; revisit (a) after the first NHANES calibration.
 No code changed; stopping here until you decide.

@@ -36,8 +36,10 @@ def test_the_report_card_assigns_the_intended_scheme_to_every_scenario() -> None
 def test_the_planted_strong_effect_is_found_far_more_often_than_a_null_is() -> None:
     module = _load()
     config = module.pinned_config()
-    chosen = module.SCENARIOS[:1] + module.SCENARIOS[4:5]
-    rows = {s[0]: module.run_scenario(*s, 12, config, 7) for s in chosen}
+    rows = {
+        s[0]: module.run_scenario(*s, 12, config, 7)
+        for s in module.SCENARIOS[:1] + module.SCENARIOS[4:5]
+    }
     null = rows["null: independent rows"]["rate_q_below_alpha"]
     power = rows["power: rho about 0.3, 100 rows"]["rate_q_below_alpha"]
     assert power > null + 0.3

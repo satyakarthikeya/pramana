@@ -255,3 +255,49 @@ export function MeasuredBody({
     </>
   );
 }
+
+function num(v: Scalar | undefined): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+/**
+ * A short headline for the Report tab: the Measured forecast, labelled MEASURED, with the
+ * next periods, their interval and the comparison with the seasonal-naive baseline. Only
+ * numbers in the item's own values and table are used; with no finished forecast on the
+ * dataset view, nothing is shown.
+ */
+export function ForecastHeadline({ dataset }: { dataset: DatasetView }) {
+  const item = dataset.measured?.items.find((i) => i.kind === "forecast" && i.status === "ok");
+  if (!item || item.table.length === 0) return null;
+  const level = num(item.values.interval_level);
+  const mase = num(item.values.mase_model);
+  const base = num(item.values.mase_baseline);
+  const cut = num(item.values.error_reduction_pct);
+  const rows = item.table.slice(0, 4);
+  return (
+    <section className="panel report-section forecast-headline" aria-label="Forecast headline">
+      <div className="exact-top">
+        <span className="label">{item.title}</span>
+        <span className="exact-badge measured-badge">MEASURED</span>
+      </div>
+      <p className="exact-sentence">
+        Next {item.table.length} period{item.table.length === 1 ? "" : "s"}:{" "}
+        {rows.map((r, i) => (
+          <span key={String(r.period)}>
+            {i > 0 && "; "}
+            <span className="mono">{String(r.period)}</span> {cell("forecast", r.forecast ?? null)}
+            {level !== null &&
+              ` (${Math.round(level * 100)}% interval ${cell("lower", r.lower ?? null)} to ${cell("upper", r.upper ?? null)})`}
+          </span>
+        ))}
+        {item.table.length > rows.length ? "; more in the full forecast below" : ""}.
+      </p>
+      <p className="explain">
+        {cut !== null && mase !== null && base !== null
+          ? `Beats the ${item.baseline ?? "baseline"} baseline on periods it did not see: ${fmtNum(cut)}% less error (scaled error ${fmtNum(mase)} against ${fmtNum(base)}).`
+          : `Beats the ${item.baseline ?? "baseline"} baseline on periods it did not see.`}{" "}
+        A measurement, not a verified finding.
+      </p>
+    </section>
+  );
+}

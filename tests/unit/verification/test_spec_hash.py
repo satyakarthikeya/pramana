@@ -9,7 +9,6 @@ import pytest
 from pramana.contracts import ClaimType, Direction, GateOutcome, PermutationScheme
 from pramana.contracts.structure import DataStructure
 from pramana.verification import gateway
-from pramana.verification.config import VerificationConfig
 from pramana.verification.executor.runner import ExecutionResult
 from pramana.verification.gateway import verify_batch
 from pramana.verification.spec import matches, recompute, spec_hash
@@ -36,7 +35,10 @@ def _frame(n: int = 80, seed: int = 3) -> pd.DataFrame:
 
 def _claim():
     return candidate(
-        "c", "y is positively associated with x", ClaimType.CORRELATION, ["x", "y"],
+        "c",
+        "y is positively associated with x",
+        ClaimType.CORRELATION,
+        ["x", "y"],
         direction=Direction.POSITIVE,
     )
 
@@ -66,7 +68,13 @@ def test_every_tested_proof_carries_a_hash_that_recomputes_from_its_own_fields()
 
 
 def test_a_claim_that_was_never_tested_has_no_hash() -> None:
-    missing = candidate("m", "nope is positively associated with x", ClaimType.CORRELATION, ["x", "nope"], direction=Direction.POSITIVE)
+    missing = candidate(
+        "m",
+        "nope is positively associated with x",
+        ClaimType.CORRELATION,
+        ["x", "nope"],
+        direction=Direction.POSITIVE,
+    )
     proof = verify_batch([missing], _frame(), CONFIG)[0]
     assert proof.gate_outcome is GateOutcome.NOT_TESTABLE and proof.spec_hash is None
     assert recompute(proof, 0.05) is None
@@ -78,7 +86,9 @@ def test_the_hash_names_the_rows_the_gate_saw() -> None:
 
     structure = DataStructure.independent_rows()
     explore, confirm, record = split_rows(frame, structure, CONFIG)
-    a = verify_batch([_claim()], frame.iloc[confirm].reset_index(drop=True), CONFIG, split=record)[0]
+    a = verify_batch([_claim()], frame.iloc[confirm].reset_index(drop=True), CONFIG, split=record)[
+        0
+    ]
     b = verify_batch([_claim()], frame.iloc[confirm].reset_index(drop=True), CONFIG)[0]
     assert a.spec_hash != b.spec_hash  # same code and seed, different declared rows
 

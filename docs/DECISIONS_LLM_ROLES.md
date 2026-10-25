@@ -23,7 +23,7 @@ datasets", verified by a gateway running on DeepSeek V4, with Gemma for routine
 sub-agent work. What got built drifted from that:
 
 - the analysis module became a deterministic scan with no model, because
-  `scope/SCOPE_P_Rohith.md` §2.4 specified scan strategies, not an LLM;
+  the original per-member scope file (since removed) specified scan strategies, not an LLM;
 - the gateway's DeepSeek path was built but made optional, with a template
   generator as the default (`docs/OPEN_ISSUES.md` issue 4, 2 September);
 - no Gemma component was built.
@@ -60,7 +60,7 @@ the effect size must equal the stamped statistic. The p-value, BH correction, ga
 verdict are code.
 
 **What it supersedes.** Only the "template is the DEFAULT generator" part of:
-`docs/OPEN_ISSUES.md` issue 4 and decision-table row 4, and `docs/handoffs/DECISIONS_HANDOFF.md`
+`docs/OPEN_ISSUES.md` issue 4 and decision-table row 4, and `docs/archive/handoffs/DECISIONS_HANDOFF.md`
 A.2 and A.4. The rest of those decisions stands: the trust guarantee comes from the
 sandbox, whitelist and stamp, not from the choice of model.
 
@@ -85,8 +85,8 @@ and drops any claim naming a missing column or an unsupported type. The batch ca
 catch. It also makes the evaluation meaningful: conditions B, C and D (`PROJECT.md` §6)
 all assume an agent that proposes claims.
 
-This changes `scope/SCOPE_P_Rohith.md` §2.4 and §4, which specify deterministic scan
-strategies. That file is Rohith's, so it has not been edited here.
+This changed the original per-member scope file for the analysis module (since removed),
+which specified deterministic scan strategies. `SCOPE.md` is the current scope.
 
 ### D3. Model rules — Decided for the verification module, Proposed elsewhere
 
@@ -127,8 +127,9 @@ completes an item.
 
 ## Files deliberately not edited
 
-These belong to other members. Each needs its owner to update it to match D1–D3:
+These were the per-member scope files, since removed (see `SCOPE.md`). They each needed
+their owner to update them to match D1–D3:
 
-- `scope/SCOPE_P_Rohith.md` §2.4, §4 — analysis becomes an LLM agent (D2, W6, W7, W11)
-- `scope/SCOPE_B_Karthikeya.md` — shared LLM client (W4) and report change (W9)
-- `scope/SCOPE_M_Karthik_Reddy.md` — retrieved lessons are hints only (W10)
+- analysis scope file §2.4, §4 — analysis becomes an LLM agent (D2, W6, W7, W11)
+- workflow scope file — shared LLM client (W4) and report change (W9)
+- memory and API scope file — retrieved lessons are hints only (W10)

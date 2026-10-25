@@ -51,7 +51,6 @@ Scope: scope/SCOPE_P_Rohith.md 2, component 2 / 4, step 2
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
 from enum import StrEnum
 from typing import Protocol
 
@@ -634,8 +633,3 @@ def describe_unusable(profile: SchemaProfile) -> list[str]:
         for name, column in profile.columns.items()
         if not column.usable_for_hypotheses
     ]
-
-
-def columns_for(profile: SchemaProfile, roles: Sequence[ColumnRole]) -> list[str]:
-    """Usable columns carrying any of `roles`, in the frame's column order."""
-    return profile.usable(*roles)

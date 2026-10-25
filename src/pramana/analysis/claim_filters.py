@@ -23,7 +23,8 @@ _AMOUNT_NAME = re.compile(
     re.IGNORECASE,
 )
 _TIME_NAME = re.compile(
-    r"^(?:fiscal[_ ]?|financial[_ ]?)?(year|quarter|qtr|month|week|day|period|date|fy)$", re.IGNORECASE
+    r"^(?:fiscal[_ ]?|financial[_ ]?)?(year|quarter|qtr|month|week|day|period|date|fy)$",
+    re.IGNORECASE,
 )
 
 

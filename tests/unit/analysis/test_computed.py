@@ -205,3 +205,52 @@ def test_no_model_facing_module_reads_the_exact_tier() -> None:
 def test_sector_override_is_recorded() -> None:
     result = _run(fx.finance_year(), sector="general")
     assert result.sector.sector == "general"
+
+
+# --- report polish: outlier wording and incomplete last period ------------------------
+
+
+def test_row_outlier_with_zero_median_never_reads_as_a_ratio() -> None:
+    from pramana.analysis.computed.runner import _against_median
+
+    text = _against_median(1.0, 500.0, 0.0, "their country median", -6.2)
+    assert "times" not in text and "0.0" not in text
+    assert "6.2 robust deviations below" in text
+    assert "typical non-zero value" in text
+    assert _against_median(900.0, 300.0, 300.0, "their country median", 4.0) == (
+        "3.0 times their country median."
+    )
+
+
+def _daily(last_day: int) -> pd.DataFrame:
+    days = pd.date_range("2025-01-01", f"2025-08-{last_day:02d}", freq="D")
+    return pd.DataFrame(
+        {
+            "date": days.strftime("%Y-%m-%d"),
+            "region": ["North", "South"] * (len(days) // 2) + ["North"] * (len(days) % 2),
+            "revenue": 100.0 + (days.dayofyear % 7),
+            "cost": 60.0 + (days.dayofyear % 5),
+        }
+    )
+
+
+def test_partial_last_month_is_flagged_not_dropped() -> None:
+    result = _run(_daily(9))
+    change = _item(result, "period_change", "revenue")
+    assert "2025-08" in str(change.values["current_label"])
+    assert "looks incomplete" in change.sentence
+    assert "read with care" in change.sentence
+    quality = _item(result, "data_quality")
+    assert any(r["check"] == "incomplete last period" for r in quality.table)
+
+
+def test_complete_last_month_is_not_flagged() -> None:
+    result = _run(_daily(31))
+    assert "looks incomplete" not in _item(result, "period_change", "revenue").sentence
+    quality = _item(result, "data_quality")
+    assert not any(r["check"] == "incomplete last period" for r in quality.table)
+
+
+def test_month_stamped_on_the_first_is_not_flagged() -> None:
+    result = _run(fx.finance_year())
+    assert "looks incomplete" not in _item(result, "period_change", "revenue").sentence

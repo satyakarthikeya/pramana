@@ -1,50 +1,54 @@
 # PRAMANA docs
 
-Start with **[V1.md](V1.md)**: the MVP plan and the do-list. Everything else is reference.
+Current project state is in [../STATUS.md](../STATUS.md). Architecture is in
+[../PROJECT.md](../PROJECT.md), scope in [../SCOPE.md](../SCOPE.md), and the rules for
+contributors in [../AGENTS.md](../AGENTS.md). This folder holds the rest.
 
-## Current state and decisions
+Next work, in order, is in [ROADMAP.md](ROADMAP.md).
 
-| File | What it is |
-|---|---|
-| [V1.md](V1.md) | The V1 MVP: user journey, work packages, do-list, plan to the review |
-| [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Verification gateway build state, phase by phase |
-| [OPEN_ISSUES.md](OPEN_ISSUES.md) | Design issues, decisions taken, and the decision log |
-| [CALIBRATION_BANDS.md](CALIBRATION_BANDS.md) | Effect-size floors: measurements, simulation, and the decision to keep them |
-| [DECISIONS_LLM_ROLES.md](DECISIONS_LLM_ROLES.md) | Which model does what, and why |
-| [WP7_PROPOSALS.md](WP7_PROPOSALS.md) | Small proposals awaiting a decision (outlier warning, Cramér's V) |
-
-## [team/](team/) — checklists and guides
+## Current
 
 | File | What it is |
 |---|---|
-| [TEAM_GOALS_CHECKLIST.md](team/TEAM_GOALS_CHECKLIST.md) | Whole-project goals checklist (includes work past V1) |
-| [DEEPSEEK_ONLY_TODO.md](team/DEEPSEEK_ONLY_TODO.md) | Current provider migration and pending live website/API acceptance |
-| [DEEPSEEK_LIVE_TEST_LOG.md](team/DEEPSEEK_LIVE_TEST_LOG.md) | Real DeepSeek/browser/replay/remote trace evidence and honest coverage limitations |
-| [TESTING_PHASE.md](team/TESTING_PHASE.md) | How to test the stack, including live services |
-| [V1_TEST_LOG.md](team/V1_TEST_LOG.md) | Actual local V1/browser evidence, defects fixed and remaining release gates |
-| [V1_REVIEW_NOTICES.md](team/V1_REVIEW_NOTICES.md) | Contract/whitelist notices and required cross-module review |
-| [LLM_CLAIM_PROPOSER.md](team/LLM_CLAIM_PROPOSER.md) | How the LLM claim proposer works and its limits |
+| [DESIGN_verification_gateway_v3.md](DESIGN_verification_gateway_v3.md) | Gateway v3 design (built, PR 31); owner sign-off pending |
+| [GATEWAY_V3_STATUS_AND_SIGNOFF.md](GATEWAY_V3_STATUS_AND_SIGNOFF.md) | Gateway v3 status and the sign-off sheet |
+| [PLAN_analysis_platform.md](PLAN_analysis_platform.md) | V2 platform plan (evidence levels, exploration/confirmation split) |
+| [PLAN_data_analyst.md](PLAN_data_analyst.md) | Data-analyst layer plan |
+| [ANALYST_LAYER_STATUS.md](ANALYST_LAYER_STATUS.md) | Status of the analyst layer (PR 31) |
+| [EVALUATION.md](EVALUATION.md) | Parked V2 evaluation plan |
+| [OPEN_ISSUES.md](OPEN_ISSUES.md) | Decision log and open design issues |
+| [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Gateway build state (historical snapshot) |
 
-## [handoffs/](handoffs/) — history
+## Design and decision records
 
-Written when work changed hands. Useful background, not instructions.
+[ANALYSIS_AGENT.md](ANALYSIS_AGENT.md) · [CALIBRATION_BANDS.md](CALIBRATION_BANDS.md) ·
+[DECISIONS_LLM_ROLES.md](DECISIONS_LLM_ROLES.md) · [SHARED_LLM_CLIENT.md](SHARED_LLM_CLIENT.md) ·
+[WP7_PROPOSALS.md](WP7_PROPOSALS.md) (proposals awaiting a decision)
 
-[BENCHMARK_40_HANDOFF.md](handoffs/BENCHMARK_40_HANDOFF.md) ·
-[ROHITH_HANDOFF.md](handoffs/ROHITH_HANDOFF.md) ·
-[ROHITH_ANALYSIS.md](handoffs/ROHITH_ANALYSIS.md) ·
-[B_KARTHIKEYA_COMPLETION.md](handoffs/B_KARTHIKEYA_COMPLETION.md) ·
-[KARTHIK_LOCAL_HANDOFF.md](handoffs/KARTHIK_LOCAL_HANDOFF.md) ·
-[DECISIONS_HANDOFF.md](handoffs/DECISIONS_HANDOFF.md)
+## [team/](team/) — guides and checklists
 
-## [data/](data/) — generated audit files
+[TESTING_PHASE.md](team/TESTING_PHASE.md) (how to test, including live services) ·
+[DEEPSEEK_ONLY_TODO.md](team/DEEPSEEK_ONLY_TODO.md) (pending live acceptance) ·
+[TEAM_GOALS_CHECKLIST.md](team/TEAM_GOALS_CHECKLIST.md) ·
+[V1_REVIEW_NOTICES.md](team/V1_REVIEW_NOTICES.md)
 
-Benchmark build and metadata reports (JSON). Aggregate audit only; no raw data.
+## [evidence/](evidence/) — test logs and generated reports
+
+[V1_TEST_LOG.md](evidence/V1_TEST_LOG.md) and
+[DEEPSEEK_LIVE_TEST_LOG.md](evidence/DEEPSEEK_LIVE_TEST_LOG.md) record what was run and
+what was not. `evidence/benchmark/` holds the benchmark build and metadata JSON written by
+`scripts/build_benchmark_pilot.py` (aggregate audit only, no raw data).
 
 ## [diagrams/](diagrams/)
 
-Architecture presentation (SVG).
+`PRAMANA_architecture_presentation.svg` is the exported figure. `source/` holds the
+editable `.excalidraw` files. There are two gateway-flow sources:
+`pramana-gateway-flow.excalidraw` (larger) and `pramana-gateway-flow-compact.excalidraw`.
 
-## Not in `docs/`
+## [archive/](archive/) — history, not current
 
-`PROJECT.md`, `SCOPE.md`, `AGENTS.md`, `OWNERSHIP.md` at the repository root define the
-architecture, scope and rules.
+Session handoffs ([handoffs/](archive/handoffs/)), the last session handoff, a cloud-session
+prompt, and the historical LLM claim proposer record. Useful background, not instructions.
+[V1.md](V1.md) is the V1-era plan and do-list; it is historical.
+Some status documents above (IMPLEMENTATION_STATUS.md, OPEN_ISSUES.md) are also historical
+in parts and say so in a banner.

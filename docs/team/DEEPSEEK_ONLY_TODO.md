@@ -44,7 +44,7 @@ This is an engineering checklist, not capstone report prose or a release sign-of
 
 The user entered credentials locally and explicitly resumed testing on 21 October
 2026. The live checks below have now been exercised. See
-[DEEPSEEK_LIVE_TEST_LOG.md](DEEPSEEK_LIVE_TEST_LOG.md) for exact run IDs, results,
+[DEEPSEEK_LIVE_TEST_LOG.md](../evidence/DEEPSEEK_LIVE_TEST_LOG.md) for exact run IDs, results,
 remaining limitations and the extra decoy-coverage check that did not pass.
 Future credential edits still belong in `.env` locally, not in chat.
 

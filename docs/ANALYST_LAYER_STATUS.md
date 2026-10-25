@@ -1,5 +1,7 @@
 # Analyst layer: what is built, what was measured, what is not done
 
+> **Status of one change (PR #31).** Current project status is in [STATUS.md](../STATUS.md). Figures and branch names below are from the date of writing and may be out of date.
+
 Branch `feat/satya/analyst-layer` (from `feat/satya/finance-f3-f7`). Plan: `PLAN_data_analyst.md`.
 Nothing here changes the gateway, a p-value, FDR, the sandbox or memory.
 

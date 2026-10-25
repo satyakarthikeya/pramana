@@ -1,5 +1,7 @@
 # Gateway v3: status, comparison and sign-off sheet
 
+> **Status of one change (gateway v3).** Current project status is in [STATUS.md](../STATUS.md). Figures and branch names below are from the date of writing and may be out of date.
+
 Prepared 2026-10-24 for the verification owner (P.P. Satya Karthikeya). One place to see
 every finance gap (F1-F7) and every gateway step (S1-S9) side by side: what is built,
 what was measured, what moves a verdict, and what needs your signature.
@@ -7,7 +9,7 @@ what was measured, what moves a verdict, and what needs your signature.
 "Direction approved" means you agreed in chat on 2026-10-24. It is not a signature on the
 code. Sign each row of section 5 after reading the diff; nothing here is signed for you.
 
-## 1. Branches (stacked; nothing is pushed or merged)
+## 1. Branches (historical; all merged to `main` in PR 31 on 24 Oct 2026, bb5bb77)
 
 ```
 fix/satya/finance-gaps            F1, F2, F4, F5, F6                      0f26157
@@ -22,7 +24,7 @@ fix/satya/finance-gaps            F1, F2, F4, F5, F6                      0f2615
 integration/gateway-v3 = the line above + S2 merged (used only for testing)
 ```
 
-PR 29 (the earlier stack) is still open and unmerged; all of the above builds on it.
+PR 29 (the earlier stack) and this stack were merged through PR 31.
 
 ## 2. Finance gaps
 
@@ -110,7 +112,7 @@ Things a reader should know from those runs:
 - F3 worked in this run (no latest-month claim) but the planner still did not propose
   seasonality or a year-on-year test; the Exact tier reports those as figures only.
 - Wall-clock rose (NHANES 282 s before, 375 s now, with other jobs running at the same
-  time). The effect interval (up to 5000 resamples per passing claim) is the likely cost;
+  time). The effect interval (1,000 resamples per passing claim) is the likely cost;
   not isolated.
 
 **Tests:** the full suite on the integrated stack passed (1265 tests). The suite on the

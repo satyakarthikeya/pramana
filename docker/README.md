@@ -45,9 +45,10 @@ The handler receives one mapping containing `run_id`, `dataset_ref`, and the com
 `candidate_insights` family. It must return a mapping containing `proof_objects`.
 
 The worker deliberately has no public egress because it executes untrusted generated code.
-The shipped default is now `llm.generator: llm`. For explicit keyless acceptance,
-set `$env:PRAMANA_VERIFICATION_GENERATOR = "template"` before starting Compose;
-that override is passed to both API and worker. With `generator: llm`, the Celery
+The project default is `llm.generator: template` (`configs/verification.yaml`). This Compose file
+defaults `PRAMANA_VERIFICATION_GENERATOR` to `template` too. To opt in to the live DeepSeek test
+writer, set `$env:PRAMANA_VERIFICATION_GENERATOR = "llm"` before starting Compose;
+the value is passed to both API and worker. With `generator: llm`, the Celery
 adapter calls the verification owner's generator in the trusted API process. It queues
 the checked source (or explicit generation failure) with the entire candidate family.
 The worker uses the gateway's existing `generate=` hook to execute that exact source,

@@ -67,7 +67,11 @@ def price_volume_mix(ctx: Context) -> list[ExactItem]:
     if amount is None:
         return []
     if quantity is None:
-        return [_not_run("price_volume_mix", "Needs a units (quantity) column beside the amount.", amount)]
+        return [
+            _not_run(
+                "price_volume_mix", "Needs a units (quantity) column beside the amount.", amount
+            )
+        ]
     windows = _windows(ctx)
     if windows is None:
         return []
@@ -99,7 +103,11 @@ def price_volume_mix(ctx: Context) -> list[ExactItem]:
     total_change = float(table["r1"].sum() - table["r0"].sum())
     if total_change == 0:
         return [_not_run("price_volume_mix", f"Total {amount} did not change.", amount)]
-    q0_all, q1_all, r0_all = float(inside["q0"].sum()), float(inside["q1"].sum()), float(inside["r0"].sum())
+    q0_all, q1_all, r0_all = (
+        float(inside["q0"].sum()),
+        float(inside["q1"].sum()),
+        float(inside["r0"].sum()),
+    )
     p0 = inside["r0"] / inside["q0"]
     p1 = inside["r1"] / inside["q1"]
     volume_s = (q1_all * inside["q0"] / q0_all - inside["q0"]) * p0
@@ -112,17 +120,28 @@ def price_volume_mix(ctx: Context) -> list[ExactItem]:
 
     movement = "rose" if total_change > 0 else "fell"
     parts = (
-        f"volume {_signed(volume)}, average price per unit within each {ctx.group} {_signed(price)} "
+        f"volume {_signed(volume)}, average price per unit within each {ctx.group} "
+        f"{_signed(price)} "
         f"and mix between {ctx.group} values {_signed(mix)}"
     )
     sentence = (
         f"Total {amount} {movement} by {_fmt(abs(total_change))} from {prev_label} to {cur_label}: "
         f"{parts}"
-        + (f", and {len(outside)} {ctx.group} value(s) in only one window {_signed(other)}" if len(outside) else "")
+        + (
+            f", and {len(outside)} {ctx.group} value(s) in only one window {_signed(other)}"
+            if len(outside)
+            else ""
+        )
         + "."
     )
     detail = pd.DataFrame(
-        {"volume": volume_s, "price": price_s, "mix": mix_s, "price_per_unit_before": p0, "price_per_unit_now": p1}
+        {
+            "volume": volume_s,
+            "price": price_s,
+            "mix": mix_s,
+            "price_per_unit_before": p0,
+            "price_per_unit_now": p1,
+        }
     )
     detail["change"] = detail["volume"] + detail["price"] + detail["mix"]
     detail = detail.reindex(detail["change"].abs().sort_values(ascending=False).index)
@@ -136,7 +155,8 @@ def price_volume_mix(ctx: Context) -> list[ExactItem]:
             sentence=sentence,
             formula="volume = (Q1 − Q0) × (R0 ÷ Q0); price = Σ q1 × (p1 − p0); "
             "mix = Σ (q1 − Q1 × q0 ÷ Q0) × p0; p = amount ÷ units per "
-            f"{ctx.group}; the parts add up to the change. Price per unit also moves when the products "
+            f"{ctx.group}; the parts add up to the change. Price per unit also moves when the "
+            "products "
             f"sold inside a {ctx.group} change",
             columns=[amount, quantity, ctx.group, time],
             filters=[f"{time} in {cur_label}", f"{time} in {prev_label}"],
@@ -212,8 +232,13 @@ def segment_growth(ctx: Context) -> list[ExactItem]:
     table = pd.DataFrame({"previous": before, "current": now}).fillna(0.0)
     total_before, total_now = float(table["previous"].sum()), float(table["current"].sum())
     if total_before <= 0:
-        return [_not_run("segment_growth", f"Total {amount} in {prev_label} is not positive.", amount)]
-    eligible = table[(table["previous"] > 0) & (table["previous"] >= ctx.config.segment_growth_min_share * total_before)]
+        return [
+            _not_run("segment_growth", f"Total {amount} in {prev_label} is not positive.", amount)
+        ]
+    eligible = table[
+        (table["previous"] > 0)
+        & (table["previous"] >= ctx.config.segment_growth_min_share * total_before)
+    ]
     if len(eligible) < 2:
         return [
             _not_run(
@@ -222,19 +247,28 @@ def segment_growth(ctx: Context) -> list[ExactItem]:
                 amount,
             )
         ]
-    growth = (eligible["current"] / eligible["previous"] - 1.0).sort_values(ascending=False, kind="stable")
+    growth = (eligible["current"] / eligible["previous"] - 1.0).sort_values(
+        ascending=False, kind="stable"
+    )
     overall = total_now / total_before - 1.0
     fastest, slowest = str(growth.index[0]), str(growth.index[-1])
     f_pct, s_pct = 100 * float(growth.iloc[0]), 100 * float(growth.iloc[-1])
     left_out = len(table) - len(eligible)
     if f_pct == s_pct:
-        return [_not_run("segment_growth", f"No {ctx.group} value differs in growth rate from the others.", amount)]
+        return [
+            _not_run(
+                "segment_growth",
+                f"No {ctx.group} value differs in growth rate from the others.",
+                amount,
+            )
+        ]
 
     def move(pct: float) -> str:
         return f"{'up' if pct >= 0 else 'down'} {abs(pct):.1f}%"
 
     sentence = (
-        f"From {prev_label} to {cur_label}, {amount} in {fastest} was {move(f_pct)}, the fastest of "
+        f"From {prev_label} to {cur_label}, {amount} in {fastest} was {move(f_pct)}, the "
+        "fastest of "
         f"{len(eligible)} {ctx.group} values, and in {slowest} {move(s_pct)}, the slowest; the "
         f"total across {ctx.group} values was {move(100 * overall)}."
     )
@@ -246,7 +280,8 @@ def segment_growth(ctx: Context) -> list[ExactItem]:
             title="Growth by segment",
             sentence=sentence,
             formula=f"growth = {amount}(current) ÷ {amount}(previous) − 1, per {ctx.group}; "
-            f"values under {100 * ctx.config.segment_growth_min_share:g}% of the earlier total are not ranked",
+            f"values under {100 * ctx.config.segment_growth_min_share:g}% of the earlier total "
+            "are not ranked",
             columns=[amount, ctx.group, time],
             filters=[f"{time} in {cur_label}", f"{time} in {prev_label}"],
             n_rows=int((ctx.keys.isin(current) | ctx.keys.isin(previous)).sum()),
@@ -273,7 +308,9 @@ def segment_growth(ctx: Context) -> list[ExactItem]:
                 x_label=ctx.group,
                 y_label=f"growth in {amount}",
                 value_format="percent",
-                bars=[Bar(label=str(name), value=float(g)) for name, g in growth.items()][: ctx.config.max_segments],
+                bars=[Bar(label=str(name), value=float(g)) for name, g in growth.items()][
+                    : ctx.config.max_segments
+                ],
             ),
         )
     ]
@@ -318,11 +355,17 @@ def customer_view(ctx: Context) -> list[ExactItem]:
         return [
             _not_run(
                 "customer_view",
-                f"Needs at least {ctx.config.customer_min_customers} distinct {column} values; found {n_customers}.",
+                f"Needs at least {ctx.config.customer_min_customers} distinct {column} values; "
+                f"found {n_customers}.",
                 column,
             )
         ]
-    per_customer = money[known].groupby(ids[known].astype(str)).sum().sort_values(ascending=False, kind="stable")
+    per_customer = (
+        money[known]
+        .groupby(ids[known].astype(str))
+        .sum()
+        .sort_values(ascending=False, kind="stable")
+    )
     positive_total = float(per_customer[per_customer > 0].sum())
     if positive_total <= 0:
         return [_not_run("customer_view", f"Total {amount} by customer is not positive.", column)]
@@ -340,7 +383,10 @@ def customer_view(ctx: Context) -> list[ExactItem]:
         "top_customer": str(per_customer.index[0]),
         "top_customer_share": float(max(per_customer.iloc[0], 0.0)) / positive_total,
     }
-    sentence = f"Of {n_customers:,} customers, the top {top_n} account for {100 * top_n_share:.1f}% of {amount}"
+    sentence = (
+        f"Of {n_customers:,} customers, the top {top_n} account for "
+        f"{100 * top_n_share:.1f}% of {amount}"
+    )
     if decile != top_n:
         sentence += f" and the top tenth ({decile:,}) for {100 * decile_share:.1f}%"
     sentence += "."
@@ -353,7 +399,10 @@ def customer_view(ctx: Context) -> list[ExactItem]:
         active = key[known].groupby(ids[known].astype(str)).nunique()
         repeat_share = float((active > 1).mean())
         values["repeat_share"] = repeat_share
-        sentence += f" {100 * repeat_share:.1f}% of customers bought in more than one {ctx.shape.period or 'period'}."
+        sentence += (
+            f" {100 * repeat_share:.1f}% of customers bought in more than one "
+            f"{ctx.shape.period or 'period'}."
+        )
         windows = _windows(ctx)
         if windows is not None:
             current, previous, cur_label, _ = windows
@@ -370,9 +419,12 @@ def customer_view(ctx: Context) -> list[ExactItem]:
                     values["new_share_current"] = new_money / cur_total
                     values["returning_share_current"] = 1.0 - new_money / cur_total
                     values["new_customers_current"] = int(cur_money.index.isin(new_ids).sum())
-                    values["returning_customers_current"] = int((~cur_money.index.isin(new_ids)).sum())
+                    values["returning_customers_current"] = int(
+                        (~cur_money.index.isin(new_ids)).sum()
+                    )
                     sentence += (
-                        f" In {cur_label}, customers whose first row in this table falls in that window brought "
+                        f" In {cur_label}, customers whose first row in this table falls in that "
+                        "window brought "
                         f"{100 * new_money / cur_total:.1f}% of {amount} and earlier customers "
                         f"{100 * (1 - new_money / cur_total):.1f}%."
                     )
@@ -384,7 +436,10 @@ def customer_view(ctx: Context) -> list[ExactItem]:
             kind="customer_view",
             title="Customers",
             sentence=sentence,
-            formula=f"share = customer total ÷ sum of positive customer totals; customers = distinct {column}",
+            formula=(
+                "share = customer total ÷ sum of positive customer totals; "
+                f"customers = distinct {column}"
+            ),
             columns=[column, amount, ctx.shape.time_column or ""],
             n_rows=int(known.sum()),
             values={k: _row(v=v)["v"] for k, v in values.items()},
@@ -447,7 +502,8 @@ def rfm(ctx: Context) -> list[ExactItem]:
         return [
             _not_run(
                 "rfm",
-                f"Needs at least 20 distinct {column} values and 3 periods; found {n_customers} and {len(periods)}.",
+                f"Needs at least 20 distinct {column} values and 3 periods; found "
+                f"{n_customers} and {len(periods)}.",
                 column,
             )
         ]
@@ -492,7 +548,9 @@ def rfm(ctx: Context) -> list[ExactItem]:
     for name in ("Champions", "Lapsed regulars"):
         if name in by:
             r = by[name]
-            values[f"{name.lower().replace(' ', '_')}_customers_pct"] = 100 * float(r["share_of_customers"])
+            values[f"{name.lower().replace(' ', '_')}_customers_pct"] = 100 * float(
+                r["share_of_customers"]
+            )
             values[f"{name.lower().replace(' ', '_')}_money_pct"] = 100 * float(r["share_of_money"])
             parts.append(
                 f"{name} are {100 * float(r['share_of_customers']):.1f}% of customers and "
@@ -500,7 +558,9 @@ def rfm(ctx: Context) -> list[ExactItem]:
             )
     sentence = (
         f"Grouping {len(per):,} customers by how recently, how often (periods with a row) and how "
-        f"much they bought up to {periods[-1]}: " + ("; ".join(parts) if parts else "no group stands out") + "."
+        f"much they bought up to {periods[-1]}: "
+        + ("; ".join(parts) if parts else "no group stands out")
+        + "."
     )
     return [
         ExactItem(
@@ -508,8 +568,10 @@ def rfm(ctx: Context) -> list[ExactItem]:
             kind="rfm",
             title="Customer groups (recency, frequency, money)",
             sentence=sentence,
-            formula="recency = periods since last row; frequency = periods with a row; money = net total; "
-            "each scored 1-5 by rank (equal values score alike); groups by fixed rules on the recency and frequency scores",
+            formula="recency = periods since last row; frequency = periods with a row; "
+            "money = net total; "
+            "each scored 1-5 by rank (equal values score alike); groups by fixed rules on the "
+            "recency and frequency scores",
             columns=[column, amount, ctx.shape.time_column or ""],
             n_rows=int(known.sum()),
             values={k: _row(v=v)["v"] for k, v in values.items()},
@@ -519,7 +581,11 @@ def rfm(ctx: Context) -> list[ExactItem]:
                 y_label=f"share of {amount}",
                 value_format="percent",
                 bars=[
-                    Bar(label=str(r["segment"]), value=float(r["share_of_money"]), n=int(r["customers"]))
+                    Bar(
+                        label=str(r["segment"]),
+                        value=float(r["share_of_money"]),
+                        n=int(r["customers"]),
+                    )
                     for r in rows
                 ],
             ),

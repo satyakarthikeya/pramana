@@ -8,8 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pramana.contracts import AttackOutcome, ClaimType, Direction, PermutationScheme
-from pramana.contracts import DataStructure
+from pramana.contracts import AttackOutcome, ClaimType, DataStructure, Direction, PermutationScheme
 from pramana.verification import gateway
 from pramana.verification.attacks import AttackHints, ClaimView, run_attacks
 from pramana.verification.gateway import verify_batch
@@ -76,7 +75,9 @@ def test_invented_own_or_non_numeric_columns_are_dropped_and_caps_hold() -> None
     text = _json(controls=["nope", "x", "region", "z", "w"], groups=["region", "z", "ghost"])
     outcome = suggest_hints(CLAIM, rows, _config(refuter_max_controls=1), call=lambda *_: text)
     assert outcome.hints.controls == ("z",)  # nope/x/region rejected, w is past the cap of 1
-    assert outcome.hints.groups == ("region",)  # z has too many levels to group by, ghost is not a column
+    assert outcome.hints.groups == (
+        "region",
+    )  # z has too many levels to group by, ghost is not a column
     assert any("past the limit" in d for d in outcome.dropped)
     assert any("not a column" in d for d in outcome.dropped)
 
@@ -90,7 +91,10 @@ def test_a_suggested_control_can_only_add_a_check_and_may_break_a_claim() -> Non
         r.attack_id: r
         for r in run_attacks(CLAIM, rows, strict, seed=1, hints=AttackHints(controls=("z",)))
     }
-    assert with_hint["A3"].outcome is AttackOutcome.BROKEN and with_hint["A3"].details["control"] == "z"
+    assert (
+        with_hint["A3"].outcome is AttackOutcome.BROKEN
+        and with_hint["A3"].details["control"] == "z"
+    )
     # every other attack is identical: the hint changed nothing else
     for attack_id in ("A1", "A2", "A5", "A7"):
         assert with_hint[attack_id] == without[attack_id]
@@ -112,8 +116,13 @@ def _batch(config, rows=None):
     n = 300
     z = rng.normal(size=n)
     frame = pd.DataFrame({"x": z + rng.normal(0, 0.6, n), "y": z + rng.normal(0, 0.6, n), "z": z})
-    claim = candidate("c", "y is positively associated with x", ClaimType.CORRELATION, ["x", "y"],
-                      direction=Direction.POSITIVE)
+    claim = candidate(
+        "c",
+        "y is positively associated with x",
+        ClaimType.CORRELATION,
+        ["x", "y"],
+        direction=Direction.POSITIVE,
+    )
     return verify_batch([claim], frame, config)[0]
 
 

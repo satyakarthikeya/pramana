@@ -139,8 +139,12 @@ def entity_groups(effect: float) -> Frame:
             level = rng.normal() + (effect if label == "b" else 0.0)
             for month in pd.date_range("2021-01-01", periods=12, freq="MS"):
                 rows.append(
-                    {"month": month, "entity": f"e{entity}", "label": label,
-                     "y": level + rng.normal(0, 0.5)}
+                    {
+                        "month": month,
+                        "entity": f"e{entity}",
+                        "label": label,
+                        "y": level + rng.normal(0, 0.5),
+                    }
                 )
         return pd.DataFrame(rows)
 
@@ -148,35 +152,88 @@ def entity_groups(effect: float) -> Frame:
 
 
 INDEPENDENT = DataStructure.independent_rows()
-SERIES = DataStructure(shape=TableShape.TIME_SERIES, time_column="month", period="month",
-                       declared_by="caller")
-TRANSACTIONS = DataStructure(shape=TableShape.TRANSACTIONS, time_column="month",
-                             period="month", entity_column=None, declared_by="caller")
-PANEL = DataStructure(shape=TableShape.PANEL, time_column="month", entity_column="entity",
-                      period="month", declared_by="caller")
+SERIES = DataStructure(
+    shape=TableShape.TIME_SERIES, time_column="month", period="month", declared_by="caller"
+)
+TRANSACTIONS = DataStructure(
+    shape=TableShape.TRANSACTIONS,
+    time_column="month",
+    period="month",
+    entity_column=None,
+    declared_by="caller",
+)
+PANEL = DataStructure(
+    shape=TableShape.PANEL,
+    time_column="month",
+    entity_column="entity",
+    period="month",
+    declared_by="caller",
+)
 
 #: (name, scheme the gate should assign, planted effect, table, structure, claim)
 SCENARIOS: list[tuple[str, PermutationScheme, bool, Frame, DataStructure, CandidateInsight]] = [
-    ("null: independent rows", PermutationScheme.FREE, False, cross_section(0.0), INDEPENDENT,
-     _claim(ClaimType.CORRELATION, ["x", "y"], Direction.POSITIVE)),
-    ("null: two random walks", PermutationScheme.BLOCK_DIFFERENCED, False, random_walks(), SERIES,
-     _claim(ClaimType.CORRELATION, ["x", "y"], Direction.POSITIVE)),
-    ("null: shared season, many rows a month", PermutationScheme.STRATIFIED, False,
-     seasonal_transactions(0.0), TRANSACTIONS,
-     _claim(ClaimType.CORRELATION, ["x", "y"], Direction.POSITIVE)),
-    ("null: label fixed per entity", PermutationScheme.CLUSTER, False, entity_groups(0.0), PANEL,
-     _claim(ClaimType.GROUP_DIFFERENCE, ["label", "y"], None)),
-    ("power: rho about 0.3, 100 rows", PermutationScheme.FREE, True, cross_section(0.4),
-     INDEPENDENT, _claim(ClaimType.CORRELATION, ["x", "y"], Direction.POSITIVE)),
-    ("power: within-month link, 216 rows", PermutationScheme.STRATIFIED, True,
-     seasonal_transactions(0.5), TRANSACTIONS,
-     _claim(ClaimType.CORRELATION, ["x", "y"], Direction.POSITIVE)),
+    (
+        "null: independent rows",
+        PermutationScheme.FREE,
+        False,
+        cross_section(0.0),
+        INDEPENDENT,
+        _claim(ClaimType.CORRELATION, ["x", "y"], Direction.POSITIVE),
+    ),
+    (
+        "null: two random walks",
+        PermutationScheme.BLOCK_DIFFERENCED,
+        False,
+        random_walks(),
+        SERIES,
+        _claim(ClaimType.CORRELATION, ["x", "y"], Direction.POSITIVE),
+    ),
+    (
+        "null: shared season, many rows a month",
+        PermutationScheme.STRATIFIED,
+        False,
+        seasonal_transactions(0.0),
+        TRANSACTIONS,
+        _claim(ClaimType.CORRELATION, ["x", "y"], Direction.POSITIVE),
+    ),
+    (
+        "null: label fixed per entity",
+        PermutationScheme.CLUSTER,
+        False,
+        entity_groups(0.0),
+        PANEL,
+        _claim(ClaimType.GROUP_DIFFERENCE, ["label", "y"], None),
+    ),
+    (
+        "power: rho about 0.3, 100 rows",
+        PermutationScheme.FREE,
+        True,
+        cross_section(0.4),
+        INDEPENDENT,
+        _claim(ClaimType.CORRELATION, ["x", "y"], Direction.POSITIVE),
+    ),
+    (
+        "power: within-month link, 216 rows",
+        PermutationScheme.STRATIFIED,
+        True,
+        seasonal_transactions(0.5),
+        TRANSACTIONS,
+        _claim(ClaimType.CORRELATION, ["x", "y"], Direction.POSITIVE),
+    ),
 ]
 
 
-def run_scenario(name: str, scheme: PermutationScheme, planted: bool, make: Frame,
-                 structure: DataStructure, claim: CandidateInsight, reps: int,
-                 config: VerificationConfig, seed: int) -> dict[str, Any]:
+def run_scenario(
+    name: str,
+    scheme: PermutationScheme,
+    planted: bool,
+    make: Frame,
+    structure: DataStructure,
+    claim: CandidateInsight,
+    reps: int,
+    config: VerificationConfig,
+    seed: int,
+) -> dict[str, Any]:
     """Share of replicates where the gate's q < alpha (null: false positive; planted: power)."""
     rng = np.random.default_rng(seed)
     significant = passed = wrong_scheme = 0
@@ -202,8 +259,9 @@ def run_scenario(name: str, scheme: PermutationScheme, planted: bool, make: Fram
 def attack_false_kill(reps: int, config: VerificationConfig, seed: int) -> dict[str, Any]:
     """Share of true, moderate effects (rho about 0.4, 200 rows) that any attack breaks."""
     rng = np.random.default_rng(seed)
-    claim = ClaimView(claim_type=ClaimType.CORRELATION, var_x="x", var_y="y",
-                      scheme=PermutationScheme.FREE)
+    claim = ClaimView(
+        claim_type=ClaimType.CORRELATION, var_x="x", var_y="y", scheme=PermutationScheme.FREE
+    )
     killed = 0
     for _ in range(reps):
         x = rng.normal(size=200)
@@ -213,17 +271,26 @@ def attack_false_kill(reps: int, config: VerificationConfig, seed: int) -> dict[
         results = run_attacks(claim, frame, config.attacks, seed=int(rng.integers(1 << 30)))
         killed += any(r.outcome.value == "broken" for r in results)
     rate = killed / reps
-    return {"scenario": "attacks on a true moderate effect", "kind": "false_kill", "reps": reps,
-            "rate_any_attack_broken": rate,
-            "standard_error": math.sqrt(max(rate * (1 - rate), 1e-12) / reps)}
+    return {
+        "scenario": "attacks on a true moderate effect",
+        "kind": "false_kill",
+        "reps": reps,
+        "rate_any_attack_broken": rate,
+        "standard_error": math.sqrt(max(rate * (1 - rate), 1e-12) / reps),
+    }
 
 
 def report_card(reps: int, seed: int = 20261024, n_permutations: int = 1000) -> dict[str, Any]:
     config = pinned_config(n_permutations)
     rows = [run_scenario(*s, reps, config, seed + i) for i, s in enumerate(SCENARIOS)]
     rows.append(attack_false_kill(reps, config, seed + 99))
-    return {"alpha": config.statistics.alpha, "n_permutations": n_permutations,
-            "reps": reps, "seed": seed, "rows": rows}
+    return {
+        "alpha": config.statistics.alpha,
+        "n_permutations": n_permutations,
+        "reps": reps,
+        "seed": seed,
+        "rows": rows,
+    }
 
 
 # --- extra: a correlated family of 8, and the attack rates ----------------------
@@ -733,12 +800,16 @@ def pooled_attack_rows(cells: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def render(card: dict[str, Any]) -> str:
-    lines = [f"alpha {card['alpha']}, {card['n_permutations']} permutations, "
-             f"{card['reps']} replicates per row", ""]
+    lines = [
+        f"alpha {card['alpha']}, {card['n_permutations']} permutations, "
+        f"{card['reps']} replicates per row",
+        "",
+    ]
     for row in card["rows"]:
         rate = row.get("rate_q_below_alpha", row.get("rate_any_attack_broken"))
-        lines.append(f"{row['kind']:<15} {row['scenario']:<44} {rate:6.3f} +/- "
-                     f"{row['standard_error']:.3f}")
+        lines.append(
+            f"{row['kind']:<15} {row['scenario']:<44} {rate:6.3f} +/- {row['standard_error']:.3f}"
+        )
     return "\n".join(lines)
 
 

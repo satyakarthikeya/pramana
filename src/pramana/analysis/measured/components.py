@@ -4,8 +4,9 @@ Guarantees: components are kept only if their eigenvalue is above the configured
 of the same-rank eigenvalues of column-shuffled copies of the table (parallel analysis;
 shuffling keeps every column's values and removes any joint structure); the kept
 components must also reappear when rows are resampled (mean, over kept components, of the
-best absolute cosine of their loadings against the resampled ones, at or above the cutoff). Otherwise the result is "no
-components beyond chance", which is shown, not hidden. A description of the table, never a
+best absolute cosine of their loadings against the resampled ones, at or above the cutoff).
+Otherwise the result is "no components beyond chance", which is shown, not hidden.
+A description of the table, never a
 cause and never a claim.
 """
 
