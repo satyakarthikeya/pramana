@@ -47,21 +47,52 @@ def _could_detect(proof: ProofObject) -> str:
 
 
 def _held_up(proof: ProofObject) -> str:
+    """The sentence for a claim that passed: what was tried, what could not be judged, the limits.
+
+    Guarantees: always states K of M, the checks that could be run (M = survived + broken);
+    how many applicable checks could not tell; that only this table's columns were checked;
+    and "little checked" when M is below `attacks.min_capacity`. Wording only: it never
+    changes a verdict.
+    """
     survived, ran = _checks(proof)
-    text = "Held up: passed the significance test after correction for multiple tests"
-    if ran:
-        text += f" and survived {survived} of {ran} further checks"
-    return text + ". An association in this data, not a causal conclusion."
+    unable = sum(a.outcome is AttackOutcome.NOT_RUN and a.applicable for a in proof.attacks)
+    little = ran < load_verification_config().attacks.min_capacity
+    tried = (
+        f"survived {survived} of {ran} further checks that could be run"
+        if ran
+        else "no further check could be run"
+    )
+    text = (
+        f"Passed the significance test after correction for multiple tests, but little was "
+        f"checked: {tried}"
+        if little
+        else f"Held up: passed the significance test after correction for multiple tests and "
+        f"{tried}"
+    )
+    if unable:
+        text += f" ({unable} applicable {'check' if unable == 1 else 'checks'} could not tell)"
+    return (
+        text + ". Checked against the columns in this table only: an association in this data,"
+        " not a causal conclusion."
+    )
 
 
 def _did_not_hold(proof: ProofObject) -> str:
+    """The sentence for a PASS that a check broke: which check, how many held, what a break means.
+
+    Guarantees: names the first check that broke the claim and says that a break is not proof
+    the claim is false. Wording only: the FRAGILE verdict is the gateway's.
+    """
     broken = next((a for a in proof.attacks if a.outcome is AttackOutcome.BROKEN), None)
     if broken is None:
         return "Passed the significance test, but did not hold under a further check."
-    reason = broken.reason.strip()
+    survived, ran = _checks(proof)
+    reason = broken.reason.strip().rstrip(".")
     return (
-        f"Passed the significance test, but did not hold under the {broken.name.lower()} "
-        f"check: {reason[:1].lower() + reason[1:]}"
+        f"Passed the significance test, but the {broken.name.lower()} check broke it: "
+        f"{reason[:1].lower() + reason[1:]}. {survived} of {ran} further checks that could be "
+        "run survived. A broken check is not proof the claim is false: it means the effect did "
+        "not survive that check on these rows, so it is not shown as a finding."
     )
 
 

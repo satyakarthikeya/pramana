@@ -166,6 +166,76 @@ def test_the_whole_attack_set_rarely_kills_a_true_finding(config, n) -> None:
     assert killed / trials <= 0.15, f"joint false-kill {killed / trials:.2f} exceeds 0.15"
 
 
+# --- A2 on evidence (break_rule = interval) ---------------------------------------
+
+
+def _interval(config):
+    # 200 resamples (the minimum the config allows) keeps this file quick; the rule is unchanged
+    return config.model_copy(update={"break_rule": "interval", "damage_resamples": 200})
+
+
+def test_a2_interval_rule_still_catches_an_effect_only_in_the_late_periods(config) -> None:
+    rng = np.random.default_rng(3)
+    periods = np.repeat(np.arange(40), 20)
+    x = rng.normal(size=periods.size)
+    y = np.where(periods >= 30, 1.5 * x, 0.0) + rng.normal(size=periods.size)
+    frame = pd.DataFrame({PERIOD_COLUMN: periods.astype(float), "x": x, "y": y})
+    claim = _corr(scheme=PermutationScheme.STRATIFIED)
+    result = _by_id(run_attacks(claim, frame, _interval(config), seed=1))["A2"]
+    assert result.outcome is AttackOutcome.BROKEN
+
+
+def test_a2_interval_rule_does_not_break_a_half_that_is_only_noisy(config) -> None:
+    """The point rule kills a true rho 0.25 effect at n = 80 often; the interval rule must not."""
+    point_kills = interval_kills = noisy = 0
+    for t in range(60):
+        rng = np.random.default_rng(500 + t)
+        x = rng.normal(size=80)
+        frame = pd.DataFrame({"x": x, "y": 0.26 * x + rng.normal(size=80)})
+        point = _by_id(run_attacks(_corr(), frame, config, seed=t))["A2"]
+        evidence = _by_id(run_attacks(_corr(), frame, _interval(config), seed=t))["A2"]
+        point_kills += point.outcome is AttackOutcome.BROKEN
+        interval_kills += evidence.outcome is AttackOutcome.BROKEN
+        if evidence.outcome is AttackOutcome.NOT_RUN:
+            noisy += 1
+            assert evidence.applicable and evidence.details["too_noisy"] is True
+            assert evidence.attacked_effect is None
+    assert interval_kills < point_kills
+    assert interval_kills / 60 <= 0.05
+    assert noisy > 0  # the third state is reachable: "could not tell" is not "survived"
+
+
+def test_a2_interval_rule_uses_the_point_rule_where_no_interval_exists(config) -> None:
+    """A block-differenced series has no interval: the flag must not silently drop the check."""
+    rng = np.random.default_rng(4)
+    steps = 40
+    x = np.cumsum(rng.normal(size=steps))
+    frame = pd.DataFrame({PERIOD_COLUMN: np.arange(steps, dtype=float), "x": x,
+                          "y": np.cumsum(0.9 * np.diff(x, prepend=0.0)
+                                         + 0.3 * rng.normal(size=steps))})
+    claim = _corr(scheme=PermutationScheme.BLOCK_DIFFERENCED)
+    point = _by_id(run_attacks(claim, frame, config, seed=1))["A2"]
+    evidence = _by_id(run_attacks(claim, frame, _interval(config), seed=1))["A2"]
+    assert evidence.outcome is point.outcome and evidence.attacked_effect == point.attacked_effect
+    assert evidence.applicable and "point rule" in str(evidence.details["fallback"])
+    assert "fallback" not in point.details
+
+
+def test_a2_interval_rule_rarely_breaks_a_planted_null(config) -> None:
+    """Known answer: with no effect at all the evidence rule almost never reports a collapse.
+
+    (That it also misses a late-only effect at modest sizes is measured, not asserted here:
+    docs/evidence/GATE_CALIBRATION_2026-10-25.md section 5.)
+    """
+    breaks_null = 0
+    for t in range(30):
+        rng = np.random.default_rng(900 + t)
+        frame = pd.DataFrame({"x": rng.normal(size=100), "y": rng.normal(size=100)})
+        result = _by_id(run_attacks(_corr(), frame, _interval(config), seed=t))["A2"]
+        breaks_null += result.outcome is AttackOutcome.BROKEN
+    assert breaks_null <= 3
+
+
 # --- the ratchet inside the gateway ---------------------------------------------
 
 

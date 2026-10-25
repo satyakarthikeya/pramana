@@ -1,0 +1,2216 @@
+[
+  {
+    "shape": "gaussian",
+    "n": 60,
+    "rho": 0.2,
+    "attempts": 604,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 36,
+          "A3": 7,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 40,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 857,
+        "could_not_tell": 200
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 7,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 7,
+        "a2_too_noisy": 36,
+        "little_checked": 0,
+        "checks_ran": 821,
+        "could_not_tell": 236
+      }
+    }
+  },
+  {
+    "shape": "gaussian",
+    "n": 60,
+    "rho": 0.3,
+    "attempts": 301,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 35,
+          "A3": 2,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 37,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 881,
+        "could_not_tell": 200
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 2,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 2,
+        "a2_too_noisy": 35,
+        "little_checked": 0,
+        "checks_ran": 846,
+        "could_not_tell": 235
+      }
+    }
+  },
+  {
+    "shape": "gaussian",
+    "n": 60,
+    "rho": 0.0,
+    "attempts": 3593,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 45,
+          "A3": 7,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 51,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 860,
+        "could_not_tell": 200
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 7,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 7,
+        "a2_too_noisy": 45,
+        "little_checked": 0,
+        "checks_ran": 815,
+        "could_not_tell": 245
+      }
+    }
+  },
+  {
+    "shape": "gaussian",
+    "n": 120,
+    "rho": 0.2,
+    "attempts": 337,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 43,
+          "A3": 5,
+          "A4": 1,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 47,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1038,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 5,
+          "A4": 1,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 6,
+        "a2_too_noisy": 43,
+        "little_checked": 0,
+        "checks_ran": 995,
+        "could_not_tell": 43
+      }
+    }
+  },
+  {
+    "shape": "gaussian",
+    "n": 120,
+    "rho": 0.3,
+    "attempts": 216,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 26,
+          "A3": 3,
+          "A4": 3,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 31,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1065,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 3,
+          "A4": 3,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 6,
+        "a2_too_noisy": 26,
+        "little_checked": 0,
+        "checks_ran": 1039,
+        "could_not_tell": 26
+      }
+    }
+  },
+  {
+    "shape": "gaussian",
+    "n": 120,
+    "rho": 0.0,
+    "attempts": 3800,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 52,
+          "A3": 7,
+          "A4": 9,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 66,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1019,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 7,
+          "A4": 9,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 16,
+        "a2_too_noisy": 52,
+        "little_checked": 0,
+        "checks_ran": 967,
+        "could_not_tell": 52
+      }
+    }
+  },
+  {
+    "shape": "gaussian",
+    "n": 300,
+    "rho": 0.2,
+    "attempts": 211,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 24,
+          "A3": 0,
+          "A4": 1,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 25,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1009,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 0,
+          "A4": 1,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 1,
+        "a2_too_noisy": 24,
+        "little_checked": 0,
+        "checks_ran": 985,
+        "could_not_tell": 24
+      }
+    }
+  },
+  {
+    "shape": "gaussian",
+    "n": 300,
+    "rho": 0.3,
+    "attempts": 200,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 2,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 2,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1032,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 0,
+        "a2_too_noisy": 2,
+        "little_checked": 0,
+        "checks_ran": 1030,
+        "could_not_tell": 2
+      }
+    }
+  },
+  {
+    "shape": "gaussian",
+    "n": 300,
+    "rho": 0.0,
+    "attempts": 4168,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 41,
+          "A3": 1,
+          "A4": 3,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 45,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1001,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 1,
+          "A3": 1,
+          "A4": 3,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 5,
+        "a2_too_noisy": 40,
+        "little_checked": 0,
+        "checks_ran": 961,
+        "could_not_tell": 40
+      }
+    }
+  },
+  {
+    "shape": "heavy_tail",
+    "n": 60,
+    "rho": 0.2,
+    "attempts": 374,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 47,
+          "A3": 3,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 48,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 878,
+        "could_not_tell": 200
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 3,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 3,
+        "a2_too_noisy": 47,
+        "little_checked": 0,
+        "checks_ran": 831,
+        "could_not_tell": 247
+      }
+    }
+  },
+  {
+    "shape": "heavy_tail",
+    "n": 60,
+    "rho": 0.3,
+    "attempts": 224,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 31,
+          "A3": 1,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 32,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 897,
+        "could_not_tell": 200
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 1,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 1,
+        "a2_too_noisy": 31,
+        "little_checked": 0,
+        "checks_ran": 866,
+        "could_not_tell": 231
+      }
+    }
+  },
+  {
+    "shape": "heavy_tail",
+    "n": 60,
+    "rho": 0.0,
+    "attempts": 3901,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 50,
+          "A3": 6,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 55,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 863,
+        "could_not_tell": 200
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 6,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 6,
+        "a2_too_noisy": 50,
+        "little_checked": 0,
+        "checks_ran": 813,
+        "could_not_tell": 250
+      }
+    }
+  },
+  {
+    "shape": "heavy_tail",
+    "n": 120,
+    "rho": 0.2,
+    "attempts": 236,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 29,
+          "A3": 3,
+          "A4": 1,
+          "A5": 2,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 32,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1062,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 3,
+          "A4": 1,
+          "A5": 2,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 6,
+        "a2_too_noisy": 29,
+        "little_checked": 0,
+        "checks_ran": 1033,
+        "could_not_tell": 29
+      }
+    }
+  },
+  {
+    "shape": "heavy_tail",
+    "n": 120,
+    "rho": 0.3,
+    "attempts": 203,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 10,
+          "A3": 0,
+          "A4": 1,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 11,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1086,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 0,
+          "A4": 1,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 1,
+        "a2_too_noisy": 10,
+        "little_checked": 0,
+        "checks_ran": 1076,
+        "could_not_tell": 10
+      }
+    }
+  },
+  {
+    "shape": "heavy_tail",
+    "n": 120,
+    "rho": 0.0,
+    "attempts": 3640,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 51,
+          "A3": 12,
+          "A4": 5,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 65,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1027,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 12,
+          "A4": 5,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 17,
+        "a2_too_noisy": 51,
+        "little_checked": 0,
+        "checks_ran": 976,
+        "could_not_tell": 51
+      }
+    }
+  },
+  {
+    "shape": "heavy_tail",
+    "n": 300,
+    "rho": 0.2,
+    "attempts": 200,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 7,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 7,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1019,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 0,
+        "a2_too_noisy": 7,
+        "little_checked": 0,
+        "checks_ran": 1012,
+        "could_not_tell": 7
+      }
+    }
+  },
+  {
+    "shape": "heavy_tail",
+    "n": 300,
+    "rho": 0.3,
+    "attempts": 200,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 0,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1088,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 0,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1088,
+        "could_not_tell": 0
+      }
+    }
+  },
+  {
+    "shape": "heavy_tail",
+    "n": 300,
+    "rho": 0.0,
+    "attempts": 4249,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 61,
+          "A3": 0,
+          "A4": 7,
+          "A5": 1,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 67,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1000,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 0,
+          "A4": 7,
+          "A5": 1,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 8,
+        "a2_too_noisy": 61,
+        "little_checked": 0,
+        "checks_ran": 939,
+        "could_not_tell": 61
+      }
+    }
+  },
+  {
+    "shape": "skewed",
+    "n": 60,
+    "rho": 0.2,
+    "attempts": 604,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 36,
+          "A3": 5,
+          "A4": 0,
+          "A5": 1,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 42,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 856,
+        "could_not_tell": 200
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 5,
+          "A4": 0,
+          "A5": 1,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 6,
+        "a2_too_noisy": 36,
+        "little_checked": 0,
+        "checks_ran": 820,
+        "could_not_tell": 236
+      }
+    }
+  },
+  {
+    "shape": "skewed",
+    "n": 60,
+    "rho": 0.3,
+    "attempts": 302,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 3,
+          "A2": 29,
+          "A3": 4,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 36,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 882,
+        "could_not_tell": 200
+      },
+      "interval": {
+        "broken": {
+          "A1": 3,
+          "A2": 0,
+          "A3": 4,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 7,
+        "a2_too_noisy": 29,
+        "little_checked": 0,
+        "checks_ran": 853,
+        "could_not_tell": 229
+      }
+    }
+  },
+  {
+    "shape": "skewed",
+    "n": 60,
+    "rho": 0.0,
+    "attempts": 3776,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 1,
+          "A2": 49,
+          "A3": 13,
+          "A4": 0,
+          "A5": 1,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 59,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 871,
+        "could_not_tell": 200
+      },
+      "interval": {
+        "broken": {
+          "A1": 1,
+          "A2": 1,
+          "A3": 13,
+          "A4": 0,
+          "A5": 1,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 16,
+        "a2_too_noisy": 48,
+        "little_checked": 0,
+        "checks_ran": 823,
+        "could_not_tell": 248
+      }
+    }
+  },
+  {
+    "shape": "skewed",
+    "n": 120,
+    "rho": 0.2,
+    "attempts": 335,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 2,
+          "A2": 39,
+          "A3": 5,
+          "A4": 6,
+          "A5": 1,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 49,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1038,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 2,
+          "A2": 0,
+          "A3": 5,
+          "A4": 6,
+          "A5": 1,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 14,
+        "a2_too_noisy": 39,
+        "little_checked": 0,
+        "checks_ran": 999,
+        "could_not_tell": 39
+      }
+    }
+  },
+  {
+    "shape": "skewed",
+    "n": 120,
+    "rho": 0.3,
+    "attempts": 210,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 1,
+          "A2": 25,
+          "A3": 3,
+          "A4": 1,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 30,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1061,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 1,
+          "A2": 0,
+          "A3": 3,
+          "A4": 1,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 5,
+        "a2_too_noisy": 25,
+        "little_checked": 0,
+        "checks_ran": 1036,
+        "could_not_tell": 25
+      }
+    }
+  },
+  {
+    "shape": "skewed",
+    "n": 120,
+    "rho": 0.0,
+    "attempts": 3991,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 1,
+          "A2": 51,
+          "A3": 10,
+          "A4": 2,
+          "A5": 2,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 60,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1023,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 1,
+          "A2": 0,
+          "A3": 10,
+          "A4": 2,
+          "A5": 2,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 15,
+        "a2_too_noisy": 51,
+        "little_checked": 0,
+        "checks_ran": 972,
+        "could_not_tell": 51
+      }
+    }
+  },
+  {
+    "shape": "skewed",
+    "n": 300,
+    "rho": 0.2,
+    "attempts": 211,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 26,
+          "A3": 0,
+          "A4": 1,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 27,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1011,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 0,
+          "A4": 1,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 1,
+        "a2_too_noisy": 26,
+        "little_checked": 0,
+        "checks_ran": 985,
+        "could_not_tell": 26
+      }
+    }
+  },
+  {
+    "shape": "skewed",
+    "n": 300,
+    "rho": 0.3,
+    "attempts": 200,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 6,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 6,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1033,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 0,
+        "a2_too_noisy": 6,
+        "little_checked": 0,
+        "checks_ran": 1027,
+        "could_not_tell": 6
+      }
+    }
+  },
+  {
+    "shape": "skewed",
+    "n": 300,
+    "rho": 0.0,
+    "attempts": 4160,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 3,
+          "A2": 51,
+          "A3": 0,
+          "A4": 6,
+          "A5": 1,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 59,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1000,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 3,
+          "A2": 2,
+          "A3": 0,
+          "A4": 6,
+          "A5": 1,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 12,
+        "a2_too_noisy": 49,
+        "little_checked": 0,
+        "checks_ran": 951,
+        "could_not_tell": 49
+      }
+    }
+  },
+  {
+    "shape": "outliers",
+    "n": 60,
+    "rho": 0.2,
+    "attempts": 684,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 2,
+          "A2": 50,
+          "A3": 17,
+          "A4": 0,
+          "A5": 43,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 94,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 898,
+        "could_not_tell": 200
+      },
+      "interval": {
+        "broken": {
+          "A1": 2,
+          "A2": 0,
+          "A3": 17,
+          "A4": 0,
+          "A5": 43,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 58,
+        "a2_too_noisy": 50,
+        "little_checked": 0,
+        "checks_ran": 848,
+        "could_not_tell": 250
+      }
+    }
+  },
+  {
+    "shape": "outliers",
+    "n": 60,
+    "rho": 0.3,
+    "attempts": 372,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 36,
+          "A3": 8,
+          "A4": 0,
+          "A5": 53,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 83,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 900,
+        "could_not_tell": 200
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 8,
+          "A4": 0,
+          "A5": 53,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 60,
+        "a2_too_noisy": 36,
+        "little_checked": 0,
+        "checks_ran": 864,
+        "could_not_tell": 236
+      }
+    }
+  },
+  {
+    "shape": "outliers",
+    "n": 60,
+    "rho": 0.0,
+    "attempts": 3306,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 5,
+          "A2": 58,
+          "A3": 21,
+          "A4": 0,
+          "A5": 17,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 83,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 900,
+        "could_not_tell": 200
+      },
+      "interval": {
+        "broken": {
+          "A1": 5,
+          "A2": 1,
+          "A3": 21,
+          "A4": 0,
+          "A5": 17,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 42,
+        "a2_too_noisy": 57,
+        "little_checked": 0,
+        "checks_ran": 843,
+        "could_not_tell": 257
+      }
+    }
+  },
+  {
+    "shape": "outliers",
+    "n": 120,
+    "rho": 0.2,
+    "attempts": 409,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 37,
+          "A3": 8,
+          "A4": 4,
+          "A5": 42,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 74,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1047,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 8,
+          "A4": 4,
+          "A5": 42,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 52,
+        "a2_too_noisy": 37,
+        "little_checked": 0,
+        "checks_ran": 1010,
+        "could_not_tell": 37
+      }
+    }
+  },
+  {
+    "shape": "outliers",
+    "n": 120,
+    "rho": 0.3,
+    "attempts": 245,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 23,
+          "A3": 5,
+          "A4": 7,
+          "A5": 53,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 71,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1066,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 5,
+          "A4": 7,
+          "A5": 53,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 61,
+        "a2_too_noisy": 23,
+        "little_checked": 0,
+        "checks_ran": 1043,
+        "could_not_tell": 23
+      }
+    }
+  },
+  {
+    "shape": "outliers",
+    "n": 120,
+    "rho": 0.0,
+    "attempts": 3083,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 12,
+          "A2": 52,
+          "A3": 21,
+          "A4": 7,
+          "A5": 21,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 94,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1054,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 12,
+          "A2": 1,
+          "A3": 21,
+          "A4": 7,
+          "A5": 21,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 56,
+        "a2_too_noisy": 51,
+        "little_checked": 0,
+        "checks_ran": 1003,
+        "could_not_tell": 51
+      }
+    }
+  },
+  {
+    "shape": "outliers",
+    "n": 300,
+    "rho": 0.2,
+    "attempts": 236,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 27,
+          "A3": 1,
+          "A4": 5,
+          "A5": 80,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 98,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1008,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 1,
+          "A4": 5,
+          "A5": 80,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 82,
+        "a2_too_noisy": 27,
+        "little_checked": 0,
+        "checks_ran": 981,
+        "could_not_tell": 27
+      }
+    }
+  },
+  {
+    "shape": "outliers",
+    "n": 300,
+    "rho": 0.3,
+    "attempts": 202,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 11,
+          "A3": 1,
+          "A4": 1,
+          "A5": 80,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 83,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1040,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 1,
+          "A4": 1,
+          "A5": 80,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 81,
+        "a2_too_noisy": 11,
+        "little_checked": 0,
+        "checks_ran": 1029,
+        "could_not_tell": 11
+      }
+    }
+  },
+  {
+    "shape": "outliers",
+    "n": 300,
+    "rho": 0.0,
+    "attempts": 3105,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 15,
+          "A2": 47,
+          "A3": 4,
+          "A4": 12,
+          "A5": 16,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 82,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1004,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 15,
+          "A2": 0,
+          "A3": 4,
+          "A4": 12,
+          "A5": 16,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 44,
+        "a2_too_noisy": 47,
+        "little_checked": 0,
+        "checks_ran": 957,
+        "could_not_tell": 47
+      }
+    }
+  },
+  {
+    "shape": "many_columns",
+    "n": 60,
+    "rho": 0.2,
+    "attempts": 650,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 36,
+          "A3": 56,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 79,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 995,
+        "could_not_tell": 200
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 56,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 56,
+        "a2_too_noisy": 36,
+        "little_checked": 0,
+        "checks_ran": 959,
+        "could_not_tell": 236
+      }
+    }
+  },
+  {
+    "shape": "many_columns",
+    "n": 60,
+    "rho": 0.3,
+    "attempts": 321,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 35,
+          "A3": 39,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 66,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 984,
+        "could_not_tell": 200
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 1,
+          "A3": 39,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 40,
+        "a2_too_noisy": 34,
+        "little_checked": 0,
+        "checks_ran": 950,
+        "could_not_tell": 234
+      }
+    }
+  },
+  {
+    "shape": "many_columns",
+    "n": 60,
+    "rho": 0.0,
+    "attempts": 3976,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 51,
+          "A3": 51,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 88,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 984,
+        "could_not_tell": 200
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 51,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 51,
+        "a2_too_noisy": 51,
+        "little_checked": 0,
+        "checks_ran": 933,
+        "could_not_tell": 251
+      }
+    }
+  },
+  {
+    "shape": "many_columns",
+    "n": 120,
+    "rho": 0.2,
+    "attempts": 327,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 32,
+          "A3": 39,
+          "A4": 4,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 69,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1150,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 39,
+          "A4": 4,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 43,
+        "a2_too_noisy": 32,
+        "little_checked": 0,
+        "checks_ran": 1118,
+        "could_not_tell": 32
+      }
+    }
+  },
+  {
+    "shape": "many_columns",
+    "n": 120,
+    "rho": 0.3,
+    "attempts": 209,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 24,
+          "A3": 22,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 42,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1176,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 22,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 22,
+        "a2_too_noisy": 24,
+        "little_checked": 0,
+        "checks_ran": 1152,
+        "could_not_tell": 24
+      }
+    }
+  },
+  {
+    "shape": "many_columns",
+    "n": 120,
+    "rho": 0.0,
+    "attempts": 4111,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 52,
+          "A3": 69,
+          "A4": 6,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 106,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1132,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 69,
+          "A4": 6,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 73,
+        "a2_too_noisy": 52,
+        "little_checked": 0,
+        "checks_ran": 1080,
+        "could_not_tell": 52
+      }
+    }
+  },
+  {
+    "shape": "many_columns",
+    "n": 300,
+    "rho": 0.2,
+    "attempts": 218,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 18,
+          "A3": 11,
+          "A4": 1,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 29,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1072,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 11,
+          "A4": 1,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 12,
+        "a2_too_noisy": 18,
+        "little_checked": 0,
+        "checks_ran": 1054,
+        "could_not_tell": 18
+      }
+    }
+  },
+  {
+    "shape": "many_columns",
+    "n": 300,
+    "rho": 0.3,
+    "attempts": 200,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 1,
+          "A3": 4,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 5,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1146,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 4,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 4,
+        "a2_too_noisy": 1,
+        "little_checked": 0,
+        "checks_ran": 1145,
+        "could_not_tell": 1
+      }
+    }
+  },
+  {
+    "shape": "many_columns",
+    "n": 300,
+    "rho": 0.0,
+    "attempts": 3599,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 41,
+          "A3": 11,
+          "A4": 7,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 56,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 1012,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 0,
+          "A3": 11,
+          "A4": 7,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 18,
+        "a2_too_noisy": 41,
+        "little_checked": 0,
+        "checks_ran": 971,
+        "could_not_tell": 41
+      }
+    }
+  },
+  {
+    "shape": "series",
+    "n": 60,
+    "rho": 0.2,
+    "attempts": 597,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 42,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 42,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 800,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 42,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 42,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 800,
+        "could_not_tell": 0
+      }
+    }
+  },
+  {
+    "shape": "series",
+    "n": 60,
+    "rho": 0.3,
+    "attempts": 324,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 41,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 41,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 800,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 41,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 41,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 800,
+        "could_not_tell": 0
+      }
+    }
+  },
+  {
+    "shape": "series",
+    "n": 60,
+    "rho": 0.0,
+    "attempts": 3996,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 55,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 55,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 800,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 55,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 55,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 800,
+        "could_not_tell": 0
+      }
+    }
+  },
+  {
+    "shape": "series",
+    "n": 120,
+    "rho": 0.2,
+    "attempts": 341,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 33,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 33,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 800,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 33,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 33,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 800,
+        "could_not_tell": 0
+      }
+    }
+  },
+  {
+    "shape": "series",
+    "n": 120,
+    "rho": 0.3,
+    "attempts": 214,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 23,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 23,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 800,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 23,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 23,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 800,
+        "could_not_tell": 0
+      }
+    }
+  },
+  {
+    "shape": "series",
+    "n": 120,
+    "rho": 0.0,
+    "attempts": 4081,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 51,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 51,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 800,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 51,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 51,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 800,
+        "could_not_tell": 0
+      }
+    }
+  },
+  {
+    "shape": "series",
+    "n": 300,
+    "rho": 0.2,
+    "attempts": 212,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 29,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 29,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 800,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 29,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 29,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 800,
+        "could_not_tell": 0
+      }
+    }
+  },
+  {
+    "shape": "series",
+    "n": 300,
+    "rho": 0.3,
+    "attempts": 200,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 4,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 4,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 800,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 4,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 4,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 800,
+        "could_not_tell": 0
+      }
+    }
+  },
+  {
+    "shape": "series",
+    "n": 300,
+    "rho": 0.0,
+    "attempts": 4159,
+    "cleared": 200,
+    "rules": {
+      "point": {
+        "broken": {
+          "A1": 0,
+          "A2": 48,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 48,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 800,
+        "could_not_tell": 0
+      },
+      "interval": {
+        "broken": {
+          "A1": 0,
+          "A2": 48,
+          "A3": 0,
+          "A4": 0,
+          "A5": 0,
+          "A6": 0,
+          "A7": 0
+        },
+        "any_broken": 48,
+        "a2_too_noisy": 0,
+        "little_checked": 0,
+        "checks_ran": 800,
+        "could_not_tell": 0
+      }
+    }
+  }
+]

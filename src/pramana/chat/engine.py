@@ -30,6 +30,7 @@ from pramana.chat.models import ChatAnswer, ChatWork, ClaimOutcome, Evidence
 from pramana.common.llm_client import ChatMessage
 from pramana.common.logging import get_logger
 from pramana.contracts import CandidateInsight
+from pramana.verification.config import load_config as load_verification_config
 
 _SYSTEM = """You help a person understand one table. You can look at it with tools, and you \
 can ask the verification gateway to test a claim. You decide nothing about what is true: \
@@ -144,6 +145,14 @@ def render_outcome(outcome: ClaimOutcome) -> str:
         f"dataset; {d.earlier_chat_tests} earlier in chat, {d.earlier_run_tests} in analysis "
         "runs). The q-value is not corrected for those earlier tests."
     )
+    chat_tests = d.earlier_chat_tests + 1
+    if chat_tests >= 2:
+        alpha = load_verification_config().statistics.alpha
+        parts.append(
+            f"If all {chat_tests} claims chat has tested on this dataset were unrelated, the "
+            f"chance that at least one would have passed by luck is about "
+            f"{1 - (1 - alpha) ** chat_tests:.0%}."
+        )
     return " ".join(parts)
 
 

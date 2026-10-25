@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Literal
 
 import numpy as np
 import pandas as pd
@@ -75,6 +76,22 @@ class AttacksConfig(BaseModel):
     #: removes that side's own variation, so it cannot tell a confounder from a copy.
     max_control_proxy: float = Field(gt=0.0, le=1.0)
     identity_tolerance: float = Field(gt=0.0, lt=0.1)
+    #: How A2 decides a half has collapsed. `point` (the original rule): the worse half's
+    #: point estimate falls below `shrink_fraction` of the full estimate. `interval`: the
+    #: claim is broken only when even the optimistic end of a half's interval is below that
+    #: line, so a half that is merely noisy is "too noisy to tell", neither survived nor broken.
+    #: `interval` breaks fewer claims than `point`; it ships OFF until the report card's
+    #: false-survive rows have been read by the verification owner. Where no interval exists (a
+    #: block-differenced series) `interval` falls back to `point` and says so in `details.fallback`.
+    break_rule: Literal["point", "interval"]
+    #: Interval rule: the nominal level of each half's bound (one-sided at kappa / 2). It is an
+    #: upper bound, not the rate you get: the report card measured A2 false kill of 0.1% at 0.10
+    #: and 0.8% at 0.40.
+    false_kill_budget: float = Field(gt=0.0, lt=0.5)
+    #: Interval rule: bootstrap resamples per half.
+    damage_resamples: int = Field(ge=200, le=5000)
+    #: Fewer checks than this survived-or-broken: the claim is shown as "little checked".
+    min_capacity: int = Field(ge=1, le=7)
     #: S8: a model may suggest EXTRA controls and grouping columns (never fewer checks).
     #: Off by default; needs DeepSeek and Langfuse, and fails closed to the default checks.
     refuter_enabled: bool
@@ -362,6 +379,11 @@ def _a2_halves(
     effects = [claim.effect(h) for h in halves]
     if any(e is None for e in effects):
         return _not_run("A2", "the effect could not be computed in one of the halves")
+    if config.break_rule == "interval":
+        judged = _a2_interval(claim, halves, effects, original, config, seed, label, len(rows))
+        if judged is not None:
+            return judged
+        # no interval for this scheme (a block-differenced series): say so, use the point rule
     worst = min(effects, key=lambda e: e * _sign(original) if claim.signed else abs(e))
     return _verdict(
         "A2",
@@ -373,6 +395,57 @@ def _a2_halves(
         n_rows=int(len(rows)),
         first_half=effects[0],
         second_half=effects[1],
+        **({"fallback": "point rule: no interval for this scheme"}
+           if config.break_rule == "interval" else {}),
+    )
+
+
+def _a2_interval(
+    claim: ClaimView,
+    halves: list[pd.DataFrame],
+    effects: list[float],
+    original: float,
+    config: AttacksConfig,
+    seed: int,
+    label: str,
+    n_rows: int,
+):
+    """A2 on evidence: broken only if a half's interval lies wholly below the collapse line.
+
+    The line is `shrink_fraction` of the full effect, in the original's direction. A half
+    whose point estimate is below the line but whose interval still reaches it is not proof
+    of anything: it is returned as not run with `too_noisy`, which counts for neither side.
+    """
+    from pramana.verification.interval import effect_interval  # interval imports this package
+
+    line = config.shrink_fraction * abs(original)
+    toward = 1.0 if (not claim.signed or _sign(original) >= 0) else -1.0
+    confidence = 1.0 - config.false_kill_budget  # two-sided 1 - kappa: one-sided kappa / 2 per half
+    worst = min(effects, key=lambda e: e * _sign(original) if claim.signed else abs(e))
+    uppers: list[float] = []
+    for i, half in enumerate(halves):
+        found = effect_interval(
+            claim, half, n_resamples=config.damage_resamples, confidence=confidence, seed=seed + i
+        )
+        if found is None:  # no interval for this scheme or half: the caller uses the point rule
+            return None
+        uppers.append(max(found.high * toward, found.low * toward))
+    details = dict(first_half=effects[0], second_half=effects[1], bound_first=uppers[0],
+                   bound_second=uppers[1], false_kill_budget=config.false_kill_budget)
+    if any(u < line for u in uppers):
+        return _result("A2", AttackOutcome.BROKEN,
+                       f"the effect collapses {label} even at the optimistic end of its interval "
+                       f"({original:+.3f} -> {worst:+.3f})",
+                       original=original, attacked=worst, n_rows=n_rows, **details)
+    if _collapsed(original, worst, config, claim.signed):
+        return _result("A2", AttackOutcome.NOT_RUN,
+                       f"too noisy to tell: the effect is smaller {label} ({original:+.3f} -> "
+                       f"{worst:+.3f}) but its interval still reaches the collapse line",
+                       n_rows=n_rows, too_noisy=True, **details)
+    return _result(
+        "A2", AttackOutcome.SURVIVED,
+        f"the effect holds {label} ({original:+.3f} -> {worst:+.3f})",
+        original=original, attacked=worst, n_rows=n_rows, **details,
     )
 
 

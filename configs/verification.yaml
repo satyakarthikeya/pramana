@@ -57,6 +57,21 @@ attacks:
   refuter_max_controls: 2      # S8: suggested extra controls kept
   refuter_max_groups: 2        # S8: suggested extra subgroup columns kept
   identity_tolerance: 1.0e-6   # A7: max deviation, as a share of sd(y), for "exactly"
+  # Report-card finding (docs/evidence/GATE_CALIBRATION_2026-10-25.md): with `point`, A2 breaks a
+  # true rho 0.2-0.3 effect in 6-24% of cases at n 60-120 on clean shapes (0-14% at n 300), because
+  # it compares a noisy half estimate with the full one. `interval` breaks only on evidence of
+  # collapse (0-7% on the same cells) but also catches far less of a planted late-only effect
+  # (n 60/120/300: 8/19/51% against 62/88/96% for `point`) and removes 4-11 times fewer luck-passes.
+  # Neither rule has low false kill AND high detection at these sample sizes, so `point` stays the
+  # default; flipping it is the verification owner's decision (AGENTS.md 8.10). Where no interval
+  # exists (a block-differenced series) `interval` uses the point rule and records `details.fallback`.
+  break_rule: point            # A2: point | interval
+  # Interval rule only: the nominal one-sided level of each half's bound, NOT the false-kill rate you
+  # get. Measured A2 false kill was 0.1% at 0.10 and 0.8% at 0.40; late-only detection (A2 breaks) was
+  # 24% at 0.10 and 49% at 0.40. 0.10 is left so nothing changes unless the owner picks a value.
+  false_kill_budget: 0.10
+  damage_resamples: 1000       # interval rule: bootstrap resamples per half
+  min_capacity: 2              # fewer checks than this survived-or-broken: shown as "little checked"
 
 evidence:
   # Gating bands per effect metric. `min` is the floor below which a result is
