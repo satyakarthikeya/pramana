@@ -119,6 +119,7 @@ def trend_test_differenced(
     n_permutations: int,
     seed: int,
     alternative: Alternative = "two-sided",
+    cycle: int | None = None,
 ) -> PermutationResult:
     """Test a trend in one ordered series without mistaking a random walk for one.
 
@@ -131,13 +132,25 @@ def trend_test_differenced(
     Guarantees: deterministic for a given seed; the observed statistic does not depend
     on the seed; p is never below `1 / (n_permutations + 1)`; the result is stamped
     `BLOCK_DIFFERENCED`. Raises on repeated time points.
+
+    With `cycle` (12 for months, 4 for quarters) the steps' calendar pattern is removed
+    first: each step loses the average step of its calendar position and gains back the
+    overall average step, so the drift is kept and the yearly swing is not. Without this,
+    a seasonal series' large up-and-down steps make shuffled series look as trending as
+    the real one, and even a tripling over the years is "not enough evidence".
     """
     _validate_run(n_permutations, alternative)
+    order_by = np.sort(np.asarray(time, dtype=float).ravel())
     (series,) = _ordered(time, values)
     _check_block_length(block_length, series.size - 1)
     index = np.arange(series.size, dtype=float)
-    observed = float(kendall_tau_b(index, series))
     steps = np.diff(series)
+    if cycle is not None and cycle >= 2 and steps.size >= 2 * cycle:
+        positions = np.round(order_by[1:]).astype(np.int64) % cycle
+        typical = np.array([steps[positions == k].mean() for k in range(cycle)])
+        steps = steps - typical[positions] + steps.mean()
+        series = series[0] + np.concatenate([[0.0], np.cumsum(steps)])
+    observed = float(kendall_tau_b(index, series))
     rng = np.random.default_rng(seed)
     null_distribution = np.empty(n_permutations, dtype=float)
     rebuilt = np.empty_like(series)

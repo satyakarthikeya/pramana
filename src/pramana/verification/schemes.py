@@ -231,8 +231,13 @@ def _ordered_plan(
     frame: pd.DataFrame,
     dependence: DependenceConfig,
     columns: list[str],
+    cycle: int | None = None,
 ) -> TestPlan | str:
-    """A BLOCK_DIFFERENCED plan on the per-period series of `columns`, or a refusal."""
+    """A BLOCK_DIFFERENCED plan on the per-period series of `columns`, or a refusal.
+
+    `cycle` (monthly 12, quarterly 4) is set for a single-series trend, so the test removes
+    the calendar pattern of the steps before judging the drift.
+    """
     kind = candidate.claim_type.value
     minimum = dependence.min_series_length[kind]
     if len(columns) == 2:
@@ -275,6 +280,7 @@ def _ordered_plan(
         block_length=_block_length(dependence, n_periods - 1),
         min_periods=minimum,
         n_periods=n_periods,
+        cycle_length=cycle if len(columns) == 1 and n_periods - 1 >= 2 * (cycle or 0) else None,
     )
 
 
@@ -480,7 +486,9 @@ def assign_plan(
                 f"a trend on this table is tested against its time axis {time!r}; "
                 f"{var_x!r} is not it"
             )
-        return _ordered_plan(candidate, frame, dependence, [var_y])
+        return _ordered_plan(
+            candidate, frame, dependence, [var_y], _CYCLES.get(structure.period or "")
+        )
 
     if time in (var_x, var_y):
         return f"{time!r} is the table's time axis; a claim about it is a trend claim"

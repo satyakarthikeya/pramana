@@ -291,6 +291,7 @@ def falsify(frame):
     result = trend_test_differenced(
         order, values, block_length=BLOCK_LENGTH,
         n_permutations=N_PERMUTATIONS, seed=SEED, alternative="two-sided",
+        cycle=CYCLE_LENGTH,
     )
     return {
         "p_value": result.p_value,
@@ -596,8 +597,11 @@ def render(
         structural += f"BLOCK_LENGTH = {block_length}\n"
     if min_periods is not None:
         structural += f"MIN_PERIODS = {min_periods}\n"
-    if cycle_length is not None:
-        structural += f"CYCLE_LENGTH = {cycle_length}\n"
+    trend_on_series = (
+        claim_type is ClaimType.TREND and scheme is PermutationScheme.BLOCK_DIFFERENCED
+    )
+    if cycle_length is not None or trend_on_series:
+        structural += f"CYCLE_LENGTH = {cycle_length!r}\n"
     if claim_type is ClaimType.FORECAST:
         if forecast is None:
             raise ValueError("a forecast claim is rendered from its forecast plan; none was given")
