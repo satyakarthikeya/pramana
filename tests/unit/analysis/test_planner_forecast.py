@@ -115,3 +115,13 @@ def test_the_model_cannot_pick_the_method_it_is_not_in_the_menu() -> None:
     from pramana.analysis.planner.models import PlannedForecastRequest
 
     assert set(PlannedForecastRequest.model_fields) == {"column", "horizon"}
+
+
+def test_a_request_is_dropped_when_the_exploration_periods_are_too_few_to_choose_a_baseline(
+    hyp, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _on(monkeypatch)
+    script = Script(spec(forecast_requests=[{"column": "revenue", "horizon": 2}]))
+    outcome = plan(finance(26), hyp, script)
+    assert outcome.candidates == []
+    assert "too few to choose a method and a baseline" in outcome.record.dropped[0].reason

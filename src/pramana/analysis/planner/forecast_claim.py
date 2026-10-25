@@ -182,7 +182,15 @@ def render_forecast_candidate(
     values, period = laid
     season = settings.seasonal_length[period]
     method, baseline, reduction, how = _select(values, season, request.horizon, settings)
-    if reduction is not None and reduction <= 0.0:
+    if reduction is None:
+        # Too few exploration periods to choose a baseline: the default (seasonal-naive) is a weak
+        # bar on a series without a season, so the claim is not proposed rather than guessed at.
+        return None, (
+            "not_renderable",
+            f"the exploration periods are too few to choose a method and a baseline for "
+            f"{target} ({how}), so the claim was not spent on the test",
+        )
+    if reduction <= 0.0:
         return None, (
             "not_renderable",
             f"on the exploration periods no method beat the {baseline.replace('_', '-')} "
