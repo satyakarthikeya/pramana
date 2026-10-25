@@ -33,7 +33,7 @@ export function Badge({
   proof,
   single = false,
 }: {
-  proof: Pick<Proof, "verdict" | "gate_outcome" | "q_value">;
+  proof: Pick<Proof, "verdict" | "gate_outcome" | "q_value"> & { forecast?: Proof["forecast"] };
   /** A chat-asked claim: tested alone, so the q-value is not corrected for earlier tests. */
   single?: boolean;
 }) {
@@ -59,6 +59,17 @@ export function Badge({
     case "verified":
       // Defence in depth: a "supported" outcome without a PASS verdict is never drawn as verified.
       if (proof.verdict !== "PASS") break;
+      if (proof.forecast) {
+        // A forecast claim is about past accuracy on unseen periods, never about the next ones.
+        return (
+          <span
+            className="badge badge-pass"
+            aria-label={`Held up in backtest: q = ${fmtP(proof.q_value)} is below ${a}; this measures past accuracy and does not guarantee the next periods`}
+          >
+            <Check /> HELD UP IN BACKTEST
+          </span>
+        );
+      }
       return (
         <span
           className="badge badge-pass"
