@@ -23,6 +23,8 @@ verification gateway). Models propose; code computes and decides.
 5. Never commit data, `.env`, keys or personal details; stage explicit paths. Never
    renumber sections of AGENTS.md, PROJECT.md §1-§8 or SCOPE.md §2-§7 (code cites them).
 
+- Do not read `tests/` unless the task changes the code a test covers; they are about 18,000 lines.
+
 ## Commands
 
 ```bash

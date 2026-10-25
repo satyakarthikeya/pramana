@@ -24,5 +24,6 @@ def _offline_template_generator(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PRAMANA_ANALYSIS_ENGINE", "deterministic")
     monkeypatch.setenv("PRAMANA_SECTOR_ENGINE", "rules")
     monkeypatch.setenv("PRAMANA_SUMMARY_ENGINE", "template")
+    monkeypatch.setenv("PRAMANA_ANALYST_ENGINE", "template")
     # The Measured tier fits models after an upload; only tests that look at it turn it on.
     monkeypatch.setenv("PRAMANA_MEASURED_ENABLED", "0")
